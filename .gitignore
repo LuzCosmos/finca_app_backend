@@ -1,3 +1,12 @@
+# Archivos de configuración sensibles
+.env
+.conf
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+
 # compiled output
 /dist
 /node_modules
@@ -36,7 +45,6 @@ lerna-debug.log*
 !.vscode/extensions.json
 
 # dotenv environment variable files
-.env
 .env.development.local
 .env.test.local
 .env.production.local
