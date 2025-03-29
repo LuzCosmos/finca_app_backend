@@ -23,7 +23,7 @@ export class DevicesService {
     this.chirpstackApiUrl = this.configService.get('chirpstack.api_url');
     this.chirpstackApiToken = this.configService.get('chirpstack.api_token');
     this.applicationId = this.configService.get('chirpstack.application_id');
-    this.defaultJoinEui = '0000000000000000';
+    this.defaultJoinEui = this.configService.get('chirpstack.device_profiles.cattle_join_eui');
     this.cattleProfileId = this.configService.get('chirpstack.device_profiles.cattle_profile_id');
     this.climateProfileId = this.configService.get('chirpstack.device_profiles.climate_profile_id');
     this.nwkKey = this.configService.get('chirpstack.device_profiles.nwk_key');
@@ -39,15 +39,6 @@ export class DevicesService {
       return request;
     });
 
-    // Debug logs
-    this.logger.debug('Configuration loaded:');
-    this.logger.debug(`API URL: ${this.chirpstackApiUrl}`);
-    this.logger.debug(`API Token: ${this.chirpstackApiToken}`);
-    this.logger.debug(`Application ID: ${this.applicationId}`);
-    this.logger.debug(`Cattle Profile ID: ${this.cattleProfileId}`);
-    this.logger.debug(`Climate Profile ID: ${this.climateProfileId}`);
-    this.logger.debug(`NWK Key: ${this.nwkKey}`);
-    this.logger.debug(`APP Key: ${this.appKey}`);
 
     if (!this.applicationId) {
       this.logger.error('Application ID is not configured in .conf file');

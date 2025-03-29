@@ -25,5 +25,6 @@ application_id = your_chirpstack_application_id
 [chirpstack.device_profiles]
 cattle_profile_id = your_chirpstack_cattle_profile_id
 climate_profile_id = your_chirpstack_climate_profile_id
+cattle_join_eui = app_key_of_device
 nwk_key = your_network_key  # 32 caracteres hexadecimales, Es la clave que usamos para la seguridad de la red
 app_key = your_app_key      # 32 caracteres hexadecimales
