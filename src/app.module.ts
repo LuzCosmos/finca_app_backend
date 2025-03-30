@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DevicesModule } from './devices/devices.module';
 import { ConfigModule as CustomConfigModule } from './config/config.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ConfigModule as CustomConfigModule } from './config/config.module';
     }),
     CustomConfigModule,
     DevicesModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

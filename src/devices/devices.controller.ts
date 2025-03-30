@@ -6,12 +6,18 @@ import {
   Param,
   UploadedFile, 
   UseInterceptors,
-  BadRequestException 
+  BadRequestException,
+  UseGuards
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DevicesService } from './devices.service';
 import { Device } from './interfaces/device.interface';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Dispositivos')
+@ApiBearerAuth('access-token')
+@UseGuards(JwtAuthGuard)
 @Controller('devices')
 export class DevicesController {
   constructor(private readonly devicesService: DevicesService) {}
