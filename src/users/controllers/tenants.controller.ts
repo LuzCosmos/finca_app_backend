@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, UseGuards, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantsService } from '../services/tenants.service';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
@@ -25,7 +25,7 @@ export class TenantsController {
     return this.tenantsService.create(createTenantDto);
   }
 
-  @Post('list')
+  @Get()
   @ApiOperation({ summary: 'Obtener todos los tenants' })
   @ApiResponse({
     status: 200,
@@ -36,7 +36,7 @@ export class TenantsController {
     return this.tenantsService.findAll();
   }
 
-  @Post('detail/:id')
+  @Get(':id')
   @ApiOperation({ summary: 'Obtener un tenant por ID' })
   @ApiResponse({
     status: 200,

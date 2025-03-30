@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, UseGuards, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { RolesService } from '../services/roles.service';
 import { CreateRoleDto } from '../dto/create-role.dto';
@@ -24,7 +24,7 @@ export class RolesController {
     return this.rolesService.create(createRoleDto);
   }
 
-  @Post('list')
+  @Get()
   @ApiOperation({ summary: 'Obtener todos los roles' })
   @ApiResponse({
     status: 200,
@@ -35,7 +35,7 @@ export class RolesController {
     return this.rolesService.findAll();
   }
 
-  @Post('detail/:id')
+  @Get(':id')
   @ApiOperation({ summary: 'Obtener un rol por ID' })
   @ApiResponse({
     status: 200,
