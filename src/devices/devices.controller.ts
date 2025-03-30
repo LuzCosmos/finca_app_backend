@@ -27,7 +27,7 @@ export class DevicesController {
     return await this.devicesService.createSingleDevice(device);
   }
 
-  @Put(':deviceEUI')
+  @Post(':deviceEUI/update')
   async updateDevice(
     @Param('deviceEUI') deviceEUI: string,
     @Body() device: Device

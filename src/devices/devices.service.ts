@@ -2,14 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import * as Excel from 'xlsx';
 import { Device, DeviceExcelRow, ChirpstackDevice } from './interfaces/device.interface';
-import { ConfigService } from '../config/config.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class DevicesService {
   private readonly logger = new Logger(DevicesService.name);
   private readonly chirpstackApiUrl: string;
   private readonly chirpstackApiToken: string;
-  private readonly applicationId: string;
+  private readonly chirpstackTenantId: string;
+  private readonly chirpstackApplicationId: string;
   private readonly defaultJoinEui: string;
   private readonly cattleProfileId: string;
   private readonly climateProfileId: string;
@@ -20,14 +21,47 @@ export class DevicesService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.chirpstackApiUrl = this.configService.get('chirpstack.api_url');
-    this.chirpstackApiToken = this.configService.get('chirpstack.api_token');
-    this.applicationId = this.configService.get('chirpstack.application_id');
-    this.defaultJoinEui = this.configService.get('chirpstack.device_profiles.cattle_join_eui');
-    this.cattleProfileId = this.configService.get('chirpstack.device_profiles.cattle_profile_id');
-    this.climateProfileId = this.configService.get('chirpstack.device_profiles.climate_profile_id');
-    this.nwkKey = this.configService.get('chirpstack.device_profiles.nwk_key');
-    this.appKey = this.configService.get('chirpstack.device_profiles.app_key');
+    // Obtener configuración de ChirpStack directamente de las variables de entorno
+    const apiUrl = this.configService.get<string>('CHIRPSTACK_API_URL');
+    const apiToken = this.configService.get<string>('CHIRPSTACK_API_TOKEN');
+    const tenantId = this.configService.get<string>('CHIRPSTACK_TENANT_ID');
+    const applicationId = this.configService.get<string>('CHIRPSTACK_APPLICATION_ID');
+    const joinEui = this.configService.get<string>('CHIRPSTACK_CATTLE_JOIN_EUI');
+    const profileId = this.configService.get<string>('CHIRPSTACK_CATTLE_PROFILE_ID');
+
+    // Validar que todas las variables de entorno necesarias estén definidas
+    if (!apiUrl) {
+      throw new Error('CHIRPSTACK_API_URL no está definida en las variables de entorno');
+    }
+    if (!apiToken) {
+      throw new Error('CHIRPSTACK_API_TOKEN no está definida en las variables de entorno');
+    }
+    if (!tenantId) {
+      throw new Error('CHIRPSTACK_TENANT_ID no está definida en las variables de entorno');
+    }
+    if (!applicationId) {
+      throw new Error('CHIRPSTACK_APPLICATION_ID no está definida en las variables de entorno');
+    }
+    if (!joinEui) {
+      throw new Error('CHIRPSTACK_CATTLE_JOIN_EUI no está definida en las variables de entorno');
+    }
+    if (!profileId) {
+      throw new Error('CHIRPSTACK_CATTLE_PROFILE_ID no está definida en las variables de entorno');
+    }
+
+    // Asignar valores validados
+    this.chirpstackApiUrl = this.configService.get('CHIRPSTACK_API_URL')!;
+    this.chirpstackApiToken = this.configService.get('CHIRPSTACK_API_TOKEN')!;
+    this.chirpstackTenantId = this.configService.get('CHIRPSTACK_TENANT_ID')!;
+    this.chirpstackApplicationId = this.configService.get('CHIRPSTACK_APPLICATION_ID')!;
+    this.defaultJoinEui = this.configService.get('CHIRPSTACK_CATTLE_JOIN_EUI')!;
+    this.cattleProfileId = this.configService.get('CHIRPSTACK_CATTLE_PROFILE_ID')!;
+
+    this.logger.log('DevicesService inicializado con la configuración de ChirpStack');
+
+    this.climateProfileId = this.configService.get('CHIRPSTACK_CLIMATE_PROFILE_ID')!;
+    this.nwkKey = this.configService.get('CHIRPSTACK_NWK_KEY')!;
+    this.appKey = this.configService.get('CHIRPSTACK_APP_KEY')!;
 
     // Agregar interceptor para ver los headers reales
     this.httpService.axiosRef.interceptors.request.use(request => {
@@ -38,12 +72,6 @@ export class DevicesService {
       this.logger.debug('Data:', JSON.stringify(request.data, null, 2));
       return request;
     });
-
-
-    if (!this.applicationId) {
-      this.logger.error('Application ID is not configured in .conf file');
-      throw new Error('Application ID is required');
-    }
   }
 
   async createSingleDevice(device: Device): Promise<any> {
@@ -145,25 +173,19 @@ export class DevicesService {
   }
 
   private mapToChirpstackDevice(device: Device): ChirpstackDevice {
-    this.logger.debug('Mapping device:', device);
-    
     const chirpstackDevice: ChirpstackDevice = {
-      applicationId: this.applicationId || '',
+      applicationId: this.chirpstackApplicationId,
       devEui: device.devEui,
       name: device.deviceName,
-      description: device.description,
-      deviceProfileId: device.deviceProfileId,
+      description: device.description || '',
+      deviceProfileId: device.deviceProfileId || this.cattleProfileId,
       isDisabled: device.isDisabled || false,
+      skipFcntCheck: false,
+      tags: device.tags || {},
+      variables: device.variables || {},
       joinEui: device.joinEui || this.defaultJoinEui,
-      skipFcntCheck: true,
-      tags: {
-        ...device.tags,
-        deviceType: device.deviceType
-      },
-      variables: device.variables || {}
     };
 
-    this.logger.debug('Mapped to Chirpstack device:', chirpstackDevice);
     return chirpstackDevice;
   }
 
