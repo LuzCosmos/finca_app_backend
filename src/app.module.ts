@@ -9,6 +9,8 @@ import { ConfigModule as CustomConfigModule } from './config/config.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env',
+      cache: true,
     }),
     CustomConfigModule,
     DevicesModule,
