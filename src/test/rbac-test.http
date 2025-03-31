@@ -1,0 +1,73 @@
+### Variables globales
+@baseUrl = http://localhost:3000/api/v1
+@tenantId = your_tenant_id
+@token = your_token
+
+### 1. Crear un nuevo tenant con usuario admin
+POST {{baseUrl}}/tenants
+Content-Type: application/json
+
+{
+  "name": "Test Tenant",
+  "company_username": "test_company",
+  "status": "active",
+  "admin_username": "admin_test",
+  "admin_first_name": "Admin",
+  "admin_last_name": "Test",
+  "admin_email": "admin@test.com",
+  "admin_password": "Admin123!"
+}
+
+### 2. Login como admin (guarda el tenant_id y token de la respuesta)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin_test",
+  "tenant_id": "{{tenantId}}",
+  "password": "Admin123!"
+}
+
+### 3. Probar permiso de creación en Employee Management (debería funcionar para admin)
+POST {{baseUrl}}/test-rbac/employee-management/test-create
+Authorization: Bearer {{token}}
+
+### 4. Probar permiso de lectura en Farm (debería funcionar para admin)
+GET {{baseUrl}}/test-rbac/farm/test-read
+Authorization: Bearer {{token}}
+
+### 5. Obtener todos los módulos accesibles
+GET {{baseUrl}}/test-rbac/my-accessible-modules
+Authorization: Bearer {{token}}
+
+### 6. Crear un nuevo usuario con roles limitados
+POST {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "limited_user",
+  "first_name": "Limited",
+  "last_name": "User",
+  "email": "limited@test.com",
+  "password": "Limited123!",
+  "roles": ["Employee"]
+}
+
+### 7. Login como usuario limitado
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "limited_user",
+  "tenant_id": "{{tenantId}}",
+  "password": "Limited123!"
+}
+
+### 8. Probar permiso de creación en Employee Management (debería fallar para usuario limitado)
+POST {{baseUrl}}/test-rbac/employee-management/test-create
+Authorization: Bearer {{token}}
+
+### 9. Obtener módulos accesibles para usuario limitado
+GET {{baseUrl}}/test-rbac/my-accessible-modules
+Authorization: Bearer {{token}} 

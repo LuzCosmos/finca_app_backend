@@ -15,6 +15,9 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
   }));
 
+  // Configuración de prefijo global
+  app.setGlobalPrefix('api/v1');
+
   // Configuración de Swagger
   const config = new DocumentBuilder()
     .setTitle('API Finca')
@@ -35,6 +38,9 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
+
+  // Configuración de CORS
+  app.enableCors();
 
   await app.listen(process.env.PORT ?? 3000);
 }
