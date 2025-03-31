@@ -23,7 +23,7 @@ export class User {
   email: string;
 
   @Column({ name: 'id_tenant', nullable: false })
-  idTenant: string;
+  tenantId: string;
 
   @ManyToOne(() => Tenant)
   @JoinColumn({ name: 'id_tenant' })

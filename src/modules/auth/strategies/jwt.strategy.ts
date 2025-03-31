@@ -2,11 +2,13 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { UsersService } from '../../employee-management/services/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
+    private usersService: UsersService,
   ) {
     const jwtSecret = configService.get<string>('JWT_SECRET');
     if (!jwtSecret) {
@@ -21,10 +23,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // Aquí puedes agregar validaciones adicionales del token
-    if (!payload) {
+    if (!payload || !payload.sub) {
       throw new UnauthorizedException();
     }
-    return payload;
+
+    const user = await this.usersService.findOneWithPassword(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    return user;
   }
 } 

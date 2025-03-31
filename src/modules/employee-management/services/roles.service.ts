@@ -1,12 +1,11 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Role } from '../entities/role.entity';
 import { RoleModulePermission } from '../entities/role-module-permission.entity';
 import { ModuleEntity } from '../entities/module.entity';
 import { User } from '../entities/user.entity';
 import { ModuleAction } from '../../auth/types/module-action.type';
-import { In } from 'typeorm';
 
 interface CreatePermissionDto {
   can_create: boolean;
@@ -25,6 +24,8 @@ export class RolesService {
     private readonly permissionRepository: Repository<RoleModulePermission>,
     @InjectRepository(ModuleEntity)
     private readonly moduleRepository: Repository<ModuleEntity>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {this.initializeRolesModuleId()}
 
   private async initializeRolesModuleId() {
@@ -38,11 +39,24 @@ export class RolesService {
     this.rolesModuleId = employeeManagementModule.id;
   }
 
-  // Métodos de solo lectura para roles
-  async findAll(): Promise<Role[]> {
-    return this.roleRepository.find({
+  async findAll(user: User): Promise<Role[]> {
+    // Primero verificamos si el usuario tiene permiso de lectura
+    const hasPermission = await this.hasPermission(
+      user,
+      this.rolesModuleId,
+      'read'
+    );
+
+    if (!hasPermission) {
+      throw new ForbiddenException('No tienes permisos para ver roles');
+    }
+
+    // Obtenemos los roles con sus permisos
+    const roles = await this.roleRepository.find({
       relations: ['permissions', 'permissions.module']
     });
+
+    return roles;
   }
 
   async findOne(id: string): Promise<Role> {
@@ -162,16 +176,27 @@ export class RolesService {
     moduleId: string,
     action: ModuleAction
   ): Promise<boolean> {
+    // Aseguramos que el usuario tenga roles cargados
     if (!user.roles || user.roles.length === 0) {
       return false;
     }
 
-    const roleIds = user.roles.map(role => role.id);
+    // Verificamos que los roles tengan la relación con los permisos
+    const userWithRoles = await this.userRepository.findOne({
+      where: { id: user.id },
+      relations: ['roles']
+    });
+
+    if (!userWithRoles || !userWithRoles.roles || userWithRoles.roles.length === 0) {
+      return false;
+    }
+
+    const roleIds = userWithRoles.roles.map(role => role.id);
 
     const permissions = await this.permissionRepository.find({
       where: {
         id_role: In(roleIds),
-        tenant_id: user.idTenant,
+        tenant_id: user.tenantId,
         id_module: moduleId
       }
     });

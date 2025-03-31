@@ -56,24 +56,36 @@ export class UsersService {
     return plainToInstance(UserResponseDto, savedUser);
   }
 
-  async findAll(): Promise<UserResponseDto[]> {
-    const users = await this.userRepository.find({
-      relations: ['roles', 'tenant']
+  async findAll(currentUser: User): Promise<User[]> {
+    // Verificar permisos
+    const hasPermission = await this.hasPermission(currentUser.id, currentUser.tenantId, 'read');
+    if (!hasPermission) {
+      throw new ForbiddenException('No tienes permisos para ver usuarios');
+    }
+
+    // Obtener usuarios solo del tenant actual
+    return this.userRepository.find({
+      where: {
+        tenantId: currentUser.tenantId
+      },
+      relations: ['roles', 'roles.permissions', 'roles.permissions.module']
     });
-    return users.map(user => plainToInstance(UserResponseDto, user));
   }
 
   async findByTenant(tenantId: string): Promise<UserResponseDto[]> {
     const users = await this.userRepository.find({
-      where: { idTenant: tenantId },
+      where: { tenantId: tenantId },
       relations: ['roles', 'tenant']
     });
     return users.map(user => plainToInstance(UserResponseDto, user));
   }
 
-  async findOne(id: string): Promise<UserResponseDto> {
+  async findOne(id: string, currentUser: User): Promise<UserResponseDto> {
     const user = await this.userRepository.findOne({
-      where: { id },
+      where: { 
+        id,
+        tenantId: currentUser.tenantId
+      },
       relations: ['roles', 'tenant']
     });
     if (!user) {
@@ -85,7 +97,7 @@ export class UsersService {
   async findOneWithPassword(id: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['roles', 'tenant']
+      relations: ['roles', 'roles.permissions', 'roles.permissions.module', 'tenant']
     });
     if (!user) {
       throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
@@ -96,17 +108,17 @@ export class UsersService {
   async update(
     id: string, 
     updateUserDto: UpdateUserDto, 
-    currentUserId: string,
-    currentUserTenantId: string
+    currentUser: User
   ): Promise<UserResponseDto> {
     const user = await this.findOneWithPassword(id);
-    const isOwnUser = currentUserId === id;
     
     // Verificar si es el propio usuario o tiene permisos de actualización
+    const isOwnUser = currentUser.id === id;
+    
     if (!isOwnUser) {
       const hasUpdatePermission = await this.hasPermission(
-        currentUserId,
-        currentUserTenantId,
+        currentUser.id,
+        currentUser.tenantId,
         'update'
       );
       if (!hasUpdatePermission) {
@@ -161,7 +173,23 @@ export class UsersService {
     return plainToInstance(UserResponseDto, updatedUser);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, currentUser: User): Promise<void> {
+    const user = await this.findOneWithPassword(id);
+    
+    // Verificar si es el propio usuario o tiene permisos de eliminación
+    const isOwnUser = currentUser.id === id;
+    
+    if (!isOwnUser) {
+      const hasDeletePermission = await this.hasPermission(
+        currentUser.id,
+        currentUser.tenantId,
+        'delete'
+      );
+      if (!hasDeletePermission) {
+        throw new ForbiddenException('No tienes permisos para eliminar otros usuarios');
+      }
+    }
+
     const result = await this.userRepository.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
@@ -170,7 +198,7 @@ export class UsersService {
 
   async findByUsername(username: string, tenantId: string): Promise<User | undefined> {
     const user = await this.userRepository.findOne({
-      where: { username, idTenant: tenantId },
+      where: { username, tenantId: tenantId },
       relations: ['roles', 'tenant']
     });
     return user || undefined;
@@ -187,7 +215,7 @@ export class UsersService {
   async hasPermission(userId: string, tenantId: string, action: ModuleAction): Promise<boolean> {
     const user = await this.findOneWithPassword(userId);
     
-    if (!user || user.idTenant !== tenantId) {
+    if (!user || user.tenantId !== tenantId) {
       throw new ForbiddenException('El usuario no pertenece a este tenant');
     }
 
@@ -200,8 +228,8 @@ export class UsersService {
 
   async createAdminUser(dto: CreateAdminUserDto): Promise<UserResponseDto> {
     const where: FindOptionsWhere<User>[] = [
-      { username: dto.username, idTenant: dto.tenantId },
-      { email: dto.email, idTenant: dto.tenantId }
+      { username: dto.username, tenantId: dto.tenantId },
+      { email: dto.email, tenantId: dto.tenantId }
     ];
 
     const existingUser = await this.userRepository.findOne({ where });
@@ -223,7 +251,7 @@ export class UsersService {
       email: dto.email,
       firstName: dto.firstName,
       lastName: dto.lastName,
-      idTenant: dto.tenantId,
+      tenantId: dto.tenantId,
       roles: [adminRole]
     });
 

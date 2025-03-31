@@ -20,7 +20,7 @@ export class UserResponseDto {
   email: string;
 
   @Expose()
-  idTenant: string;
+  tenantId: string;
 
   @Expose()
   tenant: Tenant;

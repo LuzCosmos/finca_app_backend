@@ -36,6 +36,11 @@ import { ModuleEntity } from './entities/module.entity';
     UsersService,
     ModulesService
   ],
-  exports: [UsersService, RolesService, ModulesService]
+  exports: [
+    UsersService,
+    RolesService,
+    ModulesService,
+    TenantsService
+  ]
 })
 export class EmployeeManagementModule {} 

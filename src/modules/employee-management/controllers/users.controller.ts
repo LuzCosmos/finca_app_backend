@@ -9,6 +9,7 @@ import { ModuleAccessGuard } from 'src/modules/auth/guards/module-access.guard';
 import { RequireModule, RequireAction } from '../../auth/decorators/module-access.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { UserResponseDto } from '../dto/user-response.dto';
+import { plainToInstance } from 'class-transformer';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -29,7 +30,7 @@ export class UsersController {
   @ApiResponse({ status: 403, description: 'No tienes permisos para crear usuarios' })
   async create(@CurrentUser() currentUser: User, @Body() createUserDto: CreateUserDto) {
     // El tenantId se toma del usuario actual
-    createUserDto.tenantId = currentUser.idTenant;
+    createUserDto.tenantId = currentUser.tenantId;
     return this.usersService.create(createUserDto);
   }
 
@@ -39,10 +40,12 @@ export class UsersController {
   @ApiResponse({
     status: 200,
     description: 'Lista de usuarios obtenida exitosamente',
-    type: [User]
+    type: [UserResponseDto]
   })
-  async findAll(@CurrentUser() currentUser: User) {
-    return this.usersService.findByTenant(currentUser.idTenant);
+  @ApiResponse({ status: 403, description: 'No tienes permisos para ver usuarios' })
+  async findAll(@CurrentUser() currentUser: User): Promise<UserResponseDto[]> {
+    const users = await this.usersService.findAll(currentUser);
+    return users.map(user => plainToInstance(UserResponseDto, user));
   }
 
   @Get(':id')
@@ -55,14 +58,10 @@ export class UsersController {
   })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async findOne(@CurrentUser() currentUser: User, @Param('id') id: string) {
-    const user = await this.usersService.findOne(id);
-    if (user.idTenant !== currentUser.idTenant) {
-      throw new ForbiddenException('No tienes permisos para ver este usuario');
-    }
-    return user;
+    return this.usersService.findOne(id, currentUser);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @RequireAction('update')
   @ApiOperation({ summary: 'Actualizar un usuario' })
   @ApiResponse({
@@ -72,32 +71,22 @@ export class UsersController {
   })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async update(
+    @CurrentUser() currentUser: User,
     @Param('id') id: string,
-    @Body() updateUserDto: UpdateUserDto,
-    @Request() req: any
+    @Body() updateUserDto: UpdateUserDto
   ) {
-    const user = await this.usersService.findOne(id);
-    if (user.idTenant !== req.user.idTenant) {
-      throw new ForbiddenException('No tienes permisos para actualizar este usuario');
-    }
-    return this.usersService.update(
-      id, 
-      updateUserDto, 
-      req.user.id,
-      req.user.idTenant
-    );
+    return this.usersService.update(id, updateUserDto, currentUser);
   }
 
   @Delete(':id')
   @RequireAction('delete')
   @ApiOperation({ summary: 'Eliminar un usuario' })
-  @ApiResponse({ status: 200, description: 'Usuario eliminado exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Usuario eliminado exitosamente'
+  })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async remove(@CurrentUser() currentUser: User, @Param('id') id: string) {
-    const user = await this.usersService.findOne(id);
-    if (user.idTenant !== currentUser.idTenant) {
-      throw new ForbiddenException('No tienes permisos para eliminar este usuario');
-    }
-    return this.usersService.remove(id);
+    return this.usersService.remove(id, currentUser);
   }
 } 

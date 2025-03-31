@@ -89,4 +89,14 @@ export class TenantsService {
       throw new NotFoundException(`Tenant con ID ${id} no encontrado`);
     }
   }
+
+  async findByCompanyUsername(company_username: string): Promise<Tenant> {
+    const tenant = await this.tenantRepository.findOne({ 
+      where: { company_username } 
+    });
+    if (!tenant) {
+      throw new NotFoundException(`Tenant con company_username ${company_username} no encontrado`);
+    }
+    return tenant;
+  }
 } 

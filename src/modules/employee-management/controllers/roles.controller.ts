@@ -1,14 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, ForbiddenException } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from '../../auth/guards/module-access.guard';
-import { RequireModule } from '../../auth/decorators/require-module.decorator';
-import { RequireAction } from '../../auth/decorators/require-action.decorator';
-import { GetUser } from '../../auth/decorators/get-user.decorator';
+import { RequireModule, RequireAction } from '../../auth/decorators/module-access.decorator';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { RolesService } from '../services/roles.service';
 import { Role } from '../entities/role.entity';
 import { RoleModulePermission } from '../entities/role-module-permission.entity';
 import { User } from '../entities/user.entity';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
 class UpdatePermissionDto {
   can_create: boolean;
@@ -18,7 +17,7 @@ class UpdatePermissionDto {
 }
 
 @ApiTags('Roles')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @Controller('roles')
 @UseGuards(JwtAuthGuard, ModuleAccessGuard)
 @RequireModule('Employee Management')
@@ -28,73 +27,100 @@ export class RolesController {
   @Get()
   @RequireAction('read')
   @ApiOperation({ summary: 'Obtener todos los roles' })
-  async findAll(): Promise<Role[]> {
-    return this.rolesService.findAll();
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de roles obtenida exitosamente',
+    type: [Role]
+  })
+  @ApiResponse({ status: 403, description: 'No tienes permisos para ver roles' })
+  async findAll(@CurrentUser() currentUser: User) {
+    return this.rolesService.findAll(currentUser);
   }
 
   @Get(':id')
   @RequireAction('read')
   @ApiOperation({ summary: 'Obtener un rol por ID' })
-  async findOne(@Param('id') id: string): Promise<Role> {
+  @ApiResponse({
+    status: 200,
+    description: 'Rol encontrado exitosamente',
+    type: Role
+  })
+  @ApiResponse({ status: 404, description: 'Rol no encontrado' })
+  findOne(@Param('id') id: string) {
     return this.rolesService.findOne(id);
   }
 
-  @Post(':roleId/modules/:moduleId/permissions')
+  @Post(':roleId/permissions')
   @RequireAction('create')
-  @ApiOperation({ summary: 'Crear permisos para un módulo específico' })
-  async createPermission(
-    @GetUser() user: User,
+  @ApiOperation({ summary: 'Crear permiso para un rol' })
+  @ApiResponse({
+    status: 201,
+    description: 'Permiso creado exitosamente',
+    type: RoleModulePermission
+  })
+  createPermission(
+    @CurrentUser() currentUser: User,
     @Param('roleId') roleId: string,
-    @Param('moduleId') moduleId: string,
-    @Body() permissions: UpdatePermissionDto
-  ): Promise<RoleModulePermission> {
+    @Body() createPermissionDto: any
+  ) {
     return this.rolesService.createPermission(
       roleId,
-      user.tenant.id,
-      moduleId,
-      permissions
+      currentUser.tenantId,
+      createPermissionDto.moduleId,
+      createPermissionDto
     );
   }
 
-  @Put(':roleId/modules/:moduleId/permissions')
+  @Put(':roleId/permissions/:moduleId')
   @RequireAction('update')
-  @ApiOperation({ summary: 'Actualizar permisos para un módulo específico' })
-  async updatePermission(
-    @GetUser() user: User,
+  @ApiOperation({ summary: 'Actualizar permiso de un rol' })
+  @ApiResponse({
+    status: 200,
+    description: 'Permiso actualizado exitosamente',
+    type: RoleModulePermission
+  })
+  updatePermission(
+    @CurrentUser() currentUser: User,
     @Param('roleId') roleId: string,
     @Param('moduleId') moduleId: string,
-    @Body() permissions: UpdatePermissionDto
-  ): Promise<RoleModulePermission> {
+    @Body() updatePermissionDto: any
+  ) {
     return this.rolesService.updatePermission(
       roleId,
-      user.tenant.id,
+      currentUser.tenantId,
       moduleId,
-      permissions
+      updatePermissionDto
     );
   }
 
-  @Delete(':roleId/modules/:moduleId/permissions')
+  @Delete(':roleId/permissions/:moduleId')
   @RequireAction('delete')
-  @ApiOperation({ summary: 'Eliminar permisos para un módulo específico' })
-  async deletePermission(
-    @GetUser() user: User,
+  @ApiOperation({ summary: 'Eliminar permiso de un rol' })
+  @ApiResponse({ status: 200, description: 'Permiso eliminado exitosamente' })
+  removePermission(
+    @CurrentUser() currentUser: User,
     @Param('roleId') roleId: string,
     @Param('moduleId') moduleId: string
-  ): Promise<void> {
+  ) {
     return this.rolesService.deletePermission(
       roleId,
-      user.tenant.id,
+      currentUser.tenantId,
       moduleId
     );
   }
 
   @Get(':roleId/permissions')
   @RequireAction('read')
-  @ApiOperation({ summary: 'Listar todos los permisos de un rol' })
-  async listPermissions(
-    @GetUser() user: User,
+  @ApiOperation({ summary: 'Listar permisos de un rol' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de permisos obtenida exitosamente',
+    type: [RoleModulePermission]
+  })
+  listPermissions(
+    @CurrentUser() currentUser: User,
     @Param('roleId') roleId: string
-  ): Promise<RoleModulePermission[]> {
-    return this.rolesService.listPermissions(roleId, user.tenant.id);
+  ) {
+    return this.rolesService.listPermissions(roleId, currentUser.tenantId);
   }
 } 
