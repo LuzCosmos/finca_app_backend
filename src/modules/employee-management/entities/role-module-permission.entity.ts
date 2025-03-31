@@ -3,7 +3,7 @@ import { Role } from './role.entity';
 import { ModuleEntity } from './module.entity';
 import { Tenant } from './tenant.entity';
 
-@Entity('role_model_permissions')
+@Entity('role_module_permissions')
 export class RoleModulePermission {
   @PrimaryGeneratedColumn('uuid')
   id: string;
