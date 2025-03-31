@@ -22,7 +22,7 @@ export class TenantsController {
   async create(@Body() createTenantDto: CreateTenantDto): Promise<Tenant> {
     return this.tenantsService.create(createTenantDto);
   }
-
+/*
   @Get()
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
@@ -34,7 +34,7 @@ export class TenantsController {
   })
   async findAll(): Promise<Tenant[]> {
     return this.tenantsService.findAll();
-  }
+  }*/
 
   @Get(':id')
   @ApiBearerAuth('access-token')
@@ -49,7 +49,7 @@ export class TenantsController {
   async findOne(@Param('id') id: string): Promise<Tenant> {
     return this.tenantsService.findOne(id);
   }
-
+/*
   @Post(':id/update')
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
@@ -66,7 +66,8 @@ export class TenantsController {
   ): Promise<Tenant> {
     return this.tenantsService.update(id, updateTenantDto);
   }
-
+*/
+/*
   @Delete(':id')
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
@@ -76,4 +77,5 @@ export class TenantsController {
   async remove(@Param('id') id: string): Promise<void> {
     return this.tenantsService.remove(id);
   }
+*/
 } 

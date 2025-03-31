@@ -1,12 +1,14 @@
-import { Controller, Post, Body, Param, Delete, UseGuards, Get, ForbiddenException, Put } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, UseGuards, Get, ForbiddenException, Put, Patch, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dto/create-user.dto';
+import { UpdateUserDto } from '../dto/update-user.dto';
 import { User } from '../entities/user.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ModuleAccessGuard } from 'src/modules/auth/guards/module-access.guard';
 import { RequireModule, RequireAction } from '../../auth/decorators/module-access.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { UserResponseDto } from '../dto/user-response.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -60,7 +62,7 @@ export class UsersController {
     return user;
   }
 
-  @Put(':id')
+  @Patch(':id')
   @RequireAction('update')
   @ApiOperation({ summary: 'Actualizar un usuario' })
   @ApiResponse({
@@ -70,15 +72,20 @@ export class UsersController {
   })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async update(
-    @CurrentUser() currentUser: User,
     @Param('id') id: string,
-    @Body() updateUserDto: Partial<CreateUserDto>
+    @Body() updateUserDto: UpdateUserDto,
+    @Request() req: any
   ) {
     const user = await this.usersService.findOne(id);
-    if (user.idTenant !== currentUser.idTenant) {
+    if (user.idTenant !== req.user.idTenant) {
       throw new ForbiddenException('No tienes permisos para actualizar este usuario');
     }
-    return this.usersService.update(id, updateUserDto);
+    return this.usersService.update(
+      id, 
+      updateUserDto, 
+      req.user.id,
+      req.user.idTenant
+    );
   }
 
   @Delete(':id')

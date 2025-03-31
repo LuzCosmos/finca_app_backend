@@ -29,9 +29,9 @@ export class UsersService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(Role)
-    private rolesRepository: Repository<Role>,
+    private readonly rolesRepository: Repository<Role>,
     @InjectRepository(ModuleEntity)
-    private modulesRepository: Repository<ModuleEntity>,
+    private readonly modulesRepository: Repository<ModuleEntity>,
     private readonly rolesService: RolesService,
   ) {this.initializeUsersModuleId()}
 
@@ -93,16 +93,69 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
+  async update(
+    id: string, 
+    updateUserDto: UpdateUserDto, 
+    currentUserId: string,
+    currentUserTenantId: string
+  ): Promise<UserResponseDto> {
     const user = await this.findOneWithPassword(id);
+    const isOwnUser = currentUserId === id;
     
-    if (updateUserDto.password) {
-      updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
+    // Verificar si es el propio usuario o tiene permisos de actualización
+    if (!isOwnUser) {
+      const hasUpdatePermission = await this.hasPermission(
+        currentUserId,
+        currentUserTenantId,
+        'update'
+      );
+      if (!hasUpdatePermission) {
+        throw new ForbiddenException('No tienes permisos para modificar otros usuarios');
+      }
     }
-    
+
+    // Crear objeto con los cambios permitidos
+    const allowedChanges: Partial<User> = {};
+
+    // Campos que cualquier usuario puede modificar de sí mismo
+    if (isOwnUser) {
+      if (updateUserDto.firstName) allowedChanges.firstName = updateUserDto.firstName;
+      if (updateUserDto.lastName) allowedChanges.lastName = updateUserDto.lastName;
+      if (updateUserDto.email) allowedChanges.email = updateUserDto.email;
+      if (updateUserDto.username) allowedChanges.username = updateUserDto.username;
+      if (updateUserDto.password) {
+        allowedChanges.password = await bcrypt.hash(updateUserDto.password, 10);
+      }
+    }
+
+    // Campos que solo los administradores pueden modificar
+    if (!isOwnUser) {
+      if (updateUserDto.firstName) allowedChanges.firstName = updateUserDto.firstName;
+      if (updateUserDto.lastName) allowedChanges.lastName = updateUserDto.lastName;
+      if (updateUserDto.email) allowedChanges.email = updateUserDto.email;
+      if (updateUserDto.username) allowedChanges.username = updateUserDto.username;
+      if (updateUserDto.password) {
+        allowedChanges.password = await bcrypt.hash(updateUserDto.password, 10);
+      }
+      
+      // Roles solo pueden ser modificados por administradores
+      if (updateUserDto.roleIds) {
+        const roles = await this.rolesRepository.findByIds(updateUserDto.roleIds);
+        if (roles.length !== updateUserDto.roleIds.length) {
+          throw new NotFoundException('Uno o más roles no encontrados');
+        }
+        allowedChanges.roles = roles;
+      }
+    }
+
+    // Nunca permitir cambiar el tenant
+    if (updateUserDto.tenantId) {
+      throw new ForbiddenException('No se permite modificar el tenant de un usuario');
+    }
+
     const updatedUser = await this.userRepository.save({
       ...user,
-      ...updateUserDto,
+      ...allowedChanges,
     });
     
     return plainToInstance(UserResponseDto, updatedUser);
@@ -138,18 +191,11 @@ export class UsersService {
       throw new ForbiddenException('El usuario no pertenece a este tenant');
     }
 
-    for (const role of user.roles) {
-      const hasPermission = await this.rolesService.hasPermission(
-        user,
-        this.userModuleId,
-        action
-      );
-      if (hasPermission) {
-        return true;
-      }
-    }
-
-    return false;
+    return this.rolesService.hasPermission(
+      user,
+      this.userModuleId,
+      action
+    );
   }
 
   async createAdminUser(dto: CreateAdminUserDto): Promise<UserResponseDto> {

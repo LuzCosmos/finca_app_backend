@@ -22,6 +22,16 @@ export class CreateUserDto {
   username: string;
 
   @ApiProperty({
+    description: 'Contraseña del usuario',
+    example: 'Contraseña123!',
+    required: true,
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Length(8, 50)
+  password: string;
+
+  @ApiProperty({
     description: 'IDs de los roles asignados al usuario',
     example: ['123e4567-e89b-12d3-a456-426614174000'],
     required: true,
@@ -52,16 +62,6 @@ export class CreateUserDto {
   @IsNotEmpty()
   @Length(1, 50)
   lastName: string;
-
-  @ApiProperty({
-    description: 'Contraseña del usuario',
-    example: 'Contraseña123!',
-    required: true,
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Length(8, 50)
-  password: string;
 
   @ApiProperty({
     description: 'Correo electrónico del usuario',

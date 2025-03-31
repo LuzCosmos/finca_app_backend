@@ -6,6 +6,7 @@ import { RoleModulePermission } from '../entities/role-module-permission.entity'
 import { ModuleEntity } from '../entities/module.entity';
 import { User } from '../entities/user.entity';
 import { ModuleAction } from '../../auth/types/module-action.type';
+import { In } from 'typeorm';
 
 interface CreatePermissionDto {
   can_create: boolean;
@@ -16,6 +17,7 @@ interface CreatePermissionDto {
 
 @Injectable()
 export class RolesService {
+  private rolesModuleId: string;
   constructor(
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
@@ -23,7 +25,18 @@ export class RolesService {
     private readonly permissionRepository: Repository<RoleModulePermission>,
     @InjectRepository(ModuleEntity)
     private readonly moduleRepository: Repository<ModuleEntity>,
-  ) {}
+  ) {this.initializeRolesModuleId()}
+
+  private async initializeRolesModuleId() {
+    const employeeManagementModule = await this.moduleRepository.findOne({ 
+      where: { name: 'Employee Management' } 
+    });
+    
+    if (!employeeManagementModule) {
+      throw new Error('Módulo Employee Management no encontrado');
+    }
+    this.rolesModuleId = employeeManagementModule.id;
+  }
 
   // Métodos de solo lectura para roles
   async findAll(): Promise<Role[]> {
@@ -149,21 +162,25 @@ export class RolesService {
     moduleId: string,
     action: ModuleAction
   ): Promise<boolean> {
-    // Verificar si alguno de los roles del usuario tiene el permiso requerido
-    for (const role of user.roles) {
-      const permission = await this.permissionRepository.findOne({
-        where: {
-          id_role: role.id,
-          tenant_id: user.idTenant,
-          id_module: moduleId
-        }
-      });
-
-      if (permission && permission[`can_${action}`]) {
-        return true;
-      }
+    if (!user.roles || user.roles.length === 0) {
+      return false;
     }
 
-    return false;
+    const roleIds = user.roles.map(role => role.id);
+
+    const permissions = await this.permissionRepository.find({
+      where: {
+        id_role: In(roleIds),
+        tenant_id: user.idTenant,
+        id_module: moduleId
+      }
+    });
+
+    // Si algún rol tiene el permiso, retornamos true
+    return permissions.some(permission => permission[`can_${action}`]);
   }
+
+
+
+
 }
