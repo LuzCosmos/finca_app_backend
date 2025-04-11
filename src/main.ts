@@ -1,12 +1,21 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger, LogLevel } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // Configurar niveles de log según el entorno
+  const logLevels: LogLevel[] = process.env.NODE_ENV === 'production'
+    ? ['error', 'warn', 'log']
+    : ['error', 'warn', 'log', 'debug', 'verbose'];
+
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'debug', 'log', 'verbose'],
+    logger: logLevels,
+    bufferLogs: true, // Almacena logs hasta que el sistema de logging esté listo
   });
+
+  // Configurar el logger global con timestamp
+  app.useLogger(new Logger('FincaApp'));
 
   // Configuración de validación global
   app.useGlobalPipes(new ValidationPipe({
@@ -22,7 +31,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('API Finca')
     .setDescription('API para la aplicación de gestión de finca')
-    .setVersion('1.0')
+    .setVersion('0.0.1')
     .addBearerAuth(
       {
         type: 'http',

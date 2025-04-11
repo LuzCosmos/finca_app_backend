@@ -1,9 +1,13 @@
-import { Controller, Post, Body, Param, Delete, UseGuards, Get } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, UseGuards, Get, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantsService } from '../services/tenants.service';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
-import { Tenant } from '../interfaces/tenant.interface';
+import { Tenant } from '../entities/tenant.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
+import { RequireModule, RequireAction, RequireEntity } from 'src/modules/auth/application-permissions/application-permissions.decorator';
+import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
+import { SessionUser } from 'src/modules/auth/decorators/session-user.decorator';
 
 @ApiTags('Tenants')
 @Controller('tenants')
@@ -22,37 +26,33 @@ export class TenantsController {
   async create(@Body() createTenantDto: CreateTenantDto): Promise<Tenant> {
     return this.tenantsService.create(createTenantDto);
   }
-/*
-  @Get()
-  @ApiBearerAuth('access-token')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Obtener todos los tenants' })
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de todos los tenants',
-    type: [CreateTenantDto],
-  })
-  async findAll(): Promise<Tenant[]> {
-    return this.tenantsService.findAll();
-  }*/
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
+  @RequireModule('EMP_MGMT')
+  @RequireEntity('tenants')
+  @RequireAction('read')
   @ApiBearerAuth('access-token')
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Obtener un tenant por ID' })
   @ApiResponse({
     status: 200,
     description: 'El tenant ha sido encontrado',
-    type: CreateTenantDto,
+    type: Tenant,
   })
   @ApiResponse({ status: 404, description: 'Tenant no encontrado' })
-  async findOne(@Param('id') id: string): Promise<Tenant> {
+  async read(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string): Promise<Tenant> {
+    if(sessionUser.tenant_id !== id){
+      throw new ForbiddenException('No tienes permisos para acceder a este tenant');
+    }
     return this.tenantsService.findOne(id);
   }
 /*
   @Post(':id/update')
+  @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
+  @RequireModule('EMP_MGMT')
+  @RequireEntity('tenants')
+  @RequireAction('update')
   @ApiBearerAuth('access-token')
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Actualizar un tenant' })
   @ApiResponse({
     status: 200,
@@ -69,8 +69,11 @@ export class TenantsController {
 */
 /*
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
+  @RequireModule('EMP_MGMT')
+  @RequireEntity('tenants')
+  @RequireAction('delete')
   @ApiBearerAuth('access-token')
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Eliminar un tenant' })
   @ApiResponse({ status: 204, description: 'El tenant ha sido eliminado' })
   @ApiResponse({ status: 404, description: 'Tenant no encontrado' })
@@ -78,4 +81,20 @@ export class TenantsController {
     return this.tenantsService.remove(id);
   }
 */
+/*
+  @Get()
+  @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
+  @RequireModule('EMP_MGMT')
+  @RequireEntity('tenants')
+  @RequireAction('list')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Obtener todos los tenants' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de todos los tenants',
+    type: [CreateTenantDto],
+  })
+  async findAll(): Promise<Tenant[]> {
+    return this.tenantsService.findAll();
+  }*/
 } 

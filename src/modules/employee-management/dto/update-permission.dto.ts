@@ -37,6 +37,15 @@ export class UpdatePermissionDto {
   @IsBoolean()
   @IsOptional()
   can_delete?: boolean;
+
+  @ApiProperty({
+    description: 'Permiso para  Listar',
+    example: true,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  can_list?: boolean;
 }
 
 export class UpdatePermissionResponseDto {
@@ -87,6 +96,12 @@ export class UpdatePermissionResponseDto {
     example: true,
   })
   can_delete: boolean;
+
+  @ApiProperty({
+    description: 'Permiso para listar',
+    example: true,
+  })
+  can_list: boolean;
 
   @ApiProperty({
     description: 'Información del módulo',

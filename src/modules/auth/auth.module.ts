@@ -6,6 +6,11 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EmployeeManagementModule } from '../employee-management/employee-management.module';
+import { ApplicationPermissionsService } from './application-permissions/application-permissions.service';
+import { APP_FILTER } from '@nestjs/core';
+import { AllExceptionFilter } from './filters/all-exception.filter';
+import { ApplicationPermissionsModule } from './application-permissions/application-permissions.module';
+import { RedisModule } from './redis/redis.module';   
 
 @Module({
   imports: [
@@ -20,10 +25,15 @@ import { EmployeeManagementModule } from '../employee-management/employee-manage
       }),
       inject: [ConfigService],
     }),
-    EmployeeManagementModule
+    EmployeeManagementModule,
+    ApplicationPermissionsModule,
+    RedisModule
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy,ApplicationPermissionsService,{
+    provide: APP_FILTER,
+    useClass: AllExceptionFilter
+  }],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, ApplicationPermissionsService],
 })
 export class AuthModule {} 

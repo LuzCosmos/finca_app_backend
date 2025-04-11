@@ -13,6 +13,9 @@ export class User {
   @Column({ name: 'pass_word', length: 60, nullable: false })
   password: string;
 
+  @Column({ name: 'active', type: 'boolean', default: true })
+  active: boolean;  
+
   @Column({ name: 'first_name', length: 50, nullable: true })
   firstName: string;
 
@@ -33,11 +36,11 @@ export class User {
   @JoinTable({
     name: 'user_roles',
     joinColumn: {
-      name: 'id_user',
+      name: 'id_user', 
       referencedColumnName: 'id'
     },
     inverseJoinColumn: {
-      name: 'id_role',
+      name: 'id_role', 
       referencedColumnName: 'id'
     }
   })

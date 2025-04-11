@@ -3,20 +3,28 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from '../entities/tenant.entity';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
-import { RolesService } from './roles.service';
+import { RoleService } from './roles.service';
 import { UsersService } from './users.service';
 import { ModulesService } from './modules.service';
+import { CreatePermissionDto } from '../dto/create-permission.dto';
+import { RoleModulePermissionService } from './role-module-permission.services';
 
 @Injectable()
 export class TenantsService {
   constructor(
     @InjectRepository(Tenant)
     private readonly tenantRepository: Repository<Tenant>,
-    private readonly rolesService: RolesService,
+    private readonly rolesService: RoleService,
+    private readonly RoleModulePermissionService :RoleModulePermissionService,
     private readonly usersService: UsersService,
     private readonly modulesService: ModulesService,
   ) {}
 
+  /**
+   * Create a tenant
+   * @param createTenantDto - The DTO of the tenant to create
+   * @returns The tenant created
+   */
   async create(createTenantDto: CreateTenantDto): Promise<Tenant> {
     // Verificar si ya existe un tenant con el mismo nombre
     const existingTenant = await this.tenantRepository.findOne({
@@ -49,26 +57,33 @@ export class TenantsService {
 
     // Asignar permisos completos para todos los módulos al rol de admin
     for (const module of allModules) {
-      await this.rolesService.createPermission(
-        adminUser.roles[0].id, // Asumimos que el primer rol es el de admin
-        tenant.id,
-        module.id,
-        {
-          can_create: true,
-          can_read: true,
-          can_update: true,
-          can_delete: true
-        }
-      );
+      const sys_admin_role = await this.rolesService.findByCode('SYS_ADMIN');
+      let permission = new CreatePermissionDto();
+      permission.moduleId = module.id;
+      permission.roleId = sys_admin_role.id;
+      permission.can_create = true;
+      permission.can_read = true;
+      permission.can_update = true;
+      permission.can_delete = true;
+      permission.can_list = true;
+      await this.RoleModulePermissionService.createPermission(tenant.id, permission);
     }
-
     return tenant;
   }
 
+  /**
+   * Find all tenants
+   * @returns The tenants found
+   */ 
   async findAll(): Promise<Tenant[]> {
     return this.tenantRepository.find();
   }
 
+  /**
+   * Find a tenant by its ID
+   * @param id - The ID of the tenant
+   * @returns The tenant found
+   */ 
   async findOne(id: string): Promise<Tenant> {
     const tenant = await this.tenantRepository.findOne({ where: { id } });
     if (!tenant) {
@@ -77,19 +92,30 @@ export class TenantsService {
     return tenant;
   }
 
+  /**
+   * Update a tenant
+   * @param id - The ID of the tenant
+   * @param updateTenantDto - The DTO of the tenant to update
+   * @returns The tenant updated
+   */  
   async update(id: string, updateTenantDto: Partial<CreateTenantDto>): Promise<Tenant> {
     const tenant = await this.findOne(id);
     this.tenantRepository.merge(tenant, updateTenantDto);
     return this.tenantRepository.save(tenant);
   }
-
+/*
   async remove(id: string): Promise<void> {
     const result = await this.tenantRepository.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException(`Tenant con ID ${id} no encontrado`);
     }
   }
-
+*/
+  /**
+   * Find a tenant by its company_username
+   * @param company_username - The company_username of the tenant
+   * @returns The tenant found
+   */ 
   async findByCompanyUsername(company_username: string): Promise<Tenant> {
     const tenant = await this.tenantRepository.findOne({ 
       where: { company_username } 

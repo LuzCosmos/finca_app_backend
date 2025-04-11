@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/swagger';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsArray, IsUUID } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsArray, IsUUID, IsBoolean } from 'class-validator';
 import { CreateUserDto } from './create-user.dto';
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
@@ -28,6 +28,11 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @IsEmail()
   @IsOptional()
   email?: string;
+
+  @ApiProperty({ required: false, description: 'Usuario Activo o Inactivo' })
+  @IsBoolean()
+  @IsOptional()
+  active?: boolean;
 
   @ApiProperty({ required: false, description: 'IDs de los roles asignados al usuario', type: [String] })
   @IsArray()

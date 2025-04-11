@@ -7,11 +7,11 @@ export class InsertDefaultModules1710000000004 implements MigrationInterface {
     // Insertar módulos por defecto
     await queryRunner.query(`
       INSERT INTO modules (id, name, description) VALUES
-      (uuid_generate_v4(), 'Farm', 'Gestión de granjas y fincas'),
-      (uuid_generate_v4(), 'Production Center', 'Gestión de centros de producción'),
-      (uuid_generate_v4(), 'Employee Management', 'Gestión de empleados'),
       (uuid_generate_v4(), 'Accountant', 'Gestión contable'),
-      (uuid_generate_v4(), 'Employee Work Management', 'Gestión de trabajo de empleados');
+      (uuid_generate_v4(), 'Employee Management', 'Gestión de empleados'),
+      (uuid_generate_v4(), 'Employee Work Management', 'Gestión de trabajo de empleados'),
+      (uuid_generate_v4(), 'Farm', 'Gestión de granjas y fincas'),
+      (uuid_generate_v4(), 'Production Center', 'Gestión de centros de producción')
     `);
   }
 
@@ -19,11 +19,11 @@ export class InsertDefaultModules1710000000004 implements MigrationInterface {
     await queryRunner.query(`
       DELETE FROM modules 
       WHERE name IN (
-        'Farm',
-        'Production Center',
-        'Employee Management',
         'Accountant',
-        'Employee Work Management'
+        'Employee Management',
+        'Employee Work Management',
+        'Farm',
+        'Production Center'
       );
     `);
   }

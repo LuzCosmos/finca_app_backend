@@ -6,6 +6,9 @@ import { RoleModulePermission } from './role-module-permission.entity';
 export class Role {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+  
+  @Column({ length: 20, nullable: false, unique: true })
+  code: string;
 
   @Column({ length: 100, nullable: false, unique: true })
   name: string;

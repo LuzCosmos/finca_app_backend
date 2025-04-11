@@ -29,6 +29,9 @@ export class RoleModulePermission {
   @Column({ name: 'can_delete', default: false })
   can_delete: boolean;
 
+  @Column({ name: 'can_list', default: false })
+  can_list: boolean;
+
   @ManyToOne(() => Role, role => role.permissions)
   @JoinColumn({ name: 'id_role' })
   role: Role;
@@ -36,8 +39,4 @@ export class RoleModulePermission {
   @ManyToOne(() => ModuleEntity)
   @JoinColumn({ name: 'id_module' })
   module: ModuleEntity;
-
-  @ManyToOne(() => Tenant)
-  @JoinColumn({ name: 'tenant_id' })
-  tenant: Tenant;
 }

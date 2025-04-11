@@ -2,6 +2,16 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsUUID } from 'class-validator';
 
 export class CreatePermissionDto {
+
+  @ApiProperty({
+    description: 'ID del módulo al que se le asigna el permiso',
+    example: '123e4567-e89b-12d3-a456-426614174002',
+    required: true,
+  })
+  @IsUUID()
+  @IsNotEmpty()
+  roleId: string;
+
   @ApiProperty({
     description: 'ID del módulo al que se le asigna el permiso',
     example: '123e4567-e89b-12d3-a456-426614174002',
@@ -46,6 +56,15 @@ export class CreatePermissionDto {
   @IsBoolean()
   @IsNotEmpty()
   can_delete: boolean;
+
+  @ApiProperty({
+    description: 'Permiso para listar',
+    example: true,
+    required: true,
+  })
+  @IsBoolean()
+  @IsNotEmpty()
+  can_list: boolean;
 }
 
 export class CreatePermissionResponseDto {
@@ -98,6 +117,13 @@ export class CreatePermissionResponseDto {
   can_delete: boolean;
 
   @ApiProperty({
+    description: 'Permiso para listar',
+    example: true,
+  })
+  can_list: boolean;
+
+  /*
+  @ApiProperty({
     description: 'Información del módulo',
     example: {
       id: '123e4567-e89b-12d3-a456-426614174002',
@@ -109,5 +135,6 @@ export class CreatePermissionResponseDto {
     id: string;
     name: string;
     description: string;
-  };
+    access_details: any;
+  };*/
 } 
