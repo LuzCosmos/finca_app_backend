@@ -141,35 +141,3 @@ export class DeviceProfilesService {
     await this.deviceProfileRepository.remove(id);
   }
 } 
-
-/*
-{
-  "name": "LW001-BG PRO",
-  "idChipstack": "0baa23f6-aa00-43e1-9848-4c4dc32f9812",
-  "csApplicationId": "84000af8-44f6-496c-8cfe-f0b3b698d70a",
-  "csJoineui": "f1a4c38b9d55e072",
-  "csNwkKey": "d4e9f3b27a5c8160f8d2a1943eb7c65f",
-  "fccId": "2AO94-LW001BGPRO",
-  "regions": "AU915",
-  "model": "LW001-BG PRO",
-  "input": "3.65V (Battery Supply)"
-}
-
-{
-  "idDeviceProfile": "2d621fe1-4303-4f05-af50-177fece43c86",
-  "deveui": "faca0bffff945462",
-  "name": "LW001-BG-5462",
-  "tags": {},
-  "variables": {}
-}
-
-{
-  "idDeviceProfile": "2d621fe1-4303-4f05-af50-177fece43c86",
-  "deveui": "d173ecffffeabab8",
-  "name": "LW001-BG-BAB8",
-  "tags": {},
-  "variables": {}
-}
-
-
-*/
