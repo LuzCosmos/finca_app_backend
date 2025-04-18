@@ -105,7 +105,6 @@ export class DeviceProfilesService {
    * @returns The updated device profile
    */
   async update(id: string, idTenant: string, updateDeviceProfileDto: UpdateDeviceProfileDto): Promise<DeviceProfile> {
-    // Verificar que el perfil existe y pertenece al tenant
     try {
       await this.deviceProfileRepository.findOne(id, idTenant);
     } catch (error) {
@@ -127,8 +126,12 @@ export class DeviceProfilesService {
     return await this.deviceProfileRepository.update(id, updateDeviceProfileDto);
   }
 
+  /**
+   * Remove a device profile
+   * @param id - The ID of the device profile
+   * @param idTenant - The ID of the tenant
+   */
   async remove(id: string, idTenant: string): Promise<void> {
-    // Verificar que el perfil existe y pertenece al tenant
     try {
       await this.deviceProfileRepository.findOne(id, idTenant);
     } catch (error) {
@@ -137,7 +140,6 @@ export class DeviceProfilesService {
       }
       throw error;
     }
-
     await this.deviceProfileRepository.remove(id);
   }
 } 

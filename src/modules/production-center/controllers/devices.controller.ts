@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Put, Param, Delete, UseGuards, UploadedFile, UseInterceptors, BadRequestException} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody, } from '@nestjs/swagger';
 import { DevicesService } from '../services/devices.service';
 import { CreateDeviceDto } from '../dto/create-device.dto';
 import { UpdateDeviceDto } from '../dto/update-device.dto';
@@ -9,6 +9,11 @@ import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permis
 import { RequireAction, RequireEntity, RequireModule } from 'src/modules/auth/application-permissions/application-permissions.decorator';
 import { SessionUser } from 'src/modules/auth/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import * as ExcelJS from 'exceljs';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+
 
 @ApiTags('Devices')
 @Controller('devices')
@@ -62,4 +67,51 @@ export class DevicesController {
   async list(@SessionUser() sessionUser: SessionUserDto): Promise<DeviceResponseDto[]> {
     return await this.deviceService.findAll(sessionUser.tenant_id);
   }
+
+  @Post('import')
+  @RequireAction('create')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads', // asegúrate de crear esta carpeta
+        filename: (req, file, cb) => {
+          const randomName = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, `${randomName}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        if (!file.originalname.match(/\.(xlsx)$/)) {
+          return cb(new Error('Solo archivos .xlsx permitidos'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Importar archivo Excel (.xlsx)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Archivo Excel + datos',
+    type: 'multipart/form-data',
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        deviceProfileId: {
+          type: 'string',
+          example: '12345e8d-926c-800c-bff5-490e7f8c6051',
+        },
+        file: {
+          description: 'Archivo Excel,tiene este orden de columnas: devEui,	deviceName,	deviceProfileId, description,	joinEui, nwkKey, tags, variables. Los valores mandatorios son: devEui y deviceName. Si no se envía deviceProfileId en el excel, se debe enviar en el body de la petición. Si no se envía joinEui, nwkKey se tomaran del deviceProfile.', 
+          type: 'string',
+          format: 'binary',
+        }
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Archivo procesado correctamente' })
+  async importarExcel(@UploadedFile() file: Express.Multer.File, @Body() body: { deviceProfileId: string }, @SessionUser() sessionUser: SessionUserDto) {
+    const result = await this.deviceService.importDevicesFromExcel(file, sessionUser.tenant_id, body.deviceProfileId);
+    return result;
+  }
+
 } 
