@@ -91,7 +91,6 @@ export class DevicesController {
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     description: 'Archivo Excel + datos',
-    type: 'multipart/form-data',
     schema: {
       type: 'object',
       required: ['file'],
@@ -101,10 +100,10 @@ export class DevicesController {
           example: '12345e8d-926c-800c-bff5-490e7f8c6051',
         },
         file: {
-          description: 'Archivo Excel,tiene este orden de columnas: devEui,	deviceName,	deviceProfileId, description,	joinEui, nwkKey, tags, variables. Los valores mandatorios son: devEui y deviceName. Si no se envía deviceProfileId en el excel, se debe enviar en el body de la petición. Si no se envía joinEui, nwkKey se tomaran del deviceProfile.', 
+          description: 'Archivo Excel, tiene este orden de columnas: devEui, deviceName, deviceProfileId, description, joinEui, nwkKey, tags, variables. Los valores mandatorios son: devEui y deviceName. Si no se envía deviceProfileId en el excel, se debe enviar en el body de la petición. Si no se envía joinEui, nwkKey se tomarán del deviceProfile.', 
           type: 'string',
           format: 'binary',
-        }
+        },
       },
     },
   })
