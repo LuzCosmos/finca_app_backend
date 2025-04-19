@@ -16,6 +16,18 @@ export class DeviceResponseDto {
   @ApiProperty({ description: 'Descripción del dispositivo' })
   description: string;
 
+  @ApiProperty({ description: 'ID de la aplicación de ChipStack' })
+  csApplicationId: string;
+
+  @ApiProperty({ description: 'JoinEUI del dispositivo' })
+  csJoineui: string;
+
+  @ApiProperty({ description: 'AppKey del dispositivo' })
+  csAppKey: string;
+
+  @ApiProperty({ description: 'NwkKey del dispositivo' })
+  csNwkKey: string;
+
   @ApiProperty({ description: 'Tags del dispositivo' })
   tags: Record<string, any>;
 

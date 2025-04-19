@@ -7,7 +7,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { DeviceProfileRepository } from '../repositories/device-profile.repository';
-import { ChirpstackDeviceInterface, ChirpstackDeviceKeysInterface } from '../interfaces/chirpstack-device.interface';
+import { ChirpstackDeviceInterface, ChirpstackDeviceKeysInterface, ChirpstackDeviceKeysUpdateInterface, ChirpstackDeviceUpdateInterface } from '../interfaces/chirpstack-device.interface';
 import * as ExcelJS from 'exceljs';
 import { DeviceProfile } from '../entities/device-profile.entity';
 import { promises as fs } from 'fs';
@@ -60,6 +60,26 @@ export class DevicesService {
       appKey: deviceProfile.csAppKey,
       nwkKey: deviceProfile.csNwkKey
     }
+    if(createDeviceDto.csJoineui) {
+      deviceChirpstack.joinEui = createDeviceDto.csJoineui;
+    } else {
+      createDeviceDto.csJoineui = deviceProfile.csJoineui
+    }
+    if(createDeviceDto.csApplicationId){
+      deviceChirpstack.applicationId = createDeviceDto.csApplicationId;
+    } else {
+      createDeviceDto.csApplicationId = deviceProfile.csApplicationId;
+    }
+    if(createDeviceDto.csAppKey){
+      deviceKeys.appKey = createDeviceDto.csAppKey;
+    } else {
+      createDeviceDto.csAppKey = deviceProfile.csAppKey;
+    }
+    if(createDeviceDto.csNwkKey){
+      deviceKeys.nwkKey = createDeviceDto.csNwkKey;
+    } else {
+      createDeviceDto.csNwkKey = deviceProfile.csNwkKey;
+    }
     return await this.createDevice(createDeviceDto, deviceProfile, deviceChirpstack, deviceKeys);
   }
 
@@ -97,16 +117,17 @@ export class DevicesService {
           'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`,
         },
       });
+      this.logger.debug(response.data);
       if (response.status === 200) {
         return true;
       }
-      return false;
+      return false; 
     } catch (error) {
-      this.logger.error(error);
+      this.logger.error(error.response?.data);
       if (error.response?.status === 401) {
         return false;
       }
-      throw new BadRequestException(`Error validating device ${deveui} with Chirpstack`);
+      throw new BadRequestException(`Error validating device ${deveui} with Chirpstack, error: ${error.response?.data}`);
     }
   }
 
@@ -147,14 +168,21 @@ export class DevicesService {
         }
         return true;
       } else {
-        return true;
+        const response = await this.callUpdateDeviceInChirpstack(chirpstackDevice.devEui, chirpstackDevice, deviceKeys);
+        return response;
       }
     } catch (error) {
-      this.logger.error(error);
-      throw new BadRequestException(`Error validating device ${chirpstackDevice.devEui} with Chirpstack`);
+      this.logger.error(error.response?.data);
+      throw new BadRequestException(`Error validating device ${chirpstackDevice.devEui} with Chirpstack, error: ${error.response?.data}`);
     }
   } 
 
+  /**
+   * Find a device by DevEUI and tenant ID
+   * @param deveui - The device DevEUI
+   * @param idTenant - The tenant ID
+   * @returns The device
+   */
   async findOne(deveui: string, idTenant: string): Promise<Device> {
     return await this.deviceRepository.findByDevEuiAndTenantId(deveui, idTenant);
   }
@@ -171,15 +199,149 @@ export class DevicesService {
     if (!existingDevice) {
       throw new BadRequestException(`Device with DevEUI ${deveui} not found`);
     }
+    const deviceChirpstack = await this.updateDeviceInChirpstack(deveui, updateDeviceDto);
+    if (!deviceChirpstack) {
+      throw new BadRequestException(`Error updating device in Chirpstack`);
+    }
     return await this.deviceRepository.update(existingDevice.id, updateDeviceDto);
+  }
+
+  /**
+   * Update a device in Chirpstack
+   * @param deveui - The device DevEUI
+   * @param updateDeviceDto - The device to update
+   * @returns True if the device was updated, false otherwise
+   */
+  async updateDeviceInChirpstack(deveui: string, updateDeviceDto: UpdateDeviceDto): Promise<boolean> {
+    const deviceChirpstack: ChirpstackDeviceUpdateInterface = {}
+    if (updateDeviceDto.csApplicationId) {
+      deviceChirpstack.applicationId = updateDeviceDto.csApplicationId;
+    }
+    if (updateDeviceDto.description) {
+      deviceChirpstack.description = updateDeviceDto.description;
+    }
+    if (updateDeviceDto.deveui) {
+      deviceChirpstack.devEui = updateDeviceDto.deveui;
+    }
+    if (updateDeviceDto.idDeviceProfile) {
+      deviceChirpstack.deviceProfileId = updateDeviceDto.idDeviceProfile;
+    }
+    /*if (updateDeviceDto.isDisabled) {
+      deviceChirpstack.isDisabled = updateDeviceDto.isDisabled;
+    }*/
+    if (updateDeviceDto.csJoineui) {
+      deviceChirpstack.joinEui = updateDeviceDto.csJoineui;
+    }
+    if (updateDeviceDto.name) {
+      deviceChirpstack.name = updateDeviceDto.name;
+    }
+    /*if (updateDeviceDto.skipFcntCheck) {
+      deviceChirpstack.skipFcntCheck = updateDeviceDto.skipFcntCheck;
+    } */
+    if (updateDeviceDto.tags) {
+      deviceChirpstack.tags = updateDeviceDto.tags;
+    }
+    if (updateDeviceDto.variables) {
+      deviceChirpstack.variables = updateDeviceDto.variables;
+    }
+    const deviceKeys: ChirpstackDeviceKeysUpdateInterface = {}
+    if (updateDeviceDto.csAppKey) {
+      deviceKeys.appKey = updateDeviceDto.csAppKey;
+    }
+    if (updateDeviceDto.csNwkKey) {
+      deviceKeys.nwkKey = updateDeviceDto.csNwkKey;
+    }
+    const response = await this.callUpdateDeviceInChirpstack(deveui, deviceChirpstack, deviceKeys);
+    return response;
+  }
+
+  /**
+   * Call the update device in Chirpstack
+   * @param deveui - The device DevEUI
+   * @param deviceChirpstack - The device to update
+   * @param deviceKeys - The device keys
+   * @returns True if the device was updated, false otherwise
+   */
+  async callUpdateDeviceInChirpstack(deveui: string, deviceChirpstack: ChirpstackDeviceUpdateInterface, deviceKeys: ChirpstackDeviceKeysUpdateInterface): Promise<boolean> {
+    try {
+      const response = await this.httpService.axiosRef.put(
+        `${this.chirpstackUrl}/api/devices/${deveui}`,
+        { device: deviceChirpstack },
+        {
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+        },
+      }
+    );
+    if (response.status === 200) {
+      if (deviceKeys.appKey || deviceKeys.nwkKey) {
+        try {
+          const response = await this.httpService.axiosRef.post(
+            `${this.chirpstackUrl}/api/devices/${deveui}/keys`,
+            { deviceKeys: deviceKeys },
+            {
+              headers: {
+                'accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+              },
+            } 
+          );
+        } catch (error) {
+          this.logger.error('Response data:', error.response?.data);
+          const response = await this.httpService.axiosRef.put(
+            `${this.chirpstackUrl}/api/devices/${deveui}/keys`, 
+            {
+              deviceKeys: deviceKeys
+            },
+            {
+              headers: {
+                'accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+              },
+            }
+          );
+        }
+        if (response.status === 200) {
+          return true;
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+    } catch (error) {
+      this.logger.error(`Error updating device ${deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
+      throw new BadRequestException(`Error updating device ${deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
+    }
   }
 
   /**
    * Remove a device
    * @param id - The device ID
    */
-  async remove(id: string): Promise<void> {
-    await this.deviceRepository.remove(id);
+  async remove(id: string, idTenant: string): Promise<void> {
+    const device = await this.deviceRepository.findByDevEuiAndTenantId(id, idTenant);
+    if (!device) {
+      throw new BadRequestException(`Device with ID ${id} not found`);
+    }
+    const response = await this.httpService.axiosRef.delete(
+      `${this.chirpstackUrl}/api/devices/${device.deveui}`,
+      {
+        headers: {
+          'accept': 'application/json',
+          'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`
+        },
+      }
+    );
+    if (response.status === 200) {  
+      await this.deviceRepository.remove(id);
+    }
+    throw new BadRequestException(`Error removing device ${device.deveui} from Chirpstack`);
   }
 
   /**
@@ -200,9 +362,9 @@ export class DevicesService {
     return response.data;
     } catch (error) {
       if (error.response?.status === 401 || error.response?.status === 404) {
-        throw new BadRequestException(`Application with ID ${idApplication} not found in Chirpstack`);
+        throw new BadRequestException(`Application with ID ${idApplication} not found in Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
       }
-      throw new BadRequestException('Error validating application with Chirpstack');
+      throw new BadRequestException(`Error validating application with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
     }
   }
 
@@ -327,11 +489,15 @@ export class DevicesService {
    */
   async processExcelRow(rowValues: any[], rowNumber: number, idTenant: string, deviceProfile: DeviceProfile): Promise<Device> {
     const createDeviceDto: CreateDeviceDto = {
+      idTenant: idTenant, 
+      idDeviceProfile: deviceProfile.id,
       deveui: rowValues[0],
       name: rowValues[1],
       description: "",
-      idTenant: idTenant, 
-      idDeviceProfile: deviceProfile.id,
+      csApplicationId: deviceProfile.csApplicationId,
+      csJoineui: deviceProfile.csJoineui,
+      csAppKey: deviceProfile.csAppKey,
+      csNwkKey: deviceProfile.csNwkKey,
       tags: {},
       variables: {},
     }
@@ -356,11 +522,14 @@ export class DevicesService {
       deviceChirpstack.description = rowValues[3];
     }
     if (rowValues.length >= 5) {
+      createDeviceDto.csJoineui = rowValues[4];
       deviceChirpstack.joinEui = rowValues[4];
     }
     if (rowValues.length >= 6) {
+      createDeviceDto.csNwkKey = rowValues[5];
       deviceKeys.nwkKey = rowValues[5];
     }
+
     if (rowValues.length >= 7) {
       createDeviceDto.tags = rowValues[6];
       deviceChirpstack.tags = rowValues[6];

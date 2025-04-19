@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsObject, IsDate } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsObject, IsDate, Length } from 'class-validator';
 
 export class CreateDeviceDto {
 
@@ -26,6 +26,29 @@ export class CreateDeviceDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ description: 'ID de la aplicación de ChipStack' })
+  @IsString()
+  @IsNotEmpty()
+  csApplicationId: string;
+  
+  @ApiProperty({ description: 'JoinEUI del dispositivo' })
+  @IsString()
+  @IsOptional()
+  @Length(16, 16)
+  csJoineui?: string;
+  
+  @ApiProperty({ description: 'AppKey del dispositivo' })
+  @IsString()
+  @IsOptional()
+  @Length(32, 32) 
+  csAppKey?: string;
+  
+  @ApiProperty({ description: 'NwkKey del dispositivo' })
+  @IsString()
+  @IsOptional()
+  @Length(32, 32) 
+  csNwkKey?: string;
 
   @ApiProperty({ description: 'Tags del dispositivo' })
   @IsObject()

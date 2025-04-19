@@ -29,6 +29,18 @@ export class Device {
   @Column({ type: 'jsonb', default: {} })
   variables: Record<string, any>;
 
+  @Column({ name: 'cs_application_id', type: 'uuid', nullable: false })
+  csApplicationId: string;
+
+  @Column({ name: 'cs_joineui', type: 'varchar', length: 16, nullable: true })
+  csJoineui: string;    
+
+  @Column({ name: 'cs_app_key', type: 'varchar', length: 32, nullable: true })
+  csAppKey: string;
+
+  @Column({ name: 'cs_nwk_key', type: 'varchar', length: 32, nullable: true })
+  csNwkKey: string;   
+
   @Column({ name: 'battery_status', length: 100, nullable: true })
   batteryStatus: string;
 

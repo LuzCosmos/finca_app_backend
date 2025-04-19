@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsOptional, IsUUID, IsDate } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsUUID, IsDate, Length } from 'class-validator';
 
 export class CreateDeviceProfileDto {
 
@@ -35,11 +35,13 @@ export class CreateDeviceProfileDto {
   @ApiProperty({ description: 'App Key en Chirpstack', required: false })
   @IsOptional()
   @IsString()
+  @Length(32, 32) 
   csAppKey?: string;
 
   @ApiProperty({ description: 'NWK Key en Chirpstack', required: false })
   @IsNotEmpty()
   @IsString()
+  @Length(32, 32) 
   csNwkKey: string;
 
   @ApiProperty({ description: 'FCC ID', required: false })

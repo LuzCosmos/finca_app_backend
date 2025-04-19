@@ -56,8 +56,8 @@ export class DevicesController {
   @ApiOperation({ summary: 'Eliminar un dispositivo' })
   @ApiResponse({ status: 200, description: 'Dispositivo eliminado' })
   @RequireAction('delete')
-  async remove(@Param('id') id: string): Promise<void> {
-    return await this.deviceService.remove(id);
+  async remove(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto): Promise<void> {
+    return await this.deviceService.remove(id, sessionUser.tenant_id);
   }
 
   @Get()

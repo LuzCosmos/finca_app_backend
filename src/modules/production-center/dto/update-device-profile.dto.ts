@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, IsDate } from 'class-validator';
+import { IsOptional, IsString, IsUUID, IsDate, Length } from 'class-validator';
 
 export class UpdateDeviceProfileDto {
   
@@ -30,16 +30,19 @@ export class UpdateDeviceProfileDto {
   @ApiProperty({ description: 'Join EUI en Chirpstack', required: false })
   @IsOptional()
   @IsString()
+  @Length(16, 16)
   csJoineui?: string;
 
   @ApiProperty({ description: 'App Key en Chirpstack', required: false })
   @IsOptional()
   @IsString()
+  @Length(32, 32)
   csAppKey?: string;
 
   @ApiProperty({ description: 'NWK Key en Chirpstack', required: false })
   @IsOptional()
   @IsString()
+  @Length(32, 32)
   csNwkKey?: string;
 
   @ApiProperty({ description: 'FCC ID', required: false })
