@@ -11,6 +11,7 @@ import { ChirpstackDeviceInterface, ChirpstackDeviceKeysInterface, ChirpstackDev
 import * as ExcelJS from 'exceljs';
 import { DeviceProfile } from '../entities/device-profile.entity';
 import { promises as fs } from 'fs';
+import { EntityManager } from 'typeorm';
 
 @Injectable()
 export class DevicesService {
@@ -203,7 +204,43 @@ export class DevicesService {
     if (!deviceChirpstack) {
       throw new BadRequestException(`Error updating device in Chirpstack`);
     }
-    return await this.deviceRepository.update(existingDevice.id, updateDeviceDto);
+    const device = await this.deviceRepository.update(existingDevice.id, updateDeviceDto);
+    if (!device) {
+      throw new BadRequestException(`Error updating device ${deveui}`);
+    }
+    return device;
+  }
+
+  /**
+   * Update a device
+   * @param device - The device
+   * @param updateDeviceDto - The device to update
+   * @param manager - The manager of the transaction (optional)
+   * @returns The updated device
+   */
+  async updateWithDevive(device: Device, updateDeviceDto: UpdateDeviceDto, manager?: EntityManager): Promise<Device> {
+    this.logger.debug(`log_device 1: Updating device ${device.deveui} with device tags: ${JSON.stringify(updateDeviceDto)}`);
+    try {
+      const deviceChirpstack = await this.updateDeviceInChirpstack(device.deveui, updateDeviceDto);
+      if (!deviceChirpstack) {
+        this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
+        throw new BadRequestException(`Error updating device in Chirpstack`);
+      }
+    this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
+    const deviceUpdated = await this.deviceRepository.update(device.id, updateDeviceDto, manager);
+    if (!deviceUpdated) {
+      this.logger.debug(`log_device 4: Error updating device ${device.deveui}`);
+      throw new BadRequestException(`Error updating device ${device.deveui}`);
+    }
+    this.logger.debug(`log_device 5: Device updated: ${deviceUpdated.id}`);
+    return deviceUpdated;
+    } catch (error) {
+      this.logger.error(`log_device 6: Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
+      this.logger.debug(`log_device 7: ------------------------------------------------------------`);
+      this.logger.debug(`log_device 7:${error}`); 
+      this.logger.debug(`log_device 7: +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
+      throw new BadRequestException(`Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
+    }
   }
 
   /**
@@ -315,6 +352,9 @@ export class DevicesService {
     }
     return false;
     } catch (error) {
+      this.logger.debug(`log_device 8: ------------------------------------------------------------`);
+      this.logger.debug(`log_device 8:${error}`); 
+      this.logger.debug(`log_device 8: +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
       this.logger.error(`Error updating device ${deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
       throw new BadRequestException(`Error updating device ${deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
     }
