@@ -9,12 +9,17 @@ import { ApplicationPermissionsModule } from '../auth/application-permissions/ap
 import { CattleDeviceAssignment } from './entities/cattleDeviceAssignment.entity';
 import { CattleDeviceAssignmentRepository } from './repositories/cattleDeviceAssignment.repository';
 import { ProductionCenterModule } from '../production-center/production-center.module';
+import { Location } from './entities/location.entity';
+import { LocationService } from './services/location.service';
+import { LocationRepository } from './repositories/location.repository';
+import { LocationController } from './controllers/location.controller';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Cattle, 
       CattleDeviceAssignment,
+      Location
     ]),
     ConfigModule,
     ApplicationPermissionsModule,
@@ -24,12 +29,16 @@ import { ProductionCenterModule } from '../production-center/production-center.m
     CattleRepository,
     CattleService,
     CattleDeviceAssignmentRepository,
+    LocationService,
+    LocationRepository
   ],
   controllers: [
     CattleController,
+    LocationController
   ],
   exports: [
     CattleService,
+    LocationService
   ],
 })
 export class FarmModule {} 

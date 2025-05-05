@@ -8,6 +8,8 @@ import { CattleDeviceAssignmentRepository } from '../repositories/cattleDeviceAs
 import { DevicesService } from '../../production-center/services/devices.service';
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
+
+
 @Injectable()
 export class CattleService {
 

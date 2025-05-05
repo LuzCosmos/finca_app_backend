@@ -6,6 +6,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ProductionCenterModule } from './modules/production-center/production-center.module';
 import { FarmModule } from './modules/farm/farm.module';
+import { MqttModule } from './modules/mqtt/mqtt.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -16,6 +18,7 @@ import { FarmModule } from './modules/farm/farm.module';
     EmployeeManagementModule,
     ProductionCenterModule,
     FarmModule,
+    MqttModule
   ],
 })
 export class AppModule {}
