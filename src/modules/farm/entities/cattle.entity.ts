@@ -1,6 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, ManyToOne } from 'typeorm';
 import { Device } from '../../production-center/entities/device.entity';
-
+import { Purchase } from '../../commerce/entities/purchase.entity';
+import { Lot } from '../../commerce/entities/lot.entity';
+import { Provider } from '../../commerce/entities/provider.entity';
 
 @Entity('cattle')
 export class Cattle {
@@ -76,7 +78,19 @@ export class Cattle {
 
   @Column({ name: 'average_gr', type: 'numeric', precision: 6, scale: 2, nullable: true })
   averageGr: number;
-  
+
+  @Column({ name: 'id_purchase', type: 'uuid', nullable: true })
+  idPurchase: string;
+
+  @ManyToOne(() => Purchase, (purchase) => purchase.cattle, { nullable: true })
+  @JoinColumn({ name: 'id_purchase' })
+  purchase: Purchase;
+
+  @Column({ name: 'id_lot', type: 'uuid', nullable: true })
+  idLot: string;
+
+  @Column({ name: 'id_provider', type: 'uuid', nullable: true })
+  idProvider: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

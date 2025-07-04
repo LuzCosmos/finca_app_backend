@@ -7,6 +7,7 @@ import { typeOrmConfig } from './config/typeorm.config';
 import { ProductionCenterModule } from './modules/production-center/production-center.module';
 import { FarmModule } from './modules/farm/farm.module';
 import { MqttModule } from './modules/mqtt/mqtt.module';
+import { CommerceModule } from './modules/commerce/commerce.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { MqttModule } from './modules/mqtt/mqtt.module';
     EmployeeManagementModule,
     ProductionCenterModule,
     FarmModule,
+    CommerceModule,
     MqttModule
   ],
 })

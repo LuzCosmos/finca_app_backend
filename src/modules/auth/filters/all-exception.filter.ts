@@ -9,7 +9,8 @@ import {
     UnauthorizedException,
     ForbiddenException,
     InternalServerErrorException,
-    Logger
+    Logger,
+    ConflictException
   } from '@nestjs/common';
 import { TypeORMError } from 'typeorm';
 import { QueryFailedError } from 'typeorm/error/QueryFailedError';
@@ -23,9 +24,12 @@ import { ValidationError } from 'class-validator';
     ForbiddenException,
     InternalServerErrorException,
     QueryFailedError,
-    ValidationError)
+    ValidationError,
+    ConflictException)
 export class AllExceptionFilter implements ExceptionFilter {
+
     private readonly logger = new Logger(AllExceptionFilter.name);
+    
     catch(exception: HttpException | TypeORMError, host: ArgumentsHost) {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse();
@@ -49,12 +53,16 @@ export class AllExceptionFilter implements ExceptionFilter {
             this.logger.debug("LOG 4");
             statusCode = HttpStatus.BAD_REQUEST;
             message = 'Validación fallida';
-          } else if (exception instanceof Error) {
+          } else if (exception instanceof ConflictException) {
             this.logger.debug("LOG 5");
+            statusCode = HttpStatus.CONFLICT;
+            message = 'Conflicto';
+          } else if (exception instanceof Error) {
+            this.logger.debug("LOG 6");
             statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
             message = 'Error interno del servidor';
           } else {
-            this.logger.debug("LOG 6"); 
+            this.logger.debug("LOG 7"); 
             statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
             message = 'Error desconocido';
           }
