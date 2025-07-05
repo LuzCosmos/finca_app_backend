@@ -29,8 +29,7 @@ export class PurchaseResponseDto {
       purchaseDate: String(purchase.purchaseDate),
       totalCattle: purchase.totalCattle,
       totalWeight: purchase.totalWeight,
-      lots: purchase.lots ? purchase.lots.map(LotResponseDto.toLotResponse) : [],
-     
+      lots: purchase.lots ? purchase.lots.map(LotResponseDto.toLotResponse) : []
     };
   }
   // lots: purchase.lots.map(lot => LotResponseDto.toLotResponse(lot))

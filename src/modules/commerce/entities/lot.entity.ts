@@ -40,8 +40,9 @@ export class Lot {
   @Column({ name: 'sex', length: 20, nullable: true })
   sex: string;
 
-  @Column({ name: 'id_purchase', type: 'uuid' })
+  @Column({ name: 'id_purchase', type: 'uuid', nullable: true })
   idPurchase: string;
+
   @ManyToOne(() => Purchase, (purchase) => purchase.lots, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_purchase' })
   purchase: Purchase;

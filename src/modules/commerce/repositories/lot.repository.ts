@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Lot } from '../entities/lot.entity';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class LotRepository {
+  private readonly logger = new Logger(LotRepository.name);
   private readonly repository: Repository<Lot>;
 
   constructor(private dataSource: DataSource) {

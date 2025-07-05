@@ -9,9 +9,12 @@ import { CreatePurchaseDto } from '../dtos/create-purchase.dto';
 import { UpdatePurchaseDto } from '../dtos/update-purchase.dto';
 import { Purchase } from '../entities/purchase.entity';
 import { Lot } from '../entities/lot.entity';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class PurchaseService {
+
+  private readonly logger = new Logger(PurchaseService.name);
   constructor(
     private readonly dataSource: DataSource,
     private readonly purchaseRepository: PurchaseRepository,
@@ -24,8 +27,12 @@ export class PurchaseService {
     await queryRunner.startTransaction();
 
     try {
-      const totalCattle = data.lots.reduce((sum, lot) => sum + lot.cattleCount, 0);
-      const totalWeight = data.lots.reduce((sum, lot) => sum + lot.totalWeight, 0);
+      var totalCattle = 0;
+      var totalWeight = 0;
+      if (data.lots) {
+        totalCattle = data.lots.reduce((sum, lot) => sum + lot.cattleCount, 0);
+        totalWeight = data.lots.reduce((sum, lot) => sum + lot.totalWeight, 0);
+      }
 
       const purchase = this.purchaseRepository.createInstance({
         idProvider: data.idProvider,
@@ -58,7 +65,7 @@ export class PurchaseService {
     }
   }
 
-  async updatePurchase(id: string, data: UpdatePurchaseDto, idTenant: string, updatedBy: string): Promise<void> {
+  async updatePurchase(id: string, data: UpdatePurchaseDto, idTenant: string, updatedBy: string): Promise<Purchase> {
     const existing = await this.purchaseRepository.findById(id, idTenant);
     if (!existing) {
       throw new NotFoundException('Purchase not found');
@@ -77,18 +84,7 @@ export class PurchaseService {
         totalCattle = data.lots.reduce((sum, lot) => sum + lot.cattleCount, 0);
         totalWeight = data.lots.reduce((sum, lot) => sum + lot.totalWeight, 0);
       }
-      const savedLots: Lot[] = [];
-      for (const lotData of data.lots || []) {
-        const lot = this.lotRepository.createInstance({
-          ...lotData,
-          idPurchase: id,
-          idTenant
-        });
-        const savedLot = await this.lotRepository.saveWithManager(queryRunner.manager, lot);
-        savedLots.push(savedLot);
-      }
-
-      await this.purchaseRepository.saveWithManager(queryRunner.manager, {
+      const savedPurchase = await this.purchaseRepository.saveWithManager(queryRunner.manager, {
         ...existing,
         idProvider: data.idProvider ? data.idProvider : existing.idProvider,
         purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : existing.purchaseDate,
@@ -96,8 +92,21 @@ export class PurchaseService {
         totalWeight,
         idUpdatedBy: updatedBy
       });
-      existing.lots = savedLots;
+      const savedLots: Lot[] = [];
+      for (const lotData of data.lots || []) {
+        const lot = this.lotRepository.createInstance({
+          ...lotData,
+          idPurchase: savedPurchase.id,
+          idTenant
+        });
+        this.logger.debug('Lot to save:', JSON.stringify(lot, null, 2));
+        const savedLot = await this.lotRepository.saveWithManager(queryRunner.manager, lot);
+        this.logger.log(`Saved lot: ${JSON.stringify(savedLot)}`);
+        savedLots.push(savedLot); 
+      }
+      savedPurchase.lots = savedLots;
       await queryRunner.commitTransaction();
+      return savedPurchase;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;

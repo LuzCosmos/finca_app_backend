@@ -44,13 +44,14 @@ export class PurchaseController {
   @Patch(':id')
   @RequireAction('update')
   @ApiOperation({ summary: 'Update an existing purchase' })
-  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 201, type: PurchaseResponseDto })
   async updatePurchase(
     @Param('id') id: string,
     @Body() dto: UpdatePurchaseDto,
     @SessionUser() user: SessionUserDto,
-  ): Promise<void> {
-    await this.purchaseService.updatePurchase(id, dto, user.tenant_id, user.sub);
+  ): Promise<PurchaseResponseDto> {
+    const purchase = await this.purchaseService.updatePurchase(id, dto, user.tenant_id, user.sub);
+    return PurchaseResponseDto.toPurchaseResponse(purchase);
   }
 
   @Get()
