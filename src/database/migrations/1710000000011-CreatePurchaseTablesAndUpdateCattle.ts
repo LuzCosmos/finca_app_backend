@@ -5,7 +5,7 @@ export class CreatePurchaseTablesAndUpdateCattle1710000000011 implements Migrati
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      CREATE TABLE "provider" (
+      CREATE TABLE "providers" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "id_tenant" UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         "name" varchar(150) NOT NULL,
@@ -18,7 +18,7 @@ export class CreatePurchaseTablesAndUpdateCattle1710000000011 implements Migrati
     `);
 
     await queryRunner.query(`
-      CREATE TABLE "purchase" (
+      CREATE TABLE "purchases" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "id_tenant" UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         "purchase_date" date NOT NULL,
@@ -30,19 +30,19 @@ export class CreatePurchaseTablesAndUpdateCattle1710000000011 implements Migrati
         "created_at" TIMESTAMP DEFAULT now(),
         "updated_at" TIMESTAMP DEFAULT now(),
         CONSTRAINT "pk_purchase_id" PRIMARY KEY ("id"),
-        CONSTRAINT "fk_purchase_provider" FOREIGN KEY ("id_provider") REFERENCES "provider"("id") ON DELETE SET NULL,
+        CONSTRAINT "fk_purchase_provider" FOREIGN KEY ("id_provider") REFERENCES "providers"("id") ON DELETE SET NULL,
         CONSTRAINT "fk_purchase_created_by" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE SET NULL,
         CONSTRAINT "fk_purchase_updated_by" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL
       );
     `);
 
     await queryRunner.query(`
-      CREATE TABLE "lot" (
+      CREATE TABLE "lots" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "id_tenant" UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         "id_purchase" uuid,
         "lot_number" varchar(5) NOT NULL,
-        "origin_place" varchar(255),
+        "origin_place" varchar(150),
         "cattle_count" integer NOT NULL,
         "average_weight" numeric(8,2),
         "total_weight" numeric(10,2),
@@ -53,7 +53,7 @@ export class CreatePurchaseTablesAndUpdateCattle1710000000011 implements Migrati
         "created_at" TIMESTAMP DEFAULT now(),
         "updated_at" TIMESTAMP DEFAULT now(),
         CONSTRAINT "pk_lot_id" PRIMARY KEY ("id"),
-        CONSTRAINT "fk_lot_purchase" FOREIGN KEY ("id_purchase") REFERENCES "purchase"("id") ON DELETE CASCADE,
+        CONSTRAINT "fk_lot_purchase" FOREIGN KEY ("id_purchase") REFERENCES "purchases"("id") ON DELETE CASCADE,
         CONSTRAINT "uq_lot_number_per_purchase" UNIQUE ("id_purchase", "lot_number")
       );
     `);
@@ -63,9 +63,9 @@ export class CreatePurchaseTablesAndUpdateCattle1710000000011 implements Migrati
       ADD COLUMN "id_purchase" uuid,
       ADD COLUMN "id_lot" uuid,
       ADD COLUMN "id_provider" uuid,
-      ADD CONSTRAINT "fk_cattle_purchase" FOREIGN KEY ("id_purchase") REFERENCES "purchase"("id") ON DELETE SET NULL,
-      ADD CONSTRAINT "fk_cattle_lot" FOREIGN KEY ("id_lot") REFERENCES "lot"("id") ON DELETE SET NULL,
-      ADD CONSTRAINT "fk_cattle_provider" FOREIGN KEY ("id_provider") REFERENCES "provider"("id") ON DELETE SET NULL;
+      ADD CONSTRAINT "fk_cattle_purchase" FOREIGN KEY ("id_purchase") REFERENCES "purchases"("id") ON DELETE SET NULL,
+      ADD CONSTRAINT "fk_cattle_lot" FOREIGN KEY ("id_lot") REFERENCES "lots"("id") ON DELETE SET NULL,
+      ADD CONSTRAINT "fk_cattle_provider" FOREIGN KEY ("id_provider") REFERENCES "providers"("id") ON DELETE SET NULL;
     `);
 
     await queryRunner.query(`
@@ -85,9 +85,9 @@ export class CreatePurchaseTablesAndUpdateCattle1710000000011 implements Migrati
       DROP COLUMN "id_purchase";
     `);
 
-    await queryRunner.query(`DROP TABLE "lot";`);
-    await queryRunner.query(`DROP TABLE "purchase";`);
-    await queryRunner.query(`DROP TABLE "provider";`);
+    await queryRunner.query(`DROP TABLE "lots";`);
+    await queryRunner.query(`DROP TABLE "purchases";`);
+    await queryRunner.query(`DROP TABLE "providers";`);
 
     await queryRunner.query(`
       DELETE FROM modules WHERE code = 'COMMERCE';

@@ -2,7 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 import { IsNotEmpty } from 'class-validator';
 
 @Unique(['nit', 'idTenant'])
-@Entity('provider')
+@Entity('providers')
 export class Provider {
   @PrimaryGeneratedColumn('uuid')
   id: string;

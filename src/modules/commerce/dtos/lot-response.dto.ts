@@ -1,0 +1,49 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { Lot } from '../entities/lot.entity';
+
+export class LotResponseDto {
+  @ApiProperty({ example: '111454e1-9bba-4447-a00e-567334cc51d4', description: 'Unique identifier of the lot' })
+  id: string;
+
+  @ApiProperty({ example: 'L-001', description: 'Lot number or label' })
+  lotNumber: string;
+
+  @ApiProperty({ example: '123454e1-9bba-4447-a00e-567334cc51d4', description: 'Unique identifier of the purchase' })
+  idPurchase: string;
+
+  @ApiProperty({ example: 'Farm A - Zone 3', description: 'Lot origin place' })
+  originPlace: string;
+
+  @ApiProperty({ example: 12, description: 'Number of cattle in the lot' })
+  cattleCount: number;
+
+  @ApiProperty({ example: 840.5, description: 'Total weight (kg) of cattle in the lot' })
+  totalWeight: number;
+
+  @ApiProperty({ example: 6500, description: 'Price per kilogram in the lot' })
+  pricePerKg: number;
+
+  @ApiProperty({ example: 5460000, description: 'Total monetary value of the lot' })
+  totalValue: number;
+
+  @ApiProperty({ example: '2 3/4', description: 'Age of the cattle in the lot' })
+  age: string;
+
+  @ApiProperty({ example: 'Male', description: 'Sex of the cattle in the lot' })
+  sex: string;
+
+  static toLotResponse(lot: Lot): LotResponseDto {
+    return {
+      id: lot.id,
+      lotNumber: lot.lotNumber,
+      idPurchase: lot.idPurchase,
+      originPlace: lot.originPlace,
+      cattleCount: lot.cattleCount,
+      totalWeight: lot.totalWeight,
+      pricePerKg: lot.pricePerKg,
+      totalValue: lot.totalValue,
+      age: lot.age,
+      sex: lot.sex
+    };
+  }
+}

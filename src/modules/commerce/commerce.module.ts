@@ -1,14 +1,22 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ProviderController } from './controllers/provider.controller';
-import { ProviderService } from './services/provider.service';
-import { ProviderRepository } from './repositories/provider.repository';
-import { Provider } from './entities/provider.entity';
-import { Purchase } from './entities/purchase.entity';
-import { Lot } from './entities/lot.entity';
 import { ConfigModule } from '@nestjs/config';
 import { ApplicationPermissionsModule } from '../auth/application-permissions/application-permissions.module';
 
+import { Provider } from './entities/provider.entity';
+import { ProviderController } from './controllers/provider.controller';
+import { ProviderService } from './services/provider.service';
+import { ProviderRepository } from './repositories/provider.repository';
+
+import { Purchase } from './entities/purchase.entity';
+import { PurchaseController } from './controllers/purchase.controller';
+import { PurchaseService } from './services/purchase.service';
+import { PurchaseRepository } from './repositories/purchase.repository';
+
+import { Lot } from './entities/lot.entity';
+import { LotRepository } from './repositories/lot.repository';
+import { LotController } from './controllers/lot.controller';
+import { LotService } from './services/lot.service';
 
 @Module({
   imports: [
@@ -20,8 +28,8 @@ import { ApplicationPermissionsModule } from '../auth/application-permissions/ap
     ConfigModule,
     ApplicationPermissionsModule
   ],
-  controllers: [ProviderController],
-  providers: [ProviderService, ProviderRepository],
+  controllers: [ProviderController, PurchaseController, LotController],
+  providers: [ProviderService, ProviderRepository, PurchaseService, PurchaseRepository, LotRepository, LotService],
   exports: [],
 })
 export class CommerceModule {}

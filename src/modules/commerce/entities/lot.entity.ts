@@ -5,7 +5,7 @@ import {
 import { Purchase } from './purchase.entity';
 import { Cattle } from '../../farm/entities/cattle.entity';
 
-@Entity('lot')
+@Entity('lots')
 export class Lot {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -16,28 +16,28 @@ export class Lot {
   @Column({ name: 'lot_number', length: 5 })
   lotNumber: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'origin_place', length: 150, nullable: true })
   originPlace: string;
 
-  @Column()
-  cattle_count: number;
+  @Column({ name: 'cattle_count', type: 'int', default: 0 })
+  cattleCount: number;
 
-  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
-  average_weight: number;
+  @Column({ name: 'average_weight', type: 'numeric', precision: 8, scale: 2, nullable: true })
+  averageWeight: number;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
-  total_weight: number;
+  @Column({ name: 'total_weight', type: 'numeric', precision: 10, scale: 2, nullable: true })
+  totalWeight: number;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
-  price_per_kg: number;
+  @Column({ name: 'price_per_kg', type: 'numeric', precision: 10, scale: 2, nullable: true })
+  pricePerKg: number;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2, nullable: true })
-  total_value: number;
+  @Column({ name: 'total_value', type: 'numeric', precision: 12, scale: 2, nullable: true })
+  totalValue: number;
 
-  @Column({ nullable: true })
+  @Column({ name: 'age', length: 50, nullable: true })
   age: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'sex', length: 20, nullable: true })
   sex: string;
 
   @Column({ name: 'id_purchase', type: 'uuid' })
@@ -49,9 +49,9 @@ export class Lot {
   @OneToMany(() => Cattle, (cattle) => cattle.lot)
   cattle: Cattle[];
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
 }

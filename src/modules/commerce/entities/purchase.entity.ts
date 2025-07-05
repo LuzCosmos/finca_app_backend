@@ -7,7 +7,7 @@ import { User } from '../../employee-management/entities/user.entity';
 import { Lot } from './lot.entity';
 import { Cattle } from '../../farm/entities/cattle.entity';
 
-@Entity('purchase')
+@Entity('purchases')
 export class Purchase {
   @PrimaryGeneratedColumn('uuid')
   id: string;
