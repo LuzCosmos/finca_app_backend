@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Provider } from '../entities/provider.entity';
 import { Injectable } from '@nestjs/common';
@@ -32,6 +32,25 @@ export class ProviderRepository {
       where: {
         nit,
         idTenant,
+      },
+    });
+  }
+
+  /**
+   * Find providers by NIT fragment
+   * @param nitFragment - The NIT fragment
+   * @param idTenant - The tenant ID
+   * @returns The providers
+   */
+  async findByNitLike(nitFragment: string, idTenant: string): Promise<Provider[]> {
+    return this.repository.find({
+      where: {
+        nit: ILike(`%${nitFragment}%`),
+        idTenant,
+      },
+      order: {
+        nit: 'ASC',
+        name: 'ASC',
       },
     });
   }

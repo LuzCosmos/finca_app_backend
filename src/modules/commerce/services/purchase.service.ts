@@ -99,9 +99,7 @@ export class PurchaseService {
           idPurchase: savedPurchase.id,
           idTenant
         });
-        this.logger.debug('Lot to save:', JSON.stringify(lot, null, 2));
         const savedLot = await this.lotRepository.saveWithManager(queryRunner.manager, lot);
-        this.logger.log(`Saved lot: ${JSON.stringify(savedLot)}`);
         savedLots.push(savedLot); 
       }
       savedPurchase.lots = savedLots;

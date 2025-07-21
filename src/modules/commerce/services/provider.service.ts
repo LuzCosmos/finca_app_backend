@@ -26,6 +26,10 @@ export class ProviderService {
     return provider;
   }
 
+  async searchProvidersByNit(nitFragment: string, idTenant: string): Promise<Provider[]> {
+    return this.providerRepository.findByNitLike(nitFragment, idTenant);
+  }
+
   async findById(id: string, idTenant: string): Promise<Provider> {
     const provider = await this.providerRepository.findById(id, idTenant);
     if (!provider) {

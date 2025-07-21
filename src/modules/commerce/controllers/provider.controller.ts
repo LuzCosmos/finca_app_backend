@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { ProviderService } from '../services/provider.service';
 import { Provider } from '../entities/provider.entity';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
 import { SessionUser } from '../../auth/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
@@ -12,6 +12,7 @@ import { CreateProviderDto } from '../dtos/create-provider.dto';
 import { UpdateProviderDto } from '../dtos/update-provider.dto';
 import { ProviderResponseDto } from '../dtos/provider-response.dto';
 import { BadRequestException } from '@nestjs/common';
+import { Query } from '@nestjs/common';
 
 @ApiTags('Provider')
 @ApiBearerAuth('access-token')
@@ -60,6 +61,18 @@ export class ProviderController {
   @ApiResponse({ status: 404, description: 'Provider not found by NIT' }) 
   async findByNit(@Param('nit') nit: string, @SessionUser() user: SessionUserDto): Promise<ProviderResponseDto> {
     return ProviderResponseDto.toProviderResponse(await this.providerService.findByNit(nit, user.tenant_id));
+  }
+
+  @Get('search/by-nit')
+  @RequireAction('read')
+  @ApiQuery({ name: 'query', required: true, description: 'Fragmento parcial del NIT' })
+  @ApiResponse({ status: 200, description: 'Proveedores coincidentes con fragmento del NIT' , type: [ProviderResponseDto] })
+  async searchByNit(
+    @Query('query') query: string,
+    @SessionUser() session: SessionUserDto,
+  ): Promise<ProviderResponseDto[]> {
+    const results = await this.providerService.searchProvidersByNit(query, session.tenant_id);
+    return results.map(ProviderResponseDto.toProviderResponse);
   }
 
   @Get()
