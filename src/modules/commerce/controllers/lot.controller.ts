@@ -6,12 +6,12 @@ import {
 } from '@nestjs/common';
 import { LotService } from '../services/lot.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { ApplicationPermissionsGuard } from '../../auth/application-permissions/application-permissions.guard';
-import { SessionUser } from '../../auth/decorators/session-user.decorator';
+import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
+import { SessionUser } from '../../../common/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { LotResponseDto } from '../dtos/lot-response.dto';
-import { RequireEntity, RequireModule, RequireAction } from 'src/modules/auth/application-permissions/application-permissions.decorator';
+import { LotResponseDto } from '../dto/lot-response.dto';
+import { RequireEntity, RequireModule, RequireAction } from '../../../common/application-permissions/application-permissions.decorator';
 
 @ApiTags('Lots')
 @ApiBearerAuth('access-token')

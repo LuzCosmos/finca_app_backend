@@ -1,0 +1,29 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { SimpleEvent } from '../entities/simple-event.entity';
+
+export class SimpleEventResponseDto {
+  @ApiProperty({ example: 'uuid-simple-event', description: 'Unique ID of the simple event' })
+  id: string;
+
+  @ApiProperty({ example: 'medication', description: 'Type of simple event' })
+  type: string;
+
+  @ApiProperty({ example: 'uuid-massive-event', description: 'Massive event ID this simple event belongs to' })
+  idMassiveEvent: string;
+
+  @ApiProperty({ example: '2025-07-24T12:00:00Z', description: 'Date when the simple event was created' })
+  createdAt: Date;
+/*
+  @ApiProperty({ example: '2025-07-24T12:00:00Z', description: 'Date when the simple event was last updated' })
+  updatedAt: Date;*/
+
+  static toResponseDto(entity: SimpleEvent): SimpleEventResponseDto {
+    return {
+      id: entity.id,
+      type: entity.type,
+      idMassiveEvent: entity.idMassiveEvent,
+      createdAt: entity.createdAt,
+      //updatedAt: entity.updatedAt,
+    };
+  }
+}

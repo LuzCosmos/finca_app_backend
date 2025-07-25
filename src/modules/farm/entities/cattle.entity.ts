@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToOne,
+  JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+} from 'typeorm';
 import { Device } from '../../production-center/entities/device.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
 import { Lot } from '../../commerce/entities/lot.entity';
@@ -12,12 +21,12 @@ export class Cattle {
   @Column({ name: 'id_tenant', type: 'uuid' })
   idTenant: string;
 
-  @Column({ name: 'id_device', type: 'uuid' })
+  @Column({ name: 'id_device', type: 'uuid', nullable: true })
   idDevice: string;
 
   @OneToOne(() => Device, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'id_device' })
-  device?: Device;  
+  device?: Device;
 
   @Column({ name: 'sys_number', length: 50 })
   sysNumber: string;
@@ -25,8 +34,9 @@ export class Cattle {
   @Column({ length: 50 })
   number: string;
 
-  @Column({ length: 50, nullable: true })
-  brand: string;
+
+  @Column({ name: 'id_brand', type: 'uuid', nullable: true })
+  idBrand: string;
 
   @Column({ name: 'color_description', length: 100, nullable: true })
   colorDescription: string;
@@ -71,7 +81,7 @@ export class Cattle {
   salePrice: number;
 
   @Column({ name: 'sale_price_per_kg', type: 'numeric', precision: 10, scale: 2, nullable: true })
-  salePricePerKg: number;   
+  salePricePerKg: number;
 
   @Column({ name: 'sale_weight', type: 'numeric', precision: 6, scale: 2, nullable: true })
   saleWeight: number;
@@ -84,13 +94,31 @@ export class Cattle {
 
   @ManyToOne(() => Purchase, (purchase) => purchase.cattle, { nullable: true })
   @JoinColumn({ name: 'id_purchase' })
-  purchase: Purchase;
+  purchase?: Purchase;
 
   @Column({ name: 'id_lot', type: 'uuid', nullable: true })
   idLot: string;
 
   @Column({ name: 'id_provider', type: 'uuid', nullable: true })
   idProvider: string;
+
+  /** ✅ NUEVOS CAMPOS PARA EVENTOS MASIVOS Y ESTADO ACTUAL */
+
+  /** Último peso registrado */
+  @Column({ name: 'last_weight', type: 'numeric', precision: 6, scale: 2, nullable: true })
+  lastWeight: number;
+
+  /** Eartag actual */
+  @Column({ name: 'eartag', type: 'varchar', length: 50, nullable: true })
+  eartag: string;
+
+  /** Si está castrado */
+  @Column({ name: 'castrated', type: 'boolean', default: false })
+  castrated: boolean;
+
+  /** Fecha de castración (único evento) */
+  @Column({ name: 'castration_date', type: 'timestamp', nullable: true })
+  castrationDate: Date;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

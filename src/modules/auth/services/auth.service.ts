@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../../employee-management/services/users.service';
 import { User } from '../../employee-management/entities/user.entity';
-import { ApplicationPermissionsService } from '../application-permissions/application-permissions.service';
+import { ApplicationPermissionsService } from '../../../common/application-permissions/application-permissions.service';
 import { RoleModulePermissionService } from '../../employee-management/services/role-module-permission.services';
 
 @Injectable()

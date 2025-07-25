@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { Cattle } from '../entities/cattle.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
 import { CattleRepository } from '../repositories/cattle.repository';
-import { CattleDeviceAssignmentRepository } from '../repositories/cattleDeviceAssignment.repository';
+import { CattleDeviceHistoryRepository } from '../repositories/cattle-device-history.repository';
+import { CattleWeightHistoryRepository } from '../repositories/cattle-weight-history.repository';
+import { CattleEartagHistoryRepository } from '../repositories/cattle-eartag-history.repository';
+import { CattleMedicationHistoryRepository } from '../repositories/cattle-medication-history.repository';
+import { SimpleEventCattleRepository } from 'src/modules/massive-events/repositories/simple-event-cattle.repository';
 import { DevicesService } from '../../production-center/services/devices.service';
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
@@ -17,10 +21,181 @@ export class CattleService {
 
   constructor(
     private readonly cattleRepository: CattleRepository,
-    private readonly cattleDeviceAssignmentRepository: CattleDeviceAssignmentRepository,
+    private readonly cattleDeviceHistoryRepository: CattleDeviceHistoryRepository,
+    private readonly cattleWeightHistoryRepository: CattleWeightHistoryRepository,
+    private readonly cattleEartagHistoryRepository: CattleEartagHistoryRepository,
+    private readonly cattleMedicationHistoryRepository: CattleMedicationHistoryRepository,
     private readonly deviceService: DevicesService,
+    private readonly simpleEventCattleRepository: SimpleEventCattleRepository,
     private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Apply multiple simple events to cattle by their number
+   * @param idTenant - The tenant ID
+   * @param events - The events to apply
+   * @param appliedBy - The user who applied the events
+   * @returns The cattle with the events applied
+   */
+  async applyBulkSimpleEvents(
+    idTenant: string,
+    events: Array<{
+      cattleNumber: string;
+      type: 'weight'|'eartag'|'tracker'|'brand'|'castration'|'medication';
+      data: any;
+      appliedBy?: string;
+      recordedInMassiveEvent?: string;
+    }>,
+    appliedBy?: string
+  ): Promise<Cattle[]> {
+    return this.dataSource.transaction(async manager => {
+      const results: Cattle[] = [];
+  
+      for (const ev of events) {
+        const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, ev.cattleNumber, manager);
+        if (!cattle) {
+          this.logger.warn(`Cattle with number ${ev.cattleNumber} not found, skipping`);
+          continue;
+        }
+  
+        await this.applyEventToCattle(manager, idTenant, cattle, { ...ev, appliedBy: ev.appliedBy ?? appliedBy });
+        if (ev.recordedInMassiveEvent) {
+          await this.simpleEventCattleRepository.saveWithManager(manager, {
+            id: crypto.randomUUID(),
+            idTenant,
+            idSimpleEvent: ev.recordedInMassiveEvent,
+            idCattle: cattle.id,
+            appliedAt: new Date(),
+            appliedBy: ev.appliedBy ?? appliedBy,
+          });
+        }
+  
+        await this.cattleRepository.saveWithManager(manager, cattle);
+        results.push(cattle);
+      }
+  
+      return results;
+    });
+  }
+  
+  /**
+   * Apply multiple simple events to a single cattle by number
+   * @param idTenant - The tenant ID
+   * @param cattleNumber - The cattle number
+   * @param events - The events to apply
+   * @param appliedBy - The user who applied the events
+   * @returns The cattle with the events applied
+   */
+  async applyMultipleSimpleEventsByNumber(
+    idTenant: string,
+    cattleNumber: string,
+    events: Array<{
+      type: 'weight'|'eartag'|'tracker'|'brand'|'castration'|'medication';
+      data: any;
+      appliedBy?: string;
+      recordedInMassiveEvent?: string;
+    }>,
+    appliedBy?: string
+  ): Promise<Cattle> {
+    return this.dataSource.transaction(async manager => {
+      const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, cattleNumber, manager);
+      if (!cattle) throw new NotFoundException(`Cattle ${cattleNumber} not found`);
+  
+      for (const ev of events) {
+        await this.applyEventToCattle(manager, idTenant, cattle, { ...ev, appliedBy: ev.appliedBy ?? appliedBy });
+        if (ev.recordedInMassiveEvent) {
+          await this.simpleEventCattleRepository.saveWithManager(manager, {
+            id: crypto.randomUUID(),
+            idTenant,
+            idSimpleEvent: ev.recordedInMassiveEvent,
+            idCattle: cattle.id,
+            appliedAt: new Date(),
+            appliedBy: ev.appliedBy ?? appliedBy,
+          });
+        }
+      }
+  
+      await this.cattleRepository.saveWithManager(manager, cattle);
+      return cattle;
+    });
+  }
+
+  /**
+   * Apply an event to a cattle
+   * @param manager - The entity manager
+   * @param idTenant - The tenant ID
+   * @param cattle - The cattle to apply the event to
+   * @param ev - The event to apply
+   */
+  public async applyEventToCattle(
+    manager: EntityManager,
+    idTenant: string,
+    cattle: Cattle,
+    ev: {
+      type: 'weight' | 'eartag' | 'tracker' | 'brand' | 'castration' | 'medication';
+      data: any;
+      appliedBy?: string;
+      recordedInMassiveEvent?: string;
+    }
+  ): Promise<void> {
+    switch (ev.type) {
+      case 'weight':
+        cattle.lastWeight = ev.data.weight;
+        await this.cattleWeightHistoryRepository.createWithManager(manager, {
+          idCattle: cattle.id,
+          weight: ev.data.weight,
+          date: new Date(),
+          recordedInMassiveEvent: ev.recordedInMassiveEvent,
+          recordedBy: ev.appliedBy,
+        } as any);
+        break;
+  
+      case 'eartag':
+        cattle.eartag = ev.data.eartagNumber;
+        await this.cattleEartagHistoryRepository.createWithManager(manager, {
+          idCattle: cattle.id,
+          eartagNumber: ev.data.eartagNumber,
+          assignedAt: new Date(),
+          assignedBy: ev.appliedBy,
+          recordedInMassiveEvent: ev.recordedInMassiveEvent,
+        } as any);
+        break;
+  
+      case 'tracker':
+        cattle.idDevice = ev.data.idDevice;
+        await this.cattleDeviceHistoryRepository.assignDeviceToCattle(
+          ev.data.idDevice,
+          cattle.id,
+          idTenant,
+          ev.appliedBy ?? undefined,
+          ev.recordedInMassiveEvent ?? undefined,
+          manager,
+        );
+        break;
+  
+      case 'brand':
+        cattle.idBrand = ev.data.idBrand;
+        break;
+  
+      case 'castration':
+        cattle.castrated = true;
+        cattle.castrationDate = new Date();
+        break;
+  
+      case 'medication':
+        await this.cattleMedicationHistoryRepository.createWithManager(manager, {
+          idCattle: cattle.id,
+          medicationId: ev.data.medicationId,
+          dosage: ev.data.dosage,
+          route: ev.data.route,
+          lot: ev.data.lot,
+          appliedAt: new Date(),
+          appliedBy: ev.appliedBy,
+          recordedInMassiveEvent: ev.recordedInMassiveEvent,
+        } as any);
+        break;
+    }
+  }
 
   /**
    * Create or update a cattle with device tags
@@ -44,14 +219,14 @@ export class CattleService {
       dto.idDevice = device.id;
       // Crear una copia del DTO sin el campo deveui
       const { deveui, ...dtoWithoutDeveui } = dto;
-      let cattle: Cattle | undefined;
+      let cattle: Cattle | null;
       if (idcattle) {
         cattle = await this.cattleRepository.update(idTenant, idcattle, dtoWithoutDeveui as UpdateCattleDto, manager);
       } else {
        cattle = await this.cattleRepository.create(dtoWithoutDeveui as CreateCattleDto, manager);
       }
       if (!cattle) throw new NotFoundException(`Cattle ${idcattle} not found`);
-      const cattleDeviceAssignment = await this.cattleDeviceAssignmentRepository.assignDeviceToCattle(dto.idDevice, cattle.id, manager);
+      const cattleDeviceHistory = await this.cattleDeviceHistoryRepository.assignDeviceToCattle(dto.idDevice, cattle.id, idTenant, undefined, undefined, manager);
       const deviceUpdateDto = {
         applicationId: device.csApplicationId,
         description: device.description,

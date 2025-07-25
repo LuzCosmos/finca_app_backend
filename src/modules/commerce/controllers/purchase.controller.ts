@@ -9,15 +9,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PurchaseService } from '../services/purchase.service';
-import { CreatePurchaseDto } from '../dtos/create-purchase.dto';
-import { UpdatePurchaseDto } from '../dtos/update-purchase.dto';
-import { SessionUser } from '../../auth/decorators/session-user.decorator';
+import { CreatePurchaseDto } from '../dto/create-purchase.dto';
+import { UpdatePurchaseDto } from '../dto/update-purchase.dto';
+import { SessionUser } from '../../../common/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
+import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { PurchaseResponseDto } from '../dtos/purchase-response.dto';
-import { RequireEntity, RequireModule, RequireAction } from 'src/modules/auth/application-permissions/application-permissions.decorator';
+import { PurchaseResponseDto } from '../dto/purchase-response.dto';
+import { RequireEntity, RequireModule, RequireAction } from '../../../common/application-permissions/application-permissions.decorator';
 
 @ApiTags('Purchases')
 @ApiBearerAuth('access-token')

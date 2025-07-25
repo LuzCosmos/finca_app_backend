@@ -10,7 +10,7 @@ import { DeviceRepository } from './repositories/device.repository';
 import { DeviceProfileRepository } from './repositories/device-profile.repository';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
-import { ApplicationPermissionsModule } from '../auth/application-permissions/application-permissions.module';
+import { ApplicationPermissionsModule } from '../../common/application-permissions/application-permissions.module';
 
 @Module({
   imports: [

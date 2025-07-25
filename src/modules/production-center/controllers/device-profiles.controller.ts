@@ -6,10 +6,10 @@ import { UpdateDeviceProfileDto } from '../dto/update-device-profile.dto';
 import { DeviceProfileResponseDto } from '../dto/device-profile-response.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
-import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
-import { RequireModule, RequireAction, RequireEntity } from '../../auth/application-permissions/application-permissions.decorator';
-import { SessionUser } from 'src/modules/auth/decorators/session-user.decorator';
-import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
+import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
+import { RequireModule, RequireAction, RequireEntity } from '../../../common/application-permissions/application-permissions.decorator';
+import { SessionUser } from '../../../common/decorators/session-user.decorator';
+import { SessionUserDto } from '../../auth/dto/session-user.dto';
 @ApiTags('Device Profiles')
 @ApiBearerAuth('access-token')
 @Controller('device-profiles')

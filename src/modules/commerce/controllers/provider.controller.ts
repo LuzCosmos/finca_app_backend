@@ -2,15 +2,15 @@ import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common'
 import { ProviderService } from '../services/provider.service';
 import { Provider } from '../entities/provider.entity';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody, ApiQuery } from '@nestjs/swagger';
-import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
-import { SessionUser } from '../../auth/decorators/session-user.decorator';
+import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
+import { SessionUser } from '../../../common/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
-import { RequireEntity, RequireModule, RequireAction } from 'src/modules/auth/application-permissions/application-permissions.decorator';
+import { RequireEntity, RequireModule, RequireAction } from '../../../common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { UseGuards } from '@nestjs/common';
-import { CreateProviderDto } from '../dtos/create-provider.dto';
-import { UpdateProviderDto } from '../dtos/update-provider.dto';
-import { ProviderResponseDto } from '../dtos/provider-response.dto';
+import { CreateProviderDto } from '../dto/create-provider.dto';
+import { UpdateProviderDto } from '../dto/update-provider.dto';
+import { ProviderResponseDto } from '../dto/provider-response.dto';
 import { BadRequestException } from '@nestjs/common';
 import { Query } from '@nestjs/common';
 

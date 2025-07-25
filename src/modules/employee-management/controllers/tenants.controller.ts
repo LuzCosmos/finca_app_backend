@@ -4,10 +4,10 @@ import { TenantsService } from '../services/tenants.service';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
 import { Tenant } from '../entities/tenant.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
-import { RequireModule, RequireAction, RequireEntity } from 'src/modules/auth/application-permissions/application-permissions.decorator';
+import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
+import { RequireModule, RequireAction, RequireEntity } from '../../../common/application-permissions/application-permissions.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
-import { SessionUser } from 'src/modules/auth/decorators/session-user.decorator';
+import { SessionUser } from 'src/common/decorators/session-user.decorator';
 
 @ApiTags('Tenants')
 @Controller('tenants')

@@ -6,10 +6,10 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EmployeeManagementModule } from '../employee-management/employee-management.module';
-import { ApplicationPermissionsService } from './application-permissions/application-permissions.service';
+import { ApplicationPermissionsService } from '../../common/application-permissions/application-permissions.service';
 import { APP_FILTER } from '@nestjs/core';
-import { AllExceptionFilter } from './filters/all-exception.filter';
-import { ApplicationPermissionsModule } from './application-permissions/application-permissions.module';
+import { AllExceptionFilter } from '../../common/filters/all-exception.filter';
+import { ApplicationPermissionsModule } from '../../common/application-permissions/application-permissions.module';
 import { RedisModule } from './redis/redis.module';   
 
 @Module({

@@ -15,7 +15,7 @@ import { ModuleEntity } from './entities/module.entity';
 import { UserRepository } from './repositories/user.repository';
 import { RoleModulePermissionRepository } from './repositories/role-module-permission.repository';
 import { RoleModulePermissionService } from './services/role-module-permission.services';
-import { ApplicationPermissionsModule } from '../auth/application-permissions/application-permissions.module';
+import { ApplicationPermissionsModule } from '../../common/application-permissions/application-permissions.module';
 import { RoleRepository } from './repositories/role.repository';
 
 @Module({

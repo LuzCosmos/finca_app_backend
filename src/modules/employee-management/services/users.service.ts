@@ -11,7 +11,7 @@ import { UpdateUserDto } from '../dto/update-user.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
 import { UserRepository } from '../repositories/user.repository';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
-import { ApplicationPermissionsService } from 'src/modules/auth/application-permissions/application-permissions.service';
+import { ApplicationPermissionsService } from '../../../common/application-permissions/application-permissions.service';
 
 interface CreateAdminUserDto {
   username: string;

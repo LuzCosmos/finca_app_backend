@@ -1,12 +1,12 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Logger, ForbiddenException } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
-import { RequireModule, RequireAction, RequireEntity } from '../../auth/application-permissions/application-permissions.decorator';
+import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
+import { RequireModule, RequireAction, RequireEntity } from '../../../common/application-permissions/application-permissions.decorator';
 import { RoleService } from '../services/roles.service';
 import { RoleModulePermission } from '../entities/role-module-permission.entity';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
-import { SessionUser } from 'src/modules/auth/decorators/session-user.decorator';
+import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { CreatePermissionDto, CreatePermissionResponseDto } from '../dto/create-permission.dto';
 import { RoleModulePermissionService } from '../services/role-module-permission.services';
 import { RoleReadDto } from '../dto/role-read.dto';

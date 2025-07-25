@@ -3,16 +3,18 @@ import { CattleService } from '../services/cattle.service';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { RequireEntity, RequireModule, RequireAction } from 'src/modules/auth/application-permissions/application-permissions.decorator';
+import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
+import { ApplicationPermissionsGuard } from 'src/common/application-permissions/application-permissions.guard';
 import { UseGuards } from '@nestjs/common';
 import { CattleResponseDto } from '../dto/cattle-response.dto';
-import { SessionUser } from 'src/modules/auth/decorators/session-user.decorator';
+import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { ApplySimpleEventsDto } from 'src/modules/massive-events/dto/apply-simple-events.dto';
+import { SimpleEventCattleRepository } from 'src/modules/massive-events/repositories/simple-event-cattle.repository';
 
 @ApiTags('Cattle')
 @ApiBearerAuth('access-token')
@@ -21,7 +23,10 @@ import { extname } from 'path';
 @RequireModule('FARM')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class CattleController {
-  constructor(private readonly cattleService: CattleService) {}
+  constructor(
+    private readonly cattleService: CattleService,
+    private readonly simpleEventCattleRepository: SimpleEventCattleRepository,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new cattle' })
@@ -99,6 +104,109 @@ export class CattleController {
     return this.cattleService.list(sessionUser.tenant_id);
   }
 
+  @Get(':id/simple-events')
+  @ApiOperation({ summary: 'List all simple events applied to a cattle' })
+  @ApiResponse({ status: 200, description: 'List of simple events IDs' })
+  @RequireAction('read')
+  async findSimpleEventsByCattle(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
+    const links = await this.simpleEventCattleRepository.findByCattle(sessionUser.tenant_id, id);
+    return links.map(link => ({
+      idSimpleEvent: link.idSimpleEvent,
+      appliedAt: link.appliedAt,
+      appliedBy: link.appliedBy,
+    }));
+  }
+
+
+  @Post('apply-simple-events')
+  @ApiOperation({ summary: 'Apply multiple simple events to cattle by their number' })
+  @ApiResponse({ status: 200, description: 'Events applied successfully', type: [CattleResponseDto] })
+  @RequireAction('update')
+  @ApiBody({
+    type: ApplySimpleEventsDto,
+    examples: {
+      example1: {
+        summary: 'Apply various events',
+        value: {
+          events: [
+            {
+              cattleNumber: 'C-001',
+              type: 'weight',
+              data: { weight: 350 },
+              recordedInMassiveEvent: 'uuid-simple-event-1'
+            },
+            {
+              cattleNumber: 'C-002',
+              type: 'eartag',
+              data: { eartagNumber: 'ET-789' },
+              recordedInMassiveEvent: 'uuid-simple-event-2'
+            }
+          ]
+        }
+      }
+    }
+  })
+  async applySimpleEventsToCattle(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Body() body: ApplySimpleEventsDto
+  ) {
+    return this.cattleService.applyBulkSimpleEvents(sessionUser.tenant_id, body.events, sessionUser.sub);
+  }
+
+  @Post(':cattleNumber/apply-events')
+  @ApiOperation({ summary: 'Apply multiple simple events to a single cattle by number' })
+  @ApiResponse({ status: 200, description: 'Events applied successfully', type: CattleResponseDto })
+  @RequireAction('update')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        events: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['weight','eartag','tracker','brand','castration','medication'] },
+              data: { type: 'object' },
+              appliedBy: { type: 'string' },
+              recordedInMassiveEvent: { type: 'string' }
+            }
+          }
+        }
+      }
+    },
+    examples: {
+      example1: {
+        summary: 'Apply multiple events to one cattle',
+        value: {
+          events: [
+            { type: 'weight', data: { weight: 350 } },
+            { type: 'eartag', data: { eartagNumber: 'ET-789' } }
+          ]
+        }
+      }
+    }
+  })
+  async applyEventsToSingleCattle(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Param('cattleNumber') cattleNumber: string,
+    @Body('events') events: Array<{
+      type: 'weight'|'eartag'|'tracker'|'brand'|'castration'|'medication';
+      data: any;
+      appliedBy?: string;
+      recordedInMassiveEvent?: string;
+    }>
+  ) {
+    const cattle = await this.cattleService.applyMultipleSimpleEventsByNumber(
+      sessionUser.tenant_id,
+      cattleNumber,
+      events,
+      sessionUser.sub
+    );
+    
+    //return CattleResponseDto.toResponseDto(    );
+  }
+  
   @Post('import')
   @ApiOperation({ summary: 'Import cattle from an Excel file' })
   @ApiConsumes('multipart/form-data')

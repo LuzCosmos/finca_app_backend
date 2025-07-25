@@ -5,11 +5,11 @@ import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { User } from '../entities/user.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RequireModule, RequireAction, RequireEntity } from '../../auth/application-permissions/application-permissions.decorator';
+import { RequireModule, RequireAction, RequireEntity } from '../../../common/application-permissions/application-permissions.decorator';
 import { UserResponseDto } from '../dto/user-response.dto';
 import { plainToInstance } from 'class-transformer';
-import { ApplicationPermissionsGuard } from 'src/modules/auth/application-permissions/application-permissions.guard';
-import { SessionUser } from 'src/modules/auth/decorators/session-user.decorator';
+import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
+import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 
 @ApiTags('Users')

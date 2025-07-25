@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
-import { ApplicationPermissionsModule } from '../auth/application-permissions/application-permissions.module';
+import { ApplicationPermissionsModule } from '../../common/application-permissions/application-permissions.module';
 
 import { Provider } from './entities/provider.entity';
 import { ProviderController } from './controllers/provider.controller';
