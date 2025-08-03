@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsDateString, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
+import { IsEnum, IsArray, IsDateString, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { SimpleEventType } from '../enums/simple-event-type.enum';
 
 class SimpleEventInputDto {
   @ApiProperty({
@@ -9,7 +10,8 @@ class SimpleEventInputDto {
     example: 'medication',
   })
   @IsNotEmpty()
-  type: string;
+  @IsEnum(SimpleEventType)
+  type: SimpleEventType;
 
   @ApiPropertyOptional({
     description:

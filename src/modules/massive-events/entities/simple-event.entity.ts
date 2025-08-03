@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
 } from 'typeorm';
+import { SimpleEventType } from '../enums/simple-event-type.enum';
 
 @Entity('simple_events')
 export class SimpleEvent {
@@ -16,8 +17,8 @@ export class SimpleEvent {
   @Column({ name: 'id_massive_event', type: 'uuid' })
   idMassiveEvent: string;
 
-  @Column({ type: 'varchar', length: 30 })
-  type: string; // medication, weight, castration, brand, tracker, eartag
+  @Column({name: 'type', type: 'enum', enum: SimpleEventType, enumName: 'simple_event_type_enum' })
+  type: SimpleEventType; // medication, weight, castration, brand, tracker, eartag
 
   @Column({ type: 'jsonb', nullable: true })
   data?: any;

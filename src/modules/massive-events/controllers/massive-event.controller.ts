@@ -8,6 +8,7 @@ import { ApplicationPermissionsGuard } from 'src/common/application-permissions/
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 import { MassiveEventResponseDto } from '../dto/massive-event-response.dto';
+import { SyncMassiveEventsRequestDto, SyncMassiveEventsResponseDto } from '../dto/sync-massive-event.dto';
 
 @ApiTags('Massive Events')
 @ApiBearerAuth('access-token')
@@ -33,7 +34,7 @@ export class MassiveEventController {
             {
               type: 'medication',
               data: {
-                medicationId: 'abc',
+                medicationName: 'abc',
                 dosage: '1ml/50kg',
                 route: 'oral',
                 lot: '232adf-asdf'
@@ -90,5 +91,65 @@ export class MassiveEventController {
   @RequireAction('delete')
   remove(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string) {
     return this.massiveEventService.deleteMassiveEvent(sessionUser.tenant_id, id);
+  }
+
+
+  @Post('sync')
+  @ApiOperation({ summary: 'Sync Massive Events and their Simple Events (offline to backend)' })
+  @ApiResponse({ status: 201, description: 'Massive Events synced successfully', type: SyncMassiveEventsResponseDto })
+  @ApiBody({
+    type: SyncMassiveEventsRequestDto,
+    examples: {
+      example1: {
+        summary: 'MassiveEvent with all types of SimpleEvents',
+        value: {
+          massiveEvents: [
+            {
+              id: 'uuid-massive-1',
+              idTenant: 'tenant-uuid',
+              eventDate: '2025-07-24T00:00:00Z',
+              status: 'open',
+              createdBy: 'user-123',
+              createdAt: '2025-07-24T00:00:00Z',
+              simpleEvents: [
+                {
+                  id: 'uuid-se-weight',
+                  type: 'weight',
+                  dataJson: '{}'
+                },
+                {
+                  id: 'uuid-se-eartag',
+                  type: 'eartag',
+                  dataJson: '{}'
+                },
+                {
+                  id: 'uuid-se-tracker',
+                  type: 'tracker',
+                  dataJson: '{}'
+                },
+                {
+                  id: 'uuid-se-brand',
+                  type: 'brand',
+                  dataJson: '{"idBrand":"brand-777"}'
+                },
+                {
+                  id: 'uuid-se-castration',
+                  type: 'castration'
+                },
+                {
+                  id: 'uuid-se-medication',
+                  type: 'medication',
+                  dataJson: '{"medicationName":"med-001","dosage":"1ml","route":"oral","lot":"LOT-2025"}'
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+  })
+  @RequireAction('create')
+  sync(@SessionUser() user: SessionUserDto, @Body() body: SyncMassiveEventsRequestDto) {
+    return this.massiveEventService.syncMassiveEvents(user.tenant_id, body.massiveEvents);
   }
 }

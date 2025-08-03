@@ -5,6 +5,8 @@ import { Brand } from '../entities/brand.entity';
 import { BrandResponseDto } from '../dto/brand-response.dto';
 import { CreateBrandDto } from '../dto/create-brand.dto';
 import { UpdateBrandDto } from '../dto/update-brand.dto';
+import { SyncBrandDto } from '../dto/sync-brand.dto';
+import { SyncBrandResultDto } from '../dto/sync-brand.dto';
 
 @Injectable()
 export class BrandService {
@@ -17,8 +19,13 @@ export class BrandService {
    * Crear una nueva marca
    */
   async create(idTenant: string, dto: CreateBrandDto): Promise<Brand> {
-    dto.idTenant = idTenant;
-    return await this.brandRepository.create(dto);
+    const brand = {
+      id: dto.id,
+      idTenant,
+      name: dto.name,
+      imageUrl: dto.imageUrl ?? undefined,
+    }
+    return await this.brandRepository.create(brand);
   }
 
   /**
@@ -66,4 +73,33 @@ export class BrandService {
       return await this.brandRepository.createWithManager(dto as any, manager);
     });
   }
+
+  async syncBrands(idTenant: string, brands: SyncBrandDto[]): Promise<SyncBrandResultDto[]> {
+    const results: SyncBrandResultDto[] = [];
+  
+    for (const b of brands) {
+      try {
+        // ¿Existe ya un brand con el mismo nombre para este tenant?
+        const existing = await this.brandRepository.findByName(idTenant, b.name);
+        if (existing) {
+          results.push({ id: b.id, status: 'synced', serverId: existing.id });
+          continue;
+        }
+  
+        // Crear el brand usando el id proporcionado desde frontend
+        const brand = await this.brandRepository.create({
+          id: b.id,
+          idTenant,
+          name: b.name,
+          imageUrl: b.imageUrl ?? undefined,
+        });
+        results.push({ id: b.id, status: 'synced', serverId: brand.id });
+      } catch (error) {
+        results.push({ id: b.id, status: 'failed', message: error.message });
+      }
+    }
+  
+    return results;
+  }
+  
 }

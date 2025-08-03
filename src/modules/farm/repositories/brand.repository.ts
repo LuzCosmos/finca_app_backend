@@ -43,6 +43,13 @@ export class BrandRepository {
   }
 
   /**
+   * Obtener una marca específica por nombre
+   */
+  async findByName(idTenant: string, name: string): Promise<Brand | null> {
+    return await this.repo.findOne({ where: { idTenant, name } });
+  }
+
+  /**
    * Actualizar una marca
    */
   async update(idTenant: string, id: string, dto: UpdateBrandDto, manager?: EntityManager): Promise<Brand | null> {

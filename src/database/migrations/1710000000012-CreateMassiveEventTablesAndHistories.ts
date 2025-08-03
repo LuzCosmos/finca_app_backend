@@ -30,12 +30,16 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
       ADD COLUMN "recorded_in_massive_event" uuid NULL REFERENCES massive_events(id);
     `);
 
+    await queryRunner.query(`CREATE TYPE "simple_event_type_enum" AS ENUM (
+      'weight', 'eartag', 'tracker', 'brand', 'castration', 'medication');
+    `);
+
     await queryRunner.query(`
       CREATE TABLE "simple_events" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "id_tenant" uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         "id_massive_event" uuid NOT NULL REFERENCES massive_events(id) ON DELETE CASCADE,
-        "type" varchar(30) NOT NULL, -- medication, weight, castration, brand, tracker, eartag
+        "type" simple_event_type_enum NOT NULL, -- medication, weight, castration, brand, tracker, eartag
         "data" jsonb,
         "created_at" timestamp DEFAULT now(),
         CONSTRAINT "pk_simple_events" PRIMARY KEY ("id")
@@ -43,11 +47,11 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
     `);
 
     await queryRunner.query(`
-      CREATE TABLE "simple_event_cattle" (
+      CREATE TABLE "animal_simple_event" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "id_tenant" uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         "id_simple_event" uuid NOT NULL REFERENCES simple_events(id) ON DELETE CASCADE,
-        "id_cattle" uuid,
+        "id_animal" uuid,
         "provisional_number" varchar(50),
         "applied_at" timestamp DEFAULT now(),
         "applied_by" uuid REFERENCES users(id),
@@ -123,7 +127,7 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
 
     await queryRunner.query(`
       INSERT INTO modules (id, code, name, description, access_details) VALUES
-      (uuid_generate_v4(), 'MASSIVE_EVENTS', 'Eventos Masivos', 'Gestión de eventos masivos', '{"massive_events":"CRUDL"}');
+      (uuid_generate_v4(), 'MASSIVE_EVENTS', 'Eventos Masivos', 'Gestión de eventos masivos', '{"massive_events":"CRUDL","massive_events": "CRUDL", "simple_events":"CRUDL", "animal_simple_events":"CRUDL"}');
     `);
   }
 
@@ -152,12 +156,12 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
     await queryRunner.query(`DROP TABLE IF EXISTS "cattle_eartag_history";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "cattle_weight_history";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "cattle_medication_history";`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "simple_event_cattle";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "animal_simple_event";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "simple_events";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "massive_events";`);
 
+    await queryRunner.query(`DROP TYPE IF EXISTS "simple_event_type_enum";`);
    
-
     await queryRunner.query(`
       DELETE FROM modules WHERE code = 'MASSIVE_EVENTS';
     `);

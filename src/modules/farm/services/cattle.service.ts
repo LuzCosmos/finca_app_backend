@@ -3,12 +3,13 @@ import { DataSource, EntityManager } from 'typeorm';
 import { Cattle } from '../entities/cattle.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
+import { SyncAnimalSimpleEventDto, SyncAnimalSimpleEventResultDto } from 'src/modules/massive-events/dto/sync-animal-simple-event.dto';
 import { CattleRepository } from '../repositories/cattle.repository';
 import { CattleDeviceHistoryRepository } from '../repositories/cattle-device-history.repository';
 import { CattleWeightHistoryRepository } from '../repositories/cattle-weight-history.repository';
 import { CattleEartagHistoryRepository } from '../repositories/cattle-eartag-history.repository';
 import { CattleMedicationHistoryRepository } from '../repositories/cattle-medication-history.repository';
-import { SimpleEventCattleRepository } from 'src/modules/massive-events/repositories/simple-event-cattle.repository';
+import { AnimalSimpleEventRepository } from 'src/modules/massive-events/repositories/animal-simple-event.repository';
 import { DevicesService } from '../../production-center/services/devices.service';
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
@@ -26,7 +27,7 @@ export class CattleService {
     private readonly cattleEartagHistoryRepository: CattleEartagHistoryRepository,
     private readonly cattleMedicationHistoryRepository: CattleMedicationHistoryRepository,
     private readonly deviceService: DevicesService,
-    private readonly simpleEventCattleRepository: SimpleEventCattleRepository,
+    private readonly simpleEventCattleRepository: AnimalSimpleEventRepository,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -64,7 +65,7 @@ export class CattleService {
             id: crypto.randomUUID(),
             idTenant,
             idSimpleEvent: ev.recordedInMassiveEvent,
-            idCattle: cattle.id,
+            idAnimal: cattle.id,
             appliedAt: new Date(),
             appliedBy: ev.appliedBy ?? appliedBy,
           });
@@ -108,7 +109,7 @@ export class CattleService {
             id: crypto.randomUUID(),
             idTenant,
             idSimpleEvent: ev.recordedInMassiveEvent,
-            idCattle: cattle.id,
+            idAnimal: cattle.id,
             appliedAt: new Date(),
             appliedBy: ev.appliedBy ?? appliedBy,
           });
@@ -185,7 +186,7 @@ export class CattleService {
       case 'medication':
         await this.cattleMedicationHistoryRepository.createWithManager(manager, {
           idCattle: cattle.id,
-          medicationId: ev.data.medicationId,
+          medicationName: ev.data.medicationName,
           dosage: ev.data.dosage,
           route: ev.data.route,
           lot: ev.data.lot,
@@ -196,6 +197,50 @@ export class CattleService {
         break;
     }
   }
+
+  async syncSimpleEventCattle(
+    idTenant: string,
+    events: SyncAnimalSimpleEventDto[],
+    appliedBy?: string
+  ): Promise<SyncAnimalSimpleEventResultDto[]> {
+    return this.dataSource.transaction(async manager => {
+      const results: SyncAnimalSimpleEventResultDto[] = [];
+  
+      for (const payload of events) {
+        const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, payload.cattleNumber, manager);
+        if (!cattle) {
+          results.push({
+            id: payload.id,
+            status: 'failed',
+            message: `Cattle ${payload.cattleNumber} not found`,
+          });
+          continue;
+        }
+        await this.applyEventToCattle(manager, idTenant, cattle, {
+          type: payload.type as any,
+          data: payload.dataJson ? JSON.parse(payload.dataJson) : {},
+          appliedBy: payload.appliedBy ?? appliedBy,
+          recordedInMassiveEvent: payload.recordedInMassiveEvent,
+        });
+  
+        // guardar en simple_event_cattle
+        await this.simpleEventCattleRepository.saveWithManager(manager, {
+          id: payload.id,
+          idTenant,
+          idSimpleEvent: payload.recordedInMassiveEvent ?? '',
+          idAnimal: cattle.id,
+          appliedAt: new Date(payload.appliedAt),
+          appliedBy: payload.appliedBy ?? appliedBy,
+        });
+  
+        await this.cattleRepository.saveWithManager(manager, cattle);
+        results.push({ id: payload.id, status: 'synced', animalServerId: cattle.id });
+      }
+  
+      return results;
+    });
+  }
+  
 
   /**
    * Create or update a cattle with device tags

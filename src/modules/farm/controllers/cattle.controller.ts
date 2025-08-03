@@ -14,7 +14,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ApplySimpleEventsDto } from 'src/modules/massive-events/dto/apply-simple-events.dto';
-import { SimpleEventCattleRepository } from 'src/modules/massive-events/repositories/simple-event-cattle.repository';
+import { AnimalSimpleEventRepository } from 'src/modules/massive-events/repositories/animal-simple-event.repository';
+import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } from 'src/modules/massive-events/dto/sync-animal-simple-event.dto';
 
 @ApiTags('Cattle')
 @ApiBearerAuth('access-token')
@@ -25,7 +26,7 @@ import { SimpleEventCattleRepository } from 'src/modules/massive-events/reposito
 export class CattleController {
   constructor(
     private readonly cattleService: CattleService,
-    private readonly simpleEventCattleRepository: SimpleEventCattleRepository,
+    private readonly simpleEventCattleRepository: AnimalSimpleEventRepository,
   ) {}
 
   @Post()
@@ -205,6 +206,51 @@ export class CattleController {
     );
     
     //return CattleResponseDto.toResponseDto(    );
+  }
+
+
+  @Post('sync-cattle-simple-event')
+  @ApiOperation({ summary: 'Sync offline cattle-simple-event records to backend' })
+  @ApiResponse({ status: 200, description: 'Sync results', type: SyncAnimalSimpleEventResponseDto })
+  @RequireAction('update')
+  @ApiBody({
+    type: SyncAnimalSimpleEventRequestDto,
+    examples: {
+      example1: {
+        summary: 'Sync multiple SimpleEventCattle',
+        value: {
+          simpleEventCattle: [
+            {
+              id: 'uuid-local-1',
+              idTenant: 'tenant-uuid',
+              cattleNumber: 'C-123',
+              type: 'weight',
+              dataJson: '{"weight":350}',
+              appliedAt: '2025-07-24T10:00:00Z',
+              appliedBy: 'user-123',
+              recordedInMassiveEvent: 'uuid-simple-event-1'
+            },
+            {
+              id: 'uuid-local-2',
+              idTenant: 'tenant-uuid',
+              cattleNumber: 'C-999',
+              type: 'medication',
+              dataJson: '{"medicationName":"med-001","dosage":"1ml","route":"oral","lot":"LOT-2025"}',
+              appliedAt: '2025-07-24T11:00:00Z',
+              appliedBy: 'user-123',
+              recordedInMassiveEvent: 'uuid-simple-event-2'
+            }
+          ]
+        }
+      }
+    }
+  })
+  async syncSimpleEventCattle(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Body() body: SyncAnimalSimpleEventRequestDto,
+  ): Promise<SyncAnimalSimpleEventResponseDto> {
+    const results = await this.cattleService.syncSimpleEventCattle(sessionUser.tenant_id, body.animalSimpleEvent, sessionUser.sub);
+    return { results };
   }
   
   @Post('import')

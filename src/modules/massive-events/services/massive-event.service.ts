@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { MassiveEventRepository } from '../repositories/massive-event.repository';
 import { SimpleEventRepository } from '../repositories/simple-event.repository';
 import { CreateMassiveEventDto } from '../dto/create-massive-event.dto';
-import { SimpleEventCattleRepository } from '../repositories/simple-event-cattle.repository';
+import { AnimalSimpleEventRepository } from '../repositories/animal-simple-event.repository';
 import { CattleRepository } from 'src/modules/farm/repositories/cattle.repository';
 import { SimpleEvent } from '../entities/simple-event.entity';
 import { MassiveEvent } from '../entities/massive-events.entity';
 import { v4 as uuidv4 } from 'uuid';
+import { SyncMassiveEventDto, SyncMassiveEventResultDto } from '../dto/sync-massive-event.dto';
 
 @Injectable()
 export class MassiveEventService {
@@ -17,9 +18,87 @@ export class MassiveEventService {
     private readonly dataSource: DataSource,
     private readonly massiveEventRepo: MassiveEventRepository,
     private readonly simpleEventRepo: SimpleEventRepository,
-    private readonly simpleEventCattleRepository: SimpleEventCattleRepository,
+    private readonly simpleEventCattleRepository: AnimalSimpleEventRepository,
     private readonly cattleRepository: CattleRepository,
   ) {}
+
+  private async saveMassiveAndSimples(manager: EntityManager, payload: SyncMassiveEventDto): Promise<MassiveEvent> {
+    let massiveEvent = await manager.findOne(MassiveEvent, {
+      where: { id: payload.id, idTenant: payload.idTenant },
+    });
+
+    if (!massiveEvent) {
+      massiveEvent = this.massiveEventRepo.createInstance({
+        id: payload.id,
+        idTenant: payload.idTenant,
+        eventDate: new Date(payload.eventDate),
+        status: payload.status,
+        createdBy: payload.createdBy,
+        createdAt: payload.createdAt ? new Date(payload.createdAt) : undefined,
+        updatedAt: payload.updatedAt ? new Date(payload.updatedAt) : undefined,
+      });
+      await this.massiveEventRepo.saveWithManager(manager, massiveEvent);
+    }
+    var simpleEvents: SimpleEvent[]  = []; 
+    if (payload.simpleEvents?.length) {
+      
+      for (const se of payload.simpleEvents) {
+        const exists = await manager.findOne(SimpleEvent, { where: { id: se.id } });
+        if (!exists) {
+          const simpleEvent = this.simpleEventRepo.createInstance({
+            id: se.id,
+            idMassiveEvent: massiveEvent.id,
+            idTenant: payload.idTenant,
+            type: se.type,
+            data: se.dataJson ? JSON.parse(se.dataJson) : null,
+            createdAt: se.createdAt ? new Date(se.createdAt) : undefined,
+          });
+          const simEv = await this.simpleEventRepo.saveWithManager(manager, simpleEvent);
+          simpleEvents.push(simEv);
+        } else {
+          simpleEvents.push(exists);
+        }
+      }
+    }
+    massiveEvent.simpleEvents = simpleEvents;
+    this.logger.debug('Logger 1')
+    this.logger.debug(massiveEvent);
+    return massiveEvent;
+  }
+
+
+  async createMassiveEvent(idTenant: string, createdBy: string, dto: CreateMassiveEventDto): Promise<MassiveEvent> {
+    return this.dataSource.transaction(async manager => {
+      const payload: SyncMassiveEventDto = {
+        id: uuidv4(),
+        idTenant,
+        eventDate: dto.eventDate,
+        status: 'open',
+        createdBy,
+        simpleEvents: dto.simpleEvents?.map(se => ({
+          id: uuidv4(),
+          type: se.type,
+          dataJson: se.data ? JSON.stringify(se.data) : undefined,
+        })),
+      };
+      const massiveEvent = await this.saveMassiveAndSimples(manager, payload);
+      return massiveEvent;
+    });
+  }
+
+  /**
+   * Sincronizar massiveEvents y sus simpleEvents (offline -> backend)
+   */
+  async syncMassiveEvents(idTenant: string, dtos: SyncMassiveEventDto[]): Promise<SyncMassiveEventResultDto[]> {
+    return this.dataSource.transaction(async manager => {
+      const results: SyncMassiveEventResultDto[] = [];
+      for (const dto of dtos) {
+        const saved = await this.saveMassiveAndSimples(manager, { ...dto, idTenant });
+        results.push({ id: saved.id, status: 'synced' });
+      }
+      return results;
+    });
+  }
 
   /**
    * Create a MassiveEvent with initial simpleEvents (can be empty in the future)
@@ -28,7 +107,7 @@ export class MassiveEventService {
    * @param dto - The data transfer object containing the event date and simple events
    * @returns The created MassiveEvent with its ID, event date, status, and associated simple events
    */
-  async createMassiveEvent(
+  async createMassiveEvent1(
     idTenant: string,
     createdBy: string,
     dto: CreateMassiveEventDto,
@@ -87,7 +166,7 @@ export class MassiveEventService {
     const links = await this.simpleEventCattleRepository.findBySimpleEvents(idTenant, simpleEventIds);
   
     // 3. Opcional: traer más datos de cattle
-    const cattleIds = links.map(link => link.idCattle).filter(Boolean) as string[];
+    const cattleIds = links.map(link => link.idAnimal).filter(Boolean) as string[];
     const cattleList = await this.cattleRepository.findByIds(idTenant, cattleIds);
   
     // 4. Combinar info si quieres
@@ -98,7 +177,7 @@ export class MassiveEventService {
         idBrand: cattle.idBrand,
         lastWeight: cattle.lastWeight,
         // …otros campos de cattle
-        appliedAt: links.find(l => l.idCattle === cattle.id)?.appliedAt,
+        appliedAt: links.find(l => l.idAnimal === cattle.id)?.appliedAt,
       };
     });
   }

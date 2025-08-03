@@ -34,7 +34,6 @@ export class Cattle {
   @Column({ length: 50 })
   number: string;
 
-
   @Column({ name: 'id_brand', type: 'uuid', nullable: true })
   idBrand: string;
 

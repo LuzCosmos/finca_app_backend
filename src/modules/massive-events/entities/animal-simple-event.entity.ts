@@ -5,8 +5,8 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 
-@Entity('simple_event_cattle')
-export class SimpleEventCattle {
+@Entity('animal_simple_event')
+export class AnimalSimpleEvent {
   @PrimaryColumn('uuid')
   id: string;
 
@@ -16,8 +16,8 @@ export class SimpleEventCattle {
   @Column({ name: 'id_simple_event', type: 'uuid' })
   idSimpleEvent: string;
 
-  @Column({ name: 'id_cattle', type: 'uuid', nullable: true })
-  idCattle?: string;
+  @Column({ name: 'id_animal', type: 'uuid', nullable: true })
+  idAnimal?: string;
 
   @Column({ name: 'provisional_number', type: 'varchar', length: 50, nullable: true })
   provisionalNumber?: string;

@@ -5,7 +5,7 @@ export class CreateCattleMedicationHistoryDto {
   idCattle: string;
 
   @IsUUID()
-  medicationId: string;
+  medicationName: string;
 
   @IsOptional()
   @IsString()

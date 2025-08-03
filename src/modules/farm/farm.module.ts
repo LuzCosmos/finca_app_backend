@@ -20,6 +20,10 @@ import { LocationService } from './services/location.service';
 import { LocationRepository } from './repositories/location.repository';
 import { LocationController } from './controllers/location.controller';
 import { MassiveEventsModule } from '../massive-events/massive-events.module';
+import { BrandController } from './controllers/brand.controller';
+import { BrandRepository } from './repositories/brand.repository';
+import { BrandService } from './services/brand.service';
+import { Brand } from './entities/brand.entity';
 
 @Module({
   imports: [
@@ -30,7 +34,8 @@ import { MassiveEventsModule } from '../massive-events/massive-events.module';
       CattleWeightHistory,
       CattleEartagHistory,
       CattleMedicationHistory,
-      Location
+      Location,
+      Brand
     ]),
     ConfigModule,
     ApplicationPermissionsModule,
@@ -44,9 +49,12 @@ import { MassiveEventsModule } from '../massive-events/massive-events.module';
     CattleEartagHistoryRepository,
     CattleMedicationHistoryRepository,
     LocationService,
-    LocationRepository
+    LocationRepository,
+    BrandRepository,
+    BrandService
   ],
   controllers: [
+    BrandController,
     CattleController,
     LocationController
   ],

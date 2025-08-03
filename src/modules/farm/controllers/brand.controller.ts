@@ -3,7 +3,7 @@ import { BrandService } from '../services/brand.service';
 import { CreateBrandDto } from '../dto/create-brand.dto';
 import { UpdateBrandDto } from '../dto/update-brand.dto';
 import { BrandResponseDto } from '../dto/brand-response.dto';
-import { Brand } from '../entities/brand.entity';
+import { SyncBrandRequestDto, SyncBrandResponseDto } from '../dto/sync-brand.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -73,4 +73,41 @@ export class BrandController {
     const brands = await this.brandService.findAll(sessionUser.tenant_id);
     return brands.map(BrandResponseDto.toResponseDto);
   }
+
+  @Post('sync')
+  @ApiOperation({ summary: 'Sync offline-created brands to backend' })
+  @ApiResponse({ status: 200, description: 'Sync results', type: SyncBrandResponseDto })
+  @RequireAction('create')
+  @ApiBody({
+    type: SyncBrandRequestDto,
+    examples: {
+      example1: {
+        summary: 'Sync brands created offline',
+        value: {
+          brands: [
+            {
+              id: 'uuid-local-1',
+              idTenant: 'tenant-uuid',
+              name: 'Marca Offline A',
+              imageUrl: 'https://example.com/images/a.png'
+            },
+            {
+              id: 'uuid-local-2',
+              idTenant: 'tenant-uuid',
+              name: 'Marca Offline B'
+              // imageUrl opcional
+            }
+          ]
+        }
+      }
+    }
+  })
+  async syncBrands(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Body() body: SyncBrandRequestDto,
+  ): Promise<SyncBrandResponseDto> {
+    const results = await this.brandService.syncBrands(sessionUser.tenant_id, body.brands);
+    return { results };
+  }
+  
 }

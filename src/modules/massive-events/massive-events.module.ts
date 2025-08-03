@@ -2,10 +2,10 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MassiveEvent } from './entities/massive-events.entity';
 import { SimpleEvent } from './entities/simple-event.entity';
-import { SimpleEventCattle } from './entities/simple-event-cattle.entity';
+import { AnimalSimpleEvent } from './entities/animal-simple-event.entity';
 import { MassiveEventRepository } from './repositories/massive-event.repository';
 import { SimpleEventRepository } from './repositories/simple-event.repository';
-import { SimpleEventCattleRepository } from './repositories/simple-event-cattle.repository';
+import { AnimalSimpleEventRepository } from './repositories/animal-simple-event.repository';
 import { MassiveEventService } from './services/massive-event.service';
 import { SimpleEventService } from './services/simple-event.service';
 import { MassiveEventController } from './controllers/massive-event.controller';
@@ -15,15 +15,15 @@ import { ApplicationPermissionsModule } from '../../common/application-permissio
 
 
 @Module({
-  imports: [forwardRef(() => FarmModule), ApplicationPermissionsModule, TypeOrmModule.forFeature([MassiveEvent, SimpleEvent, SimpleEventCattle])],
+  imports: [forwardRef(() => FarmModule), ApplicationPermissionsModule, TypeOrmModule.forFeature([MassiveEvent, SimpleEvent, AnimalSimpleEvent])],
   controllers: [MassiveEventController, SimpleEventController],
   providers: [
     MassiveEventRepository,
     SimpleEventRepository,
-    SimpleEventCattleRepository,
+    AnimalSimpleEventRepository,
     MassiveEventService,
     SimpleEventService
   ],
-  exports: [MassiveEventService, SimpleEventService,SimpleEventCattleRepository],
+  exports: [MassiveEventService, SimpleEventService,AnimalSimpleEventRepository],
 })
 export class MassiveEventsModule {}
