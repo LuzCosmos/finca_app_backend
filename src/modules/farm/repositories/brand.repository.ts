@@ -15,7 +15,7 @@ export class BrandRepository {
   /**
    * Crear una nueva marca
    */
-  async create(dto: CreateBrandDto): Promise<Brand> {
+  async create(dto: Partial<Brand>): Promise<Brand> {
     const entity = this.repo.create(dto);
     return await this.repo.save(entity);
   }
@@ -32,14 +32,17 @@ export class BrandRepository {
    * Obtener todas las marcas de un tenant
    */
   async findAll(idTenant: string): Promise<Brand[]> {
-    return await this.repo.find({ where: { idTenant } });
+    return await this.repo.find({
+      where: { idTenant },
+      order: { name: 'ASC' },
+    });
   }
 
   /**
    * Obtener una marca específica
    */
   async findOne(idTenant: string, id: string): Promise<Brand | null> {
-    return await this.repo.findOne({ where: { idTenant, id } });
+    return await this.repo.findOne({ where: { idTenant, id }, select: ['id', 'idTenant', 'name', 'createdAt', 'updatedAt', 'image'], });
   }
 
   /**
@@ -52,12 +55,16 @@ export class BrandRepository {
   /**
    * Actualizar una marca
    */
-  async update(idTenant: string, id: string, dto: UpdateBrandDto, manager?: EntityManager): Promise<Brand | null> {
+  async update(idTenant: string, id: string, dto: UpdateBrandDto, imageFile?: Express.Multer.File, manager?: EntityManager): Promise<Brand | null> {
     const repo = manager?.getRepository(Brand) ?? this.repo;
     const existing = await repo.findOne({ where: { idTenant, id } });
     if (!existing) return null;
-    const updated = Object.assign(existing, dto);
-    return await repo.save(updated);
+    Object.assign(existing, dto);
+    if (imageFile) {
+      existing.image = imageFile.buffer;
+      existing.imageMimeType = imageFile.mimetype;
+    }
+    return await repo.save(existing);
   }
 
   /**

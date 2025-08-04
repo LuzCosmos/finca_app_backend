@@ -18,12 +18,12 @@ export class BrandService {
   /**
    * Crear una nueva marca
    */
-  async create(idTenant: string, dto: CreateBrandDto): Promise<Brand> {
-    const brand = {
-      id: dto.id,
+  async create(idTenant: string, dto: CreateBrandDto,imageFile: Express.Multer.File): Promise<Brand> {
+    const brand : Partial<Brand>= {
       idTenant,
       name: dto.name,
-      imageUrl: dto.imageUrl ?? undefined,
+      image: imageFile.buffer,
+      imageMimeType: imageFile.mimetype
     }
     return await this.brandRepository.create(brand);
   }
@@ -49,8 +49,8 @@ export class BrandService {
   /**
    * Actualizar una marca
    */
-  async update(idTenant: string, id: string, dto: UpdateBrandDto): Promise<Brand> {
-    const updated = await this.brandRepository.update(idTenant, id, dto);
+  async update(idTenant: string, id: string, dto: UpdateBrandDto, imageFile?: Express.Multer.File): Promise<Brand> {
+    const updated = await this.brandRepository.update(idTenant, id, dto, imageFile);
     if (!updated) {
       throw new NotFoundException(`Brand ${id} not found`);
     }
@@ -69,14 +69,16 @@ export class BrandService {
    */
   async createWithTransaction(idTenant: string, dto: CreateBrandDto): Promise<Brand> {
     return await this.dataSource.transaction(async (manager: EntityManager) => {
-      dto.idTenant = idTenant;
-      return await this.brandRepository.createWithManager(dto as any, manager);
+      const fullDto = {
+      ...dto,
+      idTenant,
+    };
+      return await this.brandRepository.createWithManager(fullDto as any, manager);
     });
   }
 
-  async syncBrands(idTenant: string, brands: SyncBrandDto[]): Promise<SyncBrandResultDto[]> {
+  async syncBrands(idTenant: string, brands: SyncBrandDto[], filesMap: Map<string, Express.Multer.File>): Promise<SyncBrandResultDto[]> {
     const results: SyncBrandResultDto[] = [];
-  
     for (const b of brands) {
       try {
         // ¿Existe ya un brand con el mismo nombre para este tenant?
@@ -85,13 +87,18 @@ export class BrandService {
           results.push({ id: b.id, status: 'synced', serverId: existing.id });
           continue;
         }
-  
+        const imageField = `image_${b.id.replace(/-/g, '_')}`; // clave en multipart
+        const imageFile = filesMap.get(imageField);
+        if (!imageFile || imageFile.size === 0) {
+          throw new Error(`Image didn't found for brand '${b.name}'`);
+        }
         // Crear el brand usando el id proporcionado desde frontend
         const brand = await this.brandRepository.create({
           id: b.id,
           idTenant,
           name: b.name,
-          imageUrl: b.imageUrl ?? undefined,
+          image: imageFile.buffer,
+          imageMimeType: imageFile.mimetype
         });
         results.push({ id: b.id, status: 'synced', serverId: brand.id });
       } catch (error) {

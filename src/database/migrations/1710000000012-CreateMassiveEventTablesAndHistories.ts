@@ -109,6 +109,8 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
         "id_tenant" uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         "name" varchar(100) NOT NULL,
         "image_url" text,
+        "image" BYTEA NOT NULL,
+        "imageMimeType" varchar(50) NOT NULL,
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now(),
         CONSTRAINT "pk_brands" PRIMARY KEY ("id")

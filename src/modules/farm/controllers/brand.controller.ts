@@ -1,15 +1,18 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, UseInterceptors, UploadedFile,UploadedFiles, BadRequestException } from '@nestjs/common';
+import { FileInterceptor, AnyFilesInterceptor } from '@nestjs/platform-express';
 import { BrandService } from '../services/brand.service';
 import { CreateBrandDto } from '../dto/create-brand.dto';
 import { UpdateBrandDto } from '../dto/update-brand.dto';
 import { BrandResponseDto } from '../dto/brand-response.dto';
+import { diskStorage, memoryStorage } from 'multer';
 import { SyncBrandRequestDto, SyncBrandResponseDto } from '../dto/sync-brand.dto';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from 'src/common/application-permissions/application-permissions.guard';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
+import { SyncBrandDto } from '../dto/sync-brand.dto';
 
 @ApiTags('Brands')
 @ApiBearerAuth('access-token')
@@ -21,6 +24,17 @@ export class BrandController {
   constructor(private readonly brandService: BrandService) {}
 
   @Post()
+  @UseInterceptors(FileInterceptor('image',{
+    storage: memoryStorage(),
+    fileFilter: (req, file, cb) => {
+      const allowed = ['image/png', 'image/jpeg'];
+      if (!allowed.includes(file.mimetype)) {
+        return cb(new BadRequestException('Solo se permiten imágenes PNG o JPEG'), false);
+      }
+      cb(null, true);
+    },
+  }),)
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new brand' })
   @ApiResponse({ status: 201, description: 'Brand created successfully', type: BrandResponseDto })
   @RequireAction('create')
@@ -34,8 +48,14 @@ export class BrandController {
       value: { name: 'Marca B' },
     },
   }})
-  async create(@SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateBrandDto): Promise<BrandResponseDto> {
-    const brand = await this.brandService.create(sessionUser.tenant_id, dto); 
+  async create(@SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateBrandDto, @UploadedFile() file: Express.Multer.File,): Promise<BrandResponseDto> {
+    if (!file || !file.buffer || file.size === 0) {
+      throw new BadRequestException('The image is requested');
+    }
+    if ('image' in dto) {
+      delete dto.image; 
+    }
+    const brand = await this.brandService.create(sessionUser.tenant_id, dto, file); 
     return BrandResponseDto.toResponseDto(brand);
   }
 
@@ -50,10 +70,27 @@ export class BrandController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update a brand' })
+  @UseInterceptors(FileInterceptor('image', {
+    storage: memoryStorage(),
+    fileFilter: (req, file, cb) => {
+      const allowed = ['image/png', 'image/jpeg'];
+      if (!allowed.includes(file.mimetype)) {
+        return cb(new BadRequestException('Solo se permiten imágenes PNG o JPEG'), false);
+      }
+      cb(null, true);
+    },
+  }))
+  @ApiConsumes('multipart/form-data')
   @ApiResponse({ status: 200, description: 'Brand updated', type: BrandResponseDto })
   @RequireAction('update')
-  async update(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto, @Body() dto: UpdateBrandDto): Promise<BrandResponseDto> {
-    const brand = await this.brandService.update(sessionUser.tenant_id, id, dto);
+  async update(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto, @Body() dto: UpdateBrandDto,@UploadedFile() file?: Express.Multer.File): Promise<BrandResponseDto> {
+    if (file && file.size === 0) {
+      throw new BadRequestException('La imagen no puede estar vacía');
+    }
+    if ('image' in dto) {
+      delete dto.image; 
+    }
+    const brand = await this.brandService.update(sessionUser.tenant_id, id, dto, file);
     return BrandResponseDto.toResponseDto(brand);
   }
 
@@ -75,10 +112,10 @@ export class BrandController {
   }
 
   @Post('sync')
-  @ApiOperation({ summary: 'Sync offline-created brands to backend' })
-  @ApiResponse({ status: 200, description: 'Sync results', type: SyncBrandResponseDto })
+  @UseInterceptors(AnyFilesInterceptor())
+  @ApiConsumes('multipart/form-data')
   @RequireAction('create')
-  @ApiBody({
+  /*@ApiBody({
     type: SyncBrandRequestDto,
     examples: {
       example1: {
@@ -89,25 +126,56 @@ export class BrandController {
               id: 'uuid-local-1',
               idTenant: 'tenant-uuid',
               name: 'Marca Offline A',
-              imageUrl: 'https://example.com/images/a.png'
             },
             {
               id: 'uuid-local-2',
               idTenant: 'tenant-uuid',
               name: 'Marca Offline B'
-              // imageUrl opcional
             }
           ]
         }
       }
     }
+  })*/
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        brands: {
+          type: 'string',
+          description: 'Lista JSON de marcas a sincronizar',
+          example: JSON.stringify([
+            { id: 'uuid-local-1', idTenant: 'tenant-uuid', name: 'Marca A' },
+            { id: 'uuid-local-2', idTenant: 'tenant-uuid', name: 'Marca B' }
+          ])
+        },
+        image_uuid_local_1: {
+          type: 'string',
+          format: 'binary'
+        },
+        image_uuid_local_2: {
+          type: 'string',
+          format: 'binary'
+        }
+      }
+    }
   })
+  //async syncBrands(@SessionUser() sessionUser: SessionUserDto,@Body() body: SyncBrandRequestDto,): Promise<SyncBrandResponseDto> {
+  @ApiOperation({ summary: 'Sync offline-created brands to backend' })
+  @ApiResponse({ status: 200, description: 'Sync results', type: SyncBrandResponseDto })
   async syncBrands(
-    @SessionUser() sessionUser: SessionUserDto,
-    @Body() body: SyncBrandRequestDto,
-  ): Promise<SyncBrandResponseDto> {
-    const results = await this.brandService.syncBrands(sessionUser.tenant_id, body.brands);
-    return { results };
+  @SessionUser() sessionUser: SessionUserDto,
+  @Body('brands') brandsJson: string,
+  @UploadedFiles() files: Express.Multer.File[],
+): Promise<SyncBrandResponseDto> {
+  //const brands = JSON.parse(brandsJson);
+  const brands = await SyncBrandDto.parseAndValidateBrands(brandsJson);
+  const filesMap = new Map(files.map(f => [f.fieldname, f]));
+  const results = await this.brandService.syncBrands(sessionUser.tenant_id, brands, filesMap);
+  return { results };
+
+    //const results = await this.brandService.syncBrands(sessionUser.tenant_id, body.brands);
+    //return { results };
   }
   
 }
