@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { BrandRepository } from '../repositories/brand.repository';
 import { Brand } from '../entities/brand.entity';
@@ -7,6 +7,7 @@ import { CreateBrandDto } from '../dto/create-brand.dto';
 import { UpdateBrandDto } from '../dto/update-brand.dto';
 import { SyncBrandDto } from '../dto/sync-brand.dto';
 import { SyncBrandResultDto } from '../dto/sync-brand.dto';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class BrandService {
@@ -19,7 +20,15 @@ export class BrandService {
    * Crear una nueva marca
    */
   async create(idTenant: string, dto: CreateBrandDto,imageFile: Express.Multer.File): Promise<Brand> {
+    if (!dto.name) {
+      throw new BadRequestException('Faltan datos obligatorios: name o idTenant');
+    }
+    const existing = await this.brandRepository.findByName(idTenant,dto.name);
+    if (existing) {
+      throw new ConflictException('Ya existe una marca con ese nombre');
+    }
     const brand : Partial<Brand>= {
+      id:dto.id,
       idTenant,
       name: dto.name,
       image: imageFile.buffer,
@@ -69,6 +78,13 @@ export class BrandService {
    */
   async createWithTransaction(idTenant: string, dto: CreateBrandDto): Promise<Brand> {
     return await this.dataSource.transaction(async (manager: EntityManager) => {
+      if (!dto.name) {
+        throw new BadRequestException('Faltan datos obligatorios: name o idTenant');
+      }
+      const existing = await this.brandRepository.findByName(idTenant,dto.name, manager);
+      if (existing) {
+        throw new ConflictException('Ya existe una marca con ese nombre');
+      }
       const fullDto = {
       ...dto,
       idTenant,

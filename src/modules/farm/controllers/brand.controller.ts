@@ -13,6 +13,7 @@ import { ApplicationPermissionsGuard } from 'src/common/application-permissions/
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 import { SyncBrandDto } from '../dto/sync-brand.dto';
+import { Logger } from '@nestjs/common';
 
 @ApiTags('Brands')
 @ApiBearerAuth('access-token')
@@ -21,13 +22,14 @@ import { SyncBrandDto } from '../dto/sync-brand.dto';
 @RequireModule('FARM')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class BrandController {
+  private readonly logger = new Logger(BrandController.name);
   constructor(private readonly brandService: BrandService) {}
 
   @Post()
   @UseInterceptors(FileInterceptor('image',{
     storage: memoryStorage(),
     fileFilter: (req, file, cb) => {
-      const allowed = ['image/png', 'image/jpeg'];
+      const allowed = ['image/png', 'image/jpg','image/jpeg'];
       if (!allowed.includes(file.mimetype)) {
         return cb(new BadRequestException('Solo se permiten imágenes PNG o JPEG'), false);
       }

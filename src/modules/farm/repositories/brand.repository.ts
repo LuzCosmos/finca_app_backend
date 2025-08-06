@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException,ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, EntityManager } from 'typeorm';
+import { Repository, EntityManager, ILike } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
 import { CreateBrandDto } from '../dto/create-brand.dto';
 import { UpdateBrandDto } from '../dto/update-brand.dto';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class BrandRepository {
@@ -16,6 +17,9 @@ export class BrandRepository {
    * Crear una nueva marca
    */
   async create(dto: Partial<Brand>): Promise<Brand> {
+    if (!('id' in dto) || dto.id == null || dto.id == undefined ) {
+      dto.id = uuidv4(); 
+    }
     const entity = this.repo.create(dto);
     return await this.repo.save(entity);
   }
@@ -24,6 +28,9 @@ export class BrandRepository {
    * Crear una nueva marca usando transacción
    */
   async createWithManager(dto: CreateBrandDto, manager: EntityManager): Promise<Brand> {
+    if (!('id' in dto) || dto.id == null || dto.id == undefined ) {
+      dto.id = uuidv4(); 
+    }
     const entity = manager.create(Brand, dto);
     return await manager.save(entity);
   }
@@ -48,8 +55,9 @@ export class BrandRepository {
   /**
    * Obtener una marca específica por nombre
    */
-  async findByName(idTenant: string, name: string): Promise<Brand | null> {
-    return await this.repo.findOne({ where: { idTenant, name } });
+  async findByName(idTenant: string, name: string, manager?: EntityManager): Promise<Brand | null> {
+    const repo = manager?.getRepository(Brand) ?? this.repo;
+    return await repo.findOne({ where: { idTenant, name: ILike(name) } });
   }
 
   /**

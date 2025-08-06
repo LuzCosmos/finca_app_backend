@@ -32,13 +32,13 @@ export class BrandResponseDto {
     const mime = brand.imageMimeType;
     const base64 = `data:${mime};base64,${brand.image.toString('base64')}`;
     return {
+      imageMimeType:brand.imageMimeType,
+      imageBase64: base64,
       id: brand.id,
       idTenant: brand.idTenant,
       name: brand.name,
       createdAt: brand.createdAt,
       updatedAt: brand.updatedAt,
-      imageMimeType:brand.imageMimeType,
-      imageBase64: base64,
     };
   }
 }
