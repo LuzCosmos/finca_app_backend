@@ -13,5 +13,5 @@ export class CreateCattleDeviceHistoryDto {
 
   @IsOptional()
   @IsString()
-  recordedInMassiveEvent?: string;
+  idMassiveEvent?: string;
 }

@@ -13,5 +13,5 @@ export class CreateCattleEartagHistoryDto {
 
   @IsOptional()
   @IsString()
-  recordedInMassiveEvent?: string;
+  idMassiveEvent?: string;
 }

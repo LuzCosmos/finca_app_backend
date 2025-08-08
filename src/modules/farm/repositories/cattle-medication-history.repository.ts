@@ -27,7 +27,7 @@ export class CattleMedicationHistoryRepository {
   ): Promise<CattleMedicationHistory[]> {
     return await this.repo.find({
       where: { idTenant, idCattle },
-      order: { date: 'DESC' },
+      order: { appliedAt: 'DESC' },
     });
   }
 

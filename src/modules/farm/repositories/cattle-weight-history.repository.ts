@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { CattleWeightHistory } from '../entities/cattle-weight-history.entity';
 
 @Injectable()
 export class CattleWeightHistoryRepository {
+  private readonly logger = new Logger(CattleWeightHistoryRepository.name);
   constructor(
     @InjectRepository(CattleWeightHistory)
     private readonly repo: Repository<CattleWeightHistory>,
@@ -18,6 +19,8 @@ export class CattleWeightHistoryRepository {
     manager: EntityManager,
     entity: CattleWeightHistory,
   ): Promise<CattleWeightHistory> {
+    this.logger.debug('GUARDAR HISTORIA DE PESO');
+    this.logger.debug(entity);
     return await manager.save(CattleWeightHistory, entity);
   }
 

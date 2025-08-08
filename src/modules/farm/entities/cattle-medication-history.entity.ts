@@ -21,23 +21,17 @@ export class CattleMedicationHistory {
   @Column({ type: 'varchar', length: 50 })
   route: string;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2 })
-  quantity: number;
-
-  @Column({ type: 'varchar', length: 10 })
-  units: string;
-
   @Column({ name: 'dosage', type: 'varchar', length: 50, nullable: true })
-  dosage?: string;
+  dosage: string;
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   lot?: string;
 
-  @Column({ type: 'timestamp' })
-  date: Date;
+  @Column({ name:'applied_at', type: 'timestamp' })
+  appliedAt: Date;
 
-  @Column({ name: 'recorded_in_massive_event', type: 'uuid', nullable: true })
-  recordedInMassiveEvent?: string;
+  @Column({ name: 'idMassiveEvent', type: 'uuid', nullable: true })
+  idMassiveEvent?: string;
 
   @Column({ name: 'recorded_by', type: 'uuid', nullable: true })
   recordedBy?: string;

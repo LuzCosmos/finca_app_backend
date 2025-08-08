@@ -25,5 +25,5 @@ export class CreateCattleMedicationHistoryDto {
 
   @IsOptional()
   @IsString()
-  recordedInMassiveEvent?: string;
+  idMassiveEvent?: string;
 }

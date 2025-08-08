@@ -21,8 +21,8 @@ export class CattleWeightHistory {
   @Column({ type: 'timestamp' })
   date: Date;
 
-  @Column({ name: 'recorded_in_massive_event', type: 'uuid', nullable: true })
-  recordedInMassiveEvent?: string;
+  @Column({ name: 'idMassiveEvent', type: 'uuid', nullable: true })
+  idMassiveEvent?: string;
 
   @Column({ name: 'recorded_by', type: 'uuid', nullable: true })
   recordedBy?: string;

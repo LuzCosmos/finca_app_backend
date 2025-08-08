@@ -16,6 +16,9 @@ import { extname } from 'path';
 import { ApplySimpleEventsDto } from 'src/modules/massive-events/dto/apply-simple-events.dto';
 import { AnimalSimpleEventRepository } from 'src/modules/massive-events/repositories/animal-simple-event.repository';
 import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } from 'src/modules/massive-events/dto/sync-animal-simple-event.dto';
+import { isMarkedAsUntransferable } from 'worker_threads';
+import { AnimalSimpleEvent } from 'src/modules/massive-events/entities/animal-simple-event.entity';
+import { Logger } from '@nestjs/common';
 
 @ApiTags('Cattle')
 @ApiBearerAuth('access-token')
@@ -23,7 +26,10 @@ import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } fro
 @RequireEntity('cattles')
 @RequireModule('FARM')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
-export class CattleController {
+export class CattleController { 
+
+  private readonly logger = new Logger(CattleController.name);
+
   constructor(
     private readonly cattleService: CattleService,
     private readonly simpleEventCattleRepository: AnimalSimpleEventRepository,
@@ -104,8 +110,7 @@ export class CattleController {
   list(@SessionUser() sessionUser: SessionUserDto) {
     return this.cattleService.list(sessionUser.tenant_id);
   }
-
-  @Get(':id/simple-events')
+  @Get('simple-events/:id')
   @ApiOperation({ summary: 'List all simple events applied to a cattle' })
   @ApiResponse({ status: 200, description: 'List of simple events IDs' })
   @RequireAction('read')
@@ -120,7 +125,7 @@ export class CattleController {
 
 
   @Post('apply-simple-events')
-  @ApiOperation({ summary: 'Apply multiple simple events to cattle by their number' })
+  @ApiOperation({ summary: 'Apply multiple simple events to multiple cattle by their number' })
   @ApiResponse({ status: 200, description: 'Events applied successfully', type: [CattleResponseDto] })
   @RequireAction('update')
   @ApiBody({
@@ -134,34 +139,44 @@ export class CattleController {
               cattleNumber: 'C-001',
               type: 'weight',
               data: { weight: 350 },
-              recordedInMassiveEvent: 'uuid-simple-event-1'
+              idMassiveEvent: 'uuid-massive-event-1',
+              idSimpleEvent: 'uuid-simple-event-1'
             },
             {
               cattleNumber: 'C-002',
               type: 'eartag',
               data: { eartagNumber: 'ET-789' },
-              recordedInMassiveEvent: 'uuid-simple-event-2'
+              idMassiveEvent: 'uuid-massive-event-1',
+              idSimpleEvent: 'uuid-simple-event-2'
+            },
+            {
+              cattleNumber: 'C-003',
+              type: 'eartag',
+              data: { eartagNumber: 'ET-790' },
+              idMassiveEvent: 'uuid-massive-event-2',
+              idSimpleEvent: 'uuid-simple-event-3'
             }
           ]
         }
       }
     }
   })
-  async applySimpleEventsToCattle(
+  async applySimpleEventsToSeveralCattle(
     @SessionUser() sessionUser: SessionUserDto,
     @Body() body: ApplySimpleEventsDto
   ) {
-    return this.cattleService.applyBulkSimpleEvents(sessionUser.tenant_id, body.events, sessionUser.sub);
+    return this.cattleService.applyBulkSimpleEvents(sessionUser.tenant_id, sessionUser.sub, body.events);
   }
 
-  @Post(':cattleNumber/apply-events')
+  @Post('apply-events/:cattleNumber')
   @ApiOperation({ summary: 'Apply multiple simple events to a single cattle by number' })
-  @ApiResponse({ status: 200, description: 'Events applied successfully', type: CattleResponseDto })
+  @ApiResponse({ status: 200, description: 'Events applied successfully', type: [AnimalSimpleEvent] })
   @RequireAction('update')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
+        idMassiveEvent: { type: 'string' },
         events: {
           type: 'array',
           items: {
@@ -170,7 +185,7 @@ export class CattleController {
               type: { type: 'string', enum: ['weight','eartag','tracker','brand','castration','medication'] },
               data: { type: 'object' },
               appliedBy: { type: 'string' },
-              recordedInMassiveEvent: { type: 'string' }
+              idSimpleEvent: { type: 'string' }
             }
           }
         }
@@ -178,12 +193,20 @@ export class CattleController {
     },
     examples: {
       example1: {
-        summary: 'Apply multiple events to one cattle',
+        summary: 'Apply multiple events to only one cattle',
         value: {
-          events: [
-            { type: 'weight', data: { weight: 350 } },
-            { type: 'eartag', data: { eartagNumber: 'ET-789' } }
-          ]
+          applied: {
+            idMassiveEvent: 'uuid-massive-event-1',
+            events: [
+              { type: 'weight', data: { weight: 350.58 }, idSimpleEvent: 'uuid-simple-event-1'},
+              { type: 'eartag', data: { eartagNumber: 'ET-789'}, idSimpleEvent: 'uuid-simple-event-2'},
+              { type: 'tracker', data: { tracker_deveui: 'a173ecf6ffe3abcd'}, idSimpleEvent: 'uuid-simple-event-3'},
+              { type: 'castration', data: {}, idSimpleEvent: 'uuid-simple-event-4'},
+              { type: 'medication', data:{ medicationName:"Antrimizin NF 85 mg",dosage:"1.2 mg/kg",route:"oral",lot:"LOT-2025"}, idSimpleEvent: 'uuid-simple-event-5'},
+              { type: 'medication', data:{ medicationName:"Boldenona 50 mg",dosage:"1 mL/90 Kg",route:"Intramuscular profunda",lot:"LOT-2025"}, idSimpleEvent: 'uuid-simple-event-6'},
+              { type: 'brand', data: {idBrand: "abc123"}, idSimpleEvent: 'uuid-simple-event-7'}
+            ]
+          }
         }
       }
     }
@@ -191,21 +214,25 @@ export class CattleController {
   async applyEventsToSingleCattle(
     @SessionUser() sessionUser: SessionUserDto,
     @Param('cattleNumber') cattleNumber: string,
-    @Body('events') events: Array<{
-      type: 'weight'|'eartag'|'tracker'|'brand'|'castration'|'medication';
-      data: any;
-      appliedBy?: string;
-      recordedInMassiveEvent?: string;
-    }>
+    @Body('applied') applied: {
+      idMassiveEvent: string;
+      events: Array<{
+        type: 'weight'|'eartag'|'tracker'|'brand'|'castration'|'medication';
+        data: any;
+        appliedBy?: string;
+        idSimpleEvent: string;
+      }>
+    }
   ) {
-    const cattle = await this.cattleService.applyMultipleSimpleEventsByNumber(
+    const appliedEvents = await this.cattleService.applyMultipleSimpleEventsByNumber(
       sessionUser.tenant_id,
+      sessionUser.sub,
       cattleNumber,
-      events,
-      sessionUser.sub
+      applied.idMassiveEvent,
+      applied.events
     );
-    
-    //return CattleResponseDto.toResponseDto(    );
+    this.logger.debug(`log_cattle 1: Applied events: ${appliedEvents}`);
+    return appliedEvents;
   }
 
 
@@ -228,7 +255,8 @@ export class CattleController {
               dataJson: '{"weight":350}',
               appliedAt: '2025-07-24T10:00:00Z',
               appliedBy: 'user-123',
-              recordedInMassiveEvent: 'uuid-simple-event-1'
+              idMassiveEvent: 'uuid-massive-event-1',
+              idSimpleEvent: 'uuid-simple-event-1'
             },
             {
               id: 'uuid-local-2',
@@ -238,7 +266,8 @@ export class CattleController {
               dataJson: '{"medicationName":"med-001","dosage":"1ml","route":"oral","lot":"LOT-2025"}',
               appliedAt: '2025-07-24T11:00:00Z',
               appliedBy: 'user-123',
-              recordedInMassiveEvent: 'uuid-simple-event-2'
+              idMassiveEvent: 'uuid-massive-event-1',
+              idSimpleEvent: 'uuid-simple-event-2'
             }
           ]
         }
@@ -249,10 +278,10 @@ export class CattleController {
     @SessionUser() sessionUser: SessionUserDto,
     @Body() body: SyncAnimalSimpleEventRequestDto,
   ): Promise<SyncAnimalSimpleEventResponseDto> {
-    const results = await this.cattleService.syncSimpleEventCattle(sessionUser.tenant_id, body.animalSimpleEvent, sessionUser.sub);
+    const results = await this.cattleService.syncCattleSimpleEvents(sessionUser.tenant_id, sessionUser.sub, body.animalSimpleEvent);
     return { results };
   }
-  
+
   @Post('import')
   @ApiOperation({ summary: 'Import cattle from an Excel file' })
   @ApiConsumes('multipart/form-data')

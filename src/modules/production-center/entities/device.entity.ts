@@ -29,6 +29,9 @@ export class Device {
   @Column({ type: 'jsonb', default: {} })
   variables: Record<string, any>;
 
+  @Column({ name: 'id_chirpstack_profile', type: 'uuid', nullable: true })
+  idChirpstackProfile: string;
+
   @Column({ name: 'cs_application_id', type: 'uuid', nullable: false })
   csApplicationId: string;
 

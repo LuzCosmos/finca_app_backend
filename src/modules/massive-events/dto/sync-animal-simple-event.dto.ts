@@ -23,7 +23,10 @@ export class SyncAnimalSimpleEventDto {
   appliedBy?: string;
 
   @ApiProperty({ example: 'uuid-massive-event', required: false })
-  recordedInMassiveEvent?: string;
+  idMassiveEvent: string;
+
+  @ApiProperty({ example: 'uuid-simple-event', required: false })
+  idSimpleEvent: string;
 }
 
 export class SyncAnimalSimpleEventRequestDto {

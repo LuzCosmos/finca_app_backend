@@ -25,6 +25,6 @@ export class CattleEartagHistory {
   @Column({ name: 'assigned_by', type: 'uuid', nullable: true })
   assignedBy?: string;
 
-  @Column({ name: 'recorded_in_massive_event', type: 'uuid', nullable: true })
-  recordedInMassiveEvent?: string;
+  @Column({ name: 'idMassiveEvent', type: 'uuid', nullable: true })
+  idMassiveEvent?: string;
 }

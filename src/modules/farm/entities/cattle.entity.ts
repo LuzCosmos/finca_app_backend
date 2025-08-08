@@ -22,7 +22,7 @@ export class Cattle {
   idTenant: string;
 
   @Column({ name: 'id_device', type: 'uuid', nullable: true })
-  idDevice: string;
+  idDevice: string | null;
 
   @OneToOne(() => Device, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'id_device' })

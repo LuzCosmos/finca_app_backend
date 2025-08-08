@@ -50,8 +50,9 @@ export class DeviceRepository {
    * @param idTenant - The tenant ID
    * @returns The found device
    */
-  async findByDevEuiAndTenantId(deveui: string, idTenant: string): Promise<Device> {
-    const device = await this.repository.findOne({ where: { deveui, idTenant } });
+  async findByDevEuiAndTenantId(deveui: string, idTenant: string, manager?: EntityManager): Promise<Device> {
+    const repo = manager ? manager.getRepository(Device) : this.repository;
+    const device = await repo.findOne({ where: { deveui, idTenant } });
     if (!device) {
       throw new NotFoundException(`Device with DevEUI ${deveui} not found`);
     }

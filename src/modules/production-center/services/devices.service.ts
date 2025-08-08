@@ -184,8 +184,8 @@ export class DevicesService {
    * @param idTenant - The tenant ID
    * @returns The device
    */
-  async findOne(deveui: string, idTenant: string): Promise<Device> {
-    return await this.deviceRepository.findByDevEuiAndTenantId(deveui, idTenant);
+  async findOne(deveui: string, idTenant: string, manager?: EntityManager): Promise<Device> {
+    return await this.deviceRepository.findByDevEuiAndTenantId(deveui, idTenant, manager);
   }
 
   /**
@@ -200,7 +200,7 @@ export class DevicesService {
     if (!existingDevice) {
       throw new BadRequestException(`Device with DevEUI ${deveui} not found`);
     }
-    const deviceChirpstack = await this.updateDeviceInChirpstack(deveui, updateDeviceDto);
+    const deviceChirpstack = await this.updateDeviceInChirpstack(deveui, updateDeviceDto, existingDevice);
     if (!deviceChirpstack) {
       throw new BadRequestException(`Error updating device in Chirpstack`);
     }
@@ -218,10 +218,11 @@ export class DevicesService {
    * @param manager - The manager of the transaction (optional)
    * @returns The updated device
    */
-  async updateWithDevive(device: Device, updateDeviceDto: UpdateDeviceDto, manager?: EntityManager): Promise<Device> {
+  async updateWithDevice(device: Device, updateDeviceDto: UpdateDeviceDto, manager?: EntityManager): Promise<Device> {
     this.logger.debug(`log_device 1: Updating device ${device.deveui} with device tags: ${JSON.stringify(updateDeviceDto)}`);
     try {
-      const deviceChirpstack = await this.updateDeviceInChirpstack(device.deveui, updateDeviceDto);
+
+      const deviceChirpstack = await this.updateDeviceInChirpstack(device.deveui, updateDeviceDto, device);
       if (!deviceChirpstack) {
         this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
         throw new BadRequestException(`Error updating device in Chirpstack`);
@@ -249,10 +250,12 @@ export class DevicesService {
    * @param updateDeviceDto - The device to update
    * @returns True if the device was updated, false otherwise
    */
-  async updateDeviceInChirpstack(deveui: string, updateDeviceDto: UpdateDeviceDto): Promise<boolean> {
+  async updateDeviceInChirpstack(deveui: string, updateDeviceDto: UpdateDeviceDto, device:Device): Promise<boolean> {
     const deviceChirpstack: ChirpstackDeviceUpdateInterface = {}
     if (updateDeviceDto.csApplicationId) {
       deviceChirpstack.applicationId = updateDeviceDto.csApplicationId;
+    } else{
+      deviceChirpstack.applicationId = device.csApplicationId;
     }
     if (updateDeviceDto.description) {
       deviceChirpstack.description = updateDeviceDto.description;
@@ -262,6 +265,8 @@ export class DevicesService {
     }
     if (updateDeviceDto.idDeviceProfile) {
       deviceChirpstack.deviceProfileId = updateDeviceDto.idDeviceProfile;
+    } else {
+      deviceChirpstack.deviceProfileId = device.idChirpstackProfile;
     }
     /*if (updateDeviceDto.isDisabled) {
       deviceChirpstack.isDisabled = updateDeviceDto.isDisabled;
@@ -271,6 +276,8 @@ export class DevicesService {
     }
     if (updateDeviceDto.name) {
       deviceChirpstack.name = updateDeviceDto.name;
+    } else {
+      deviceChirpstack.name = device.name;
     }
     /*if (updateDeviceDto.skipFcntCheck) {
       deviceChirpstack.skipFcntCheck = updateDeviceDto.skipFcntCheck;
@@ -305,57 +312,53 @@ export class DevicesService {
         `${this.chirpstackUrl}/api/devices/${deveui}`,
         { device: deviceChirpstack },
         {
-        headers: {
-          'accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
-        },
-      }
-    );
-    if (response.status === 200) {
-      if (deviceKeys.appKey || deviceKeys.nwkKey) {
-        try {
-          const response = await this.httpService.axiosRef.post(
-            `${this.chirpstackUrl}/api/devices/${deveui}/keys`,
-            { deviceKeys: deviceKeys },
-            {
-              headers: {
-                'accept': 'application/json',
-                'Content-Type': 'application/json',
-                'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
-              },
-            } 
-          );
-        } catch (error) {
-          this.logger.error('Response data:', error.response?.data);
-          const response = await this.httpService.axiosRef.put(
-            `${this.chirpstackUrl}/api/devices/${deveui}/keys`, 
-            {
-              deviceKeys: deviceKeys
-            },
-            {
-              headers: {
-                'accept': 'application/json',
-                'Content-Type': 'application/json',
-                'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
-              },
-            }
-          );
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+          },
         }
-        if (response.status === 200) {
-          return true;
-        } else {
-          return false;
+      );
+      if (response.status === 200) {
+        if (deviceKeys.appKey || deviceKeys.nwkKey) {
+          try {
+            const response = await this.httpService.axiosRef.post(
+              `${this.chirpstackUrl}/api/devices/${deveui}/keys`,
+              { deviceKeys: deviceKeys },
+              {
+                headers: {
+                  'accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+                },
+              } 
+            );
+          } catch (error) {
+            this.logger.error('Response Chirpstack data:', error.response?.data);
+            const response = await this.httpService.axiosRef.put(
+              `${this.chirpstackUrl}/api/devices/${deveui}/keys`, 
+              {
+                deviceKeys: deviceKeys
+              },
+              {
+                headers: {
+                  'accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+                },
+              }
+            );
+          }
+          if (response.status === 200) {
+            return true;
+          } else {
+            return false;
+          }
         }
+        return true;
       }
-      return true;
-    }
-    return false;
+      return false;
     } catch (error) {
-      this.logger.debug(`log_device 8: ------------------------------------------------------------`);
-      this.logger.debug(`log_device 8:${error}`); 
-      this.logger.debug(`log_device 8: +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
-      this.logger.error(`Error updating device ${deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
       throw new BadRequestException(`Error updating device ${deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
     }
   }

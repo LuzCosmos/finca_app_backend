@@ -116,7 +116,8 @@ export class CattleDeviceHistoryRepository {
     idCattle: string,
     idTenant: string,
     assignedBy?: string,
-    recordedInMassiveEvent?: string,
+    assignedAt?: Date,
+    idMassiveEvent?: string,
     manager?: EntityManager,
   ) {
     const repo = manager?.getRepository(CattleDeviceHistory) ?? this.repo;
@@ -137,8 +138,8 @@ export class CattleDeviceHistoryRepository {
       idDevice,
       idTenant,
       assignedBy: assignedBy ?? undefined,
-      recordedInMassiveEvent: recordedInMassiveEvent ?? undefined,
-      assignedAt: new Date(),
+      idMassiveEvent: idMassiveEvent ?? undefined,
+      assignedAt: assignedAt ?? new Date(),
     });
     await repo.save(newAssignment);
     return newAssignment;
@@ -149,13 +150,29 @@ export class CattleDeviceHistoryRepository {
    * @param idCattle - The cattle ID
    * @param idDevice - The device ID
    */
-  async unassignDeviceToCattle(idTenant: string, idCattle: string, idDevice: string, manager?: EntityManager) {
+  async unassignDeviceByidDevice(idTenant: string, idDevice: string, manager?: EntityManager, unassignedAt?: Date) {
     const repo = manager?.getRepository(CattleDeviceHistory) ?? this.repo;
     const current = await repo.findOne({
       where: { idDevice, idTenant, unassignedAt: IsNull() },
     });
     if (current) {
-      current.unassignedAt = new Date();
+      current.unassignedAt = unassignedAt ?? new Date();
+      await repo.save(current);
+    }
+  }
+
+  /**
+   * Unassign a device from a cattle
+   * @param idCattle - The cattle ID
+   * @param idDevice - The device ID
+   */
+  async unassignDeviceByidCattle(idTenant: string, idCattle: string, manager?: EntityManager, unassignedAt?: Date) {
+    const repo = manager?.getRepository(CattleDeviceHistory) ?? this.repo;
+    const current = await repo.findOne({
+      where: { idCattle, idTenant, unassignedAt: IsNull() },
+    });
+    if (current) {
+      current.unassignedAt = unassignedAt ?? new Date();
       await repo.save(current);
     }
   }

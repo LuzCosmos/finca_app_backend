@@ -61,8 +61,6 @@ export class MassiveEventService {
       }
     }
     massiveEvent.simpleEvents = simpleEvents;
-    this.logger.debug('Logger 1')
-    this.logger.debug(massiveEvent);
     return massiveEvent;
   }
 

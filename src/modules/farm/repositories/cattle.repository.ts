@@ -34,6 +34,11 @@ export class CattleRepository {
     return manager.findOne(Cattle, { where: { idTenant, id } });
   }
 
+  async unsetDevice(idTenant: string, idDevice: string, manager?: EntityManager): Promise<void> {
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    await repo.update({idTenant,idDevice}, {idDevice: null});
+  } 
+
   async findOneOrFail(idTenant: string, id: string, manager?: EntityManager): Promise<Cattle> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
     const entity = await repo.findOne({ where: { idTenant, id } });

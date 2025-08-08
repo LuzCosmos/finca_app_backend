@@ -13,7 +13,7 @@ export class CreateCattleWeightHistoryDto {
 
   @IsOptional()
   @IsString()
-  recordedInMassiveEvent?: string;
+  idMassiveEvent?: string;
 
   @IsOptional()
   date?: Date;

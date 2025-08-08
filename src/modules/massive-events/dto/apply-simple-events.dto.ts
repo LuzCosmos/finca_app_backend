@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum,IsArray, ValidateNested, IsString, IsIn, IsOptional, IsObject } from 'class-validator';
+import { IsEnum,IsArray, ValidateNested, IsString, IsIn, IsOptional, IsObject, IsDate } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SimpleEventType } from '../enums/simple-event-type.enum';
 
@@ -22,10 +22,18 @@ class SingleEventDto {
   @IsString()
   appliedBy?: string;
 
-  @ApiProperty({ required: false, description: 'Optional simple event id to link (recordedInMassiveEvent)' })
+  @ApiProperty({ required: false, description: 'Applied at' })
   @IsOptional()
+  @IsDate()
+  appliedAt?: Date;
+
+  @ApiProperty({ required: true, description: 'Massive event id to link (idMassiveEvent)' })
   @IsString()
-  recordedInMassiveEvent?: string;
+  idMassiveEvent: string;
+
+  @ApiProperty({ required: true, description: 'Simple event id to link (idSimpleEvent)' })
+  @IsString()
+  idSimpleEvent: string;
 }
 
 export class ApplySimpleEventsDto {

@@ -26,8 +26,9 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
 
     await queryRunner.query(`
       ALTER TABLE "cattle_device_history"
+      ADD COLUMN "id_tenant" uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
       ADD COLUMN "assigned_by" uuid NULL REFERENCES users(id),
-      ADD COLUMN "recorded_in_massive_event" uuid NULL REFERENCES massive_events(id);
+      ADD COLUMN "idMassiveEvent" uuid NULL REFERENCES massive_events(id);
     `);
 
     await queryRunner.query(`CREATE TYPE "simple_event_type_enum" AS ENUM (
@@ -50,9 +51,11 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
       CREATE TABLE "animal_simple_event" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "id_tenant" uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        "id_massive_event" uuid NOT NULL REFERENCES massive_events(id) ON DELETE CASCADE,
         "id_simple_event" uuid NOT NULL REFERENCES simple_events(id) ON DELETE CASCADE,
         "id_animal" uuid,
         "provisional_number" varchar(50),
+        "data" jsonb,
         "applied_at" timestamp DEFAULT now(),
         "applied_by" uuid REFERENCES users(id),
         CONSTRAINT "pk_simple_event_cattle" PRIMARY KEY ("id")
@@ -66,12 +69,10 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
         "id_cattle" uuid NOT NULL REFERENCES cattle(id) ON DELETE CASCADE,
         "medication_name" varchar(100) NOT NULL,
         "route" varchar(50) NOT NULL,
-        "quantity" numeric(10,2) NOT NULL,
-        "units" varchar(10) NOT NULL,
         "dosage" varchar(50),
         "lot" varchar(50),
-        "date" timestamp NOT NULL,
-        "recorded_in_massive_event" uuid REFERENCES massive_events(id),
+        "applied_at" timestamp NOT NULL,
+        "idMassiveEvent" uuid REFERENCES massive_events(id),
         "recorded_by" uuid REFERENCES users(id),
         CONSTRAINT "pk_cattle_medication_history" PRIMARY KEY ("id")
       );
@@ -84,7 +85,7 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
         "id_cattle" uuid NOT NULL REFERENCES cattle(id) ON DELETE CASCADE,
         "weight" numeric(6,2) NOT NULL,
         "date" timestamp NOT NULL,
-        "recorded_in_massive_event" uuid REFERENCES massive_events(id),
+        "idMassiveEvent" uuid REFERENCES massive_events(id),
         "recorded_by" uuid REFERENCES users(id),
         CONSTRAINT "pk_cattle_weight_history" PRIMARY KEY ("id")
       );
@@ -98,7 +99,7 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
         "eartag_number" varchar(50) NOT NULL,
         "assigned_at" timestamp DEFAULT now(),
         "assigned_by" uuid REFERENCES users(id),
-        "recorded_in_massive_event" uuid REFERENCES massive_events(id),
+        "idMassiveEvent" uuid REFERENCES massive_events(id),
         CONSTRAINT "pk_cattle_eartag_history" PRIMARY KEY ("id")
       );
     `);
@@ -131,13 +132,17 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
       INSERT INTO modules (id, code, name, description, access_details) VALUES
       (uuid_generate_v4(), 'MASSIVE_EVENTS', 'Eventos Masivos', 'Gestión de eventos masivos', '{"massive_events":"CRUDL","massive_events": "CRUDL", "simple_events":"CRUDL", "animal_simple_events":"CRUDL"}');
     `);
+
+    await queryRunner.query(`ALTER TABLE devices RENAME COLUMN id_chirpstack TO id_chirpstack_profile;`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE devices RENAME COLUMN id_chirpstack_profile TO id_chirpstack;`);
     await queryRunner.query(`
       ALTER TABLE "cattle_device_history"
+      DROP COLUMN "id_tenant",
       DROP COLUMN "assigned_by",
-      DROP COLUMN "recorded_in_massive_event";
+      DROP COLUMN "idMassiveEvent";
     `);
 
     await queryRunner.query(`
@@ -153,19 +158,15 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
       DROP COLUMN "castrated",
       DROP COLUMN "castration_date";
     `);
-
-    await queryRunner.query(`DROP TABLE IF EXISTS "brands";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "cattle_eartag_history";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "cattle_weight_history";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "cattle_medication_history";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "animal_simple_event";`);
     await queryRunner.query(`DROP TABLE IF EXISTS "simple_events";`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "massive_events";`);
-
     await queryRunner.query(`DROP TYPE IF EXISTS "simple_event_type_enum";`);
-   
-    await queryRunner.query(`
-      DELETE FROM modules WHERE code = 'MASSIVE_EVENTS';
-    `);
+    await queryRunner.query(`DROP TABLE IF EXISTS "massive_events";`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "brands";`);
+    
+    await queryRunner.query(`DELETE FROM modules WHERE code = 'MASSIVE_EVENTS';`);
   }
 }
