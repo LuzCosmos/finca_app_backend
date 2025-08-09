@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Cattle } from '../entities/cattle.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
@@ -10,6 +10,8 @@ import { CattleDeviceHistoryRepository } from '../repositories/cattle-device-his
 import { CattleWeightHistoryRepository } from '../repositories/cattle-weight-history.repository';
 import { CattleEartagHistoryRepository } from '../repositories/cattle-eartag-history.repository';
 import { CattleMedicationHistoryRepository } from '../repositories/cattle-medication-history.repository';
+import { MassiveEventService } from 'src/modules/massive-events/services/massive-event.service';
+import { SimpleEventService } from 'src/modules/massive-events/services/simple-event.service';
 import { AnimalSimpleEventRepository } from 'src/modules/massive-events/repositories/animal-simple-event.repository';
 import { DevicesService } from '../../production-center/services/devices.service';
 import * as ExcelJS from 'exceljs';
@@ -32,6 +34,8 @@ export class CattleService {
     private readonly deviceService: DevicesService,
     private readonly animalSimpleEventRepository: AnimalSimpleEventRepository,
     private readonly dataSource: DataSource,
+    private readonly massiveEventService: MassiveEventService,
+    private readonly simpleEventService: SimpleEventService,
   ) {}
 
   /**
@@ -54,14 +58,20 @@ export class CattleService {
     }>,
   ): Promise<Cattle[]> {
     return this.dataSource.transaction(async manager => {
+      type MinimumSimpleEvent = { idSimEv: string; type: string };
+      type  MinimumMassiveEvents= Record<string, MinimumSimpleEvent[]>;
+      var minimumMassiveEvents : MinimumMassiveEvents = {};
       const results: Cattle[] = [];
-  
       for (const ev of events) {
         const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, ev.cattleNumber, manager);
         if (!cattle) {
           continue;
         }
-  
+        const massiveEvent = await this.massiveEventService.findWithSimpleEventsByIdOrFail(idTenant, ev.idMassiveEvent, manager);
+        if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
+        //if (massiveEvent.simpleEvents.find(se => se.id === ev.idSimpleEvent)) throw new HttpException('Simple event already applied', HttpStatus.UNPROCESSABLE_ENTITY); //422
+        if (!minimumMassiveEvents[ev.idMassiveEvent]) minimumMassiveEvents[ev.idMassiveEvent] = [];
+        minimumMassiveEvents[ev.idMassiveEvent].push({ idSimEv: ev.idSimpleEvent, type: ev.type });
         await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattle, ev);
         if (ev.idMassiveEvent) {
           await this.animalSimpleEventRepository.saveWithManager(manager, {
@@ -104,6 +114,8 @@ export class CattleService {
     }>,
   ): Promise<ApplySimpleEventsResponseDto[]> {
     return this.dataSource.transaction(async manager => {
+      const massiveEvent = await this.massiveEventService.findWithSimpleEventsByIdOrFail(idTenant, idMassiveEvent, manager);
+      if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
       const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, cattleNumber, manager);
       if (!cattle) throw new NotFoundException(`Cattle ${cattleNumber} not found`);
       const createdEvents:ApplySimpleEventsResponseDto[] = [] ;
@@ -111,28 +123,26 @@ export class CattleService {
         if (ev.type === SimpleEventType.CASTRATION && cattle.castrated) {
           continue;
         }
-        if (idMassiveEvent) {
-          await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattle, { ...ev, idMassiveEvent: idMassiveEvent, appliedBy: ev.appliedBy ?? idCurrentUser });
-          const event = await this.animalSimpleEventRepository.saveWithManager(manager, {
-            id: crypto.randomUUID(),
-            idTenant,
-            idSimpleEvent: ev.idSimpleEvent,
-            idMassiveEvent: idMassiveEvent,
-            idAnimal: cattle.id,
-            provisionalNumber: cattleNumber,
-            appliedAt: ev.appliedAt ?? new Date(),
-            appliedBy: ev.appliedBy ?? idCurrentUser,
-            data: ev.data,
-          });
-          const responsedto: ApplySimpleEventsResponseDto = { ...event,
-            idAnimal: cattle.id,
-            type: ev.type,
-            animalNumber: cattleNumber,
-            data:ev.data
-          }
-          createdEvents.push(responsedto);
-
+        await this.simpleEventService.findByIdOrFail(idTenant, ev.idSimpleEvent, manager);
+        await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattle, { ...ev, idMassiveEvent: idMassiveEvent, appliedBy: ev.appliedBy ?? idCurrentUser });
+        const event = await this.animalSimpleEventRepository.saveWithManager(manager, {
+          id: crypto.randomUUID(),
+          idTenant,
+          idSimpleEvent: ev.idSimpleEvent,
+          idMassiveEvent: idMassiveEvent,
+          idAnimal: cattle.id,
+          provisionalNumber: cattleNumber,
+          appliedAt: ev.appliedAt ?? new Date(),
+          appliedBy: ev.appliedBy ?? idCurrentUser,
+          data: ev.data,
+        });
+        const responsedto: ApplySimpleEventsResponseDto = { ...event,
+          idAnimal: cattle.id,
+          type: ev.type,
+          animalNumber: cattleNumber,
+          data:ev.data
         }
+        createdEvents.push(responsedto);
       }
       await this.cattleRepository.saveWithManager(manager, cattle);
       return createdEvents;
@@ -140,13 +150,13 @@ export class CattleService {
   }
 
   /**
-   * Apply an event to a cattle
+   * Apply an event to a cattle, in this method the Cattle,simpleEvents and MassiveEvents must exist in the database
    * @param manager - The entity manager
    * @param idTenant - The tenant ID
    * @param cattle - The cattle to apply the event to
    * @param ev - The event to apply
    */
-  public async applySingleEventToCattle(
+  private async applySingleEventToCattle(
     manager: EntityManager,
     idTenant: string,
     idCurrentUser: string,
@@ -192,6 +202,7 @@ export class CattleService {
             await this.cattleDeviceHistoryRepository.unassignDeviceByidCattle(idTenant, cattle.id, manager, ev.appliedAt ?? new Date());
             await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, device.id, manager, ev.appliedAt ?? new Date());  
             await this.cattleRepository.unsetDevice(idTenant, device.id, manager);
+            
             const tags = device.tags ?? {};
             tags.idCattle = cattle.id;
             tags.idDevice = device.id;
@@ -200,7 +211,6 @@ export class CattleService {
                 tags: tags
             };
             await this.deviceService.updateWithDevice(device, deviceUpdateDto, manager);
-            //await this.deviceService.updateDeviceInChirpstack(device.deveui, deviceUpdateDto);
             cattle.idDevice = device.id;
             await this.cattleDeviceHistoryRepository.assignDeviceToCattle(
               device.id,
@@ -356,9 +366,15 @@ export class CattleService {
    * @param id - The cattle ID
    * @returns The found cattle
    */
-  async findOne(idTenant: string, id: string): Promise<Cattle> {
+  async findByIdOrFail(idTenant: string, id: string): Promise<Cattle> {
     const cattle = await this.cattleRepository.findOne(idTenant, id);
     if (!cattle) throw new NotFoundException(`Cattle ${id} not found`);
+    return cattle;
+  }
+
+  async findByNumberOrFail(idTenant: string, number: string, manager?: EntityManager): Promise<Cattle> {
+    const cattle = await this.cattleRepository.findByNumberAndTenantId(idTenant, number, manager);
+    if (!cattle) throw new NotFoundException(`Cattle ${number} not found`);
     return cattle;
   }
 

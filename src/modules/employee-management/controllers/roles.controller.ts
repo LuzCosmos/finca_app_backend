@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Logger, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Logger, HttpCode, HttpStatus } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
 import { RequireModule, RequireAction, RequireEntity } from '../../../common/application-permissions/application-permissions.decorator';
@@ -64,11 +64,8 @@ export class RolesController {
     description: 'Datos del permiso a crear',
     required: true
   })
-  @ApiResponse({
-    status: 201,
-    description: 'Permiso creado exitosamente',
-    type: CreatePermissionResponseDto
-  })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiResponse({status: 201, description: 'Permiso creado exitosamente', type: CreatePermissionResponseDto})
   createPermission( @SessionUser() requestUser: SessionUserDto, @Body() createPermissionDto:CreatePermissionDto): Promise<RoleModulePermission>  {
     return this.roleModulePermissionService.createPermission( requestUser.tenant_id,createPermissionDto );
   }

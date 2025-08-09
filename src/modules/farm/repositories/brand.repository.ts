@@ -48,8 +48,9 @@ export class BrandRepository {
   /**
    * Obtener una marca específica
    */
-  async findOne(idTenant: string, id: string): Promise<Brand | null> {
-    return await this.repo.findOne({ where: { idTenant, id }, select: ['id', 'idTenant', 'name', 'createdAt', 'updatedAt', 'image'], });
+  async findOne(idTenant: string, id: string, manager?: EntityManager): Promise<Brand | null> {
+    const repo = manager?.getRepository(Brand) ?? this.repo;
+    return await repo.findOne({ where: { idTenant, id }, select: ['id', 'idTenant', 'name', 'createdAt', 'updatedAt', 'image'], });
   }
 
   /**

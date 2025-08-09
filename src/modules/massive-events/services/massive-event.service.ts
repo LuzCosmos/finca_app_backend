@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { MassiveEventRepository } from '../repositories/massive-event.repository';
 import { SimpleEventRepository } from '../repositories/simple-event.repository';
@@ -63,7 +63,6 @@ export class MassiveEventService {
     massiveEvent.simpleEvents = simpleEvents;
     return massiveEvent;
   }
-
 
   async createMassiveEvent(idTenant: string, createdBy: string, dto: CreateMassiveEventDto): Promise<MassiveEvent> {
     return this.dataSource.transaction(async manager => {
@@ -144,8 +143,20 @@ export class MassiveEventService {
    * @param id - The MassiveEvent ID
    * @returns The MassiveEvent
    */
-  async findOne(idTenant: string, idMassiveEvent: string): Promise<MassiveEvent> {
-    const massiveEvent = await this.massiveEventRepo.findOneWithSimpleEvents(idTenant, idMassiveEvent);
+  async findByIdOrFail(idTenant: string, idMassiveEvent: string, manager?: EntityManager): Promise<MassiveEvent> {
+    const massiveEvent = await this.massiveEventRepo.findById(idTenant, idMassiveEvent, manager);
+    if (!massiveEvent) throw new NotFoundException(`MassiveEvent ${idMassiveEvent} not found`);
+    return massiveEvent;
+  }
+
+  /**
+   * Get a MassiveEvent by ID and tenant
+   * @param idTenant - The tenant ID
+   * @param id - The MassiveEvent ID
+   * @returns The MassiveEvent
+   */
+  async findWithSimpleEventsByIdOrFail(idTenant: string, idMassiveEvent: string, manager?: EntityManager): Promise<MassiveEvent> {
+    const massiveEvent = await this.massiveEventRepo.findOneWithSimpleEvents(idTenant, idMassiveEvent, manager);
     if (!massiveEvent) throw new NotFoundException(`MassiveEvent ${idMassiveEvent} not found`);
     return massiveEvent;
   }
@@ -196,10 +207,16 @@ export class MassiveEventService {
    * @returns The MassiveEvent
    */
   async closeMassiveEvent(idTenant: string, id: string) {
-    const event = await this.massiveEventRepo.findById(id, idTenant);
-    if (!event) throw new NotFoundException('MassiveEvent not found');
-    event.status = 'closed';
-    return this.massiveEventRepo.save(event);
+    await this.dataSource.transaction(async manager => {
+      const massiveEvent = await this.findByIdOrFail(idTenant, id, manager);
+      //if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
+      await this.simpleEventRepo.deleteUnappliedByMassiveEvent(manager, idTenant, id);
+      const simpleEvents = await this.simpleEventRepo.findByMassiveEvent(idTenant, id);
+      if (simpleEvents.length === 0) {
+        throw new HttpException('No simple events applied', HttpStatus.UNPROCESSABLE_ENTITY); //422
+      }
+      await this.massiveEventRepo.updateByIdWithManager(manager, id, idTenant, { status: 'closed' });
+    });
   }
 
   /**
@@ -209,9 +226,8 @@ export class MassiveEventService {
    * @returns The deleted MassiveEvent
    */
   async deleteMassiveEvent(idTenant: string, id: string): Promise<void> {
-    const event = await this.massiveEventRepo.findById(id, idTenant);
-    if (!event) throw new NotFoundException('MassiveEvent not found');
     await this.dataSource.transaction(async manager => {
+      const event = await this.findByIdOrFail(idTenant, id, manager);
       await this.simpleEventRepo.deleteByMassiveEvent(manager, id);
       await this.massiveEventRepo.deleteByIdWithManager(manager, id, idTenant);
     });

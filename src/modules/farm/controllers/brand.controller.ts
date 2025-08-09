@@ -1,11 +1,11 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, UseInterceptors, UploadedFile,UploadedFiles, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, UseInterceptors, UploadedFile,UploadedFiles, BadRequestException, HttpCode, HttpStatus } from '@nestjs/common';
 import { FileInterceptor, AnyFilesInterceptor } from '@nestjs/platform-express';
 import { BrandService } from '../services/brand.service';
 import { CreateBrandDto } from '../dto/create-brand.dto';
 import { UpdateBrandDto } from '../dto/update-brand.dto';
 import { BrandResponseDto } from '../dto/brand-response.dto';
-import { diskStorage, memoryStorage } from 'multer';
-import { SyncBrandRequestDto, SyncBrandResponseDto } from '../dto/sync-brand.dto';
+import { memoryStorage } from 'multer';
+import { SyncBrandResponseDto } from '../dto/sync-brand.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -38,6 +38,7 @@ export class BrandController {
   }),)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new brand' })
+  @HttpCode(HttpStatus.CREATED)
   @ApiResponse({ status: 201, description: 'Brand created successfully', type: BrandResponseDto })
   @RequireAction('create')
   @ApiBody({ type: CreateBrandDto, required: true, examples: {
@@ -66,7 +67,7 @@ export class BrandController {
   @ApiResponse({ status: 200, description: 'Brand found', type: BrandResponseDto })
   @RequireAction('read')
   async findOne(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto): Promise<BrandResponseDto> {
-    const brand = await this.brandService.findOne(sessionUser.tenant_id, id);
+    const brand = await this.brandService.findByIdOrFail(sessionUser.tenant_id, id);
     return BrandResponseDto.toResponseDto(brand);
   }
 

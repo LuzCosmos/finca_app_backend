@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Lot } from '../entities/lot.entity';
 import { Logger } from '@nestjs/common';
@@ -36,11 +36,8 @@ export class LotRepository {
     return this.repository.find({ where: { idPurchase, idTenant } });
   }
 
-  async findById(id: string, idTenant: string): Promise<Lot> {
+  async findById(id: string, idTenant: string): Promise<Lot | null> {
     const lot = await this.repository.findOne({ where: { id, idTenant } });
-    if (!lot) {
-      throw new NotFoundException('Lot not found');
-    }
     return lot;
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { DeviceProfilesService } from '../services/device-profiles.service';
 import { CreateDeviceProfileDto } from '../dto/create-device-profile.dto';
@@ -21,6 +21,7 @@ export class DeviceProfilesController {
 
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo perfil de dispositivo' })
+  @HttpCode(HttpStatus.CREATED)
   @ApiResponse({ status: 201, description: 'Perfil de dispositivo creado exitosamente', type: DeviceProfileResponseDto })
   @RequireAction('create')
   async create(@SessionUser() sessionUser: SessionUserDto, @Body() createDeviceProfileDto: CreateDeviceProfileDto): Promise<DeviceProfileResponseDto> {

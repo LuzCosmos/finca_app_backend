@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus } from '@nestjs/common';
 import { CattleService } from '../services/cattle.service';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
@@ -37,7 +37,6 @@ export class CattleController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new cattle' })
-  @ApiResponse({ status: 201, description: 'Cattle created successfully', type: CattleResponseDto })
   @RequireAction('create')
   @ApiBody({ type: CreateCattleDto, required: true, examples:{
     example1: {
@@ -75,6 +74,12 @@ export class CattleController {
       },
     },
   } })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiResponse({ status: 201, description: 'Cattle created successfully', type: CattleResponseDto })
+  @ApiResponse({status: 400, description: 'Invalid request body'})
+  @ApiResponse({ status: 404, description: 'Device {deveui} not found'}) 
+  @ApiResponse({status: 409, description: 'Cattle number already exists'})
+  @ApiResponse({status: 500, description: 'Unexpected error during creation process'})
   create(@SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateCattleDto) {
     return this.cattleService.create(sessionUser.tenant_id, dto);
   }
@@ -82,25 +87,30 @@ export class CattleController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a cattle by ID' })
   @ApiResponse({ status: 200, description: 'Cattle found', type: CattleResponseDto })
+  @ApiResponse({ status: 404, description: 'Cattle not found'})
   @RequireAction('read')
   findOne(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
-    return this.cattleService.findOne(sessionUser.tenant_id, id);
+    return this.cattleService.findByIdOrFail(sessionUser.tenant_id, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update a cattle' })
-  @ApiResponse({ status: 200, description: 'Cattle updated', type: CattleResponseDto })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiResponse({ status: 204, description: 'Cattle updated'})
+  @ApiResponse({ status: 404, description: 'Cattle not found'})
   @RequireAction('update')
   update(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto, @Body() dto: UpdateCattleDto) {
-    return this.cattleService.update(sessionUser.tenant_id, id, dto);
+    this.cattleService.update(sessionUser.tenant_id, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a cattle' })
-  @ApiResponse({ status: 200, description: 'Cattle deleted successfully' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiResponse({ status: 204, description: 'Cattle deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Cattle not found'})
   @RequireAction('delete')
   remove(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
-    return this.cattleService.remove(sessionUser.tenant_id, id);
+    this.cattleService.remove(sessionUser.tenant_id, id);
   }
 
   @Get()
@@ -113,6 +123,7 @@ export class CattleController {
   @Get('simple-events/:id')
   @ApiOperation({ summary: 'List all simple events applied to a cattle' })
   @ApiResponse({ status: 200, description: 'List of simple events IDs' })
+  @ApiResponse({ status: 404, description: 'Cattle not found'})
   @RequireAction('read')
   async findSimpleEventsByCattle(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
     const links = await this.simpleEventCattleRepository.findByCattle(sessionUser.tenant_id, id);
@@ -122,55 +133,12 @@ export class CattleController {
       appliedBy: link.appliedBy,
     }));
   }
-
-
-  @Post('apply-simple-events')
-  @ApiOperation({ summary: 'Apply multiple simple events to multiple cattle by their number' })
-  @ApiResponse({ status: 200, description: 'Events applied successfully', type: [CattleResponseDto] })
-  @RequireAction('update')
-  @ApiBody({
-    type: ApplySimpleEventsDto,
-    examples: {
-      example1: {
-        summary: 'Apply various events',
-        value: {
-          events: [
-            {
-              cattleNumber: 'C-001',
-              type: 'weight',
-              data: { weight: 350 },
-              idMassiveEvent: 'uuid-massive-event-1',
-              idSimpleEvent: 'uuid-simple-event-1'
-            },
-            {
-              cattleNumber: 'C-002',
-              type: 'eartag',
-              data: { eartagNumber: 'ET-789' },
-              idMassiveEvent: 'uuid-massive-event-1',
-              idSimpleEvent: 'uuid-simple-event-2'
-            },
-            {
-              cattleNumber: 'C-003',
-              type: 'eartag',
-              data: { eartagNumber: 'ET-790' },
-              idMassiveEvent: 'uuid-massive-event-2',
-              idSimpleEvent: 'uuid-simple-event-3'
-            }
-          ]
-        }
-      }
-    }
-  })
-  async applySimpleEventsToSeveralCattle(
-    @SessionUser() sessionUser: SessionUserDto,
-    @Body() body: ApplySimpleEventsDto
-  ) {
-    return this.cattleService.applyBulkSimpleEvents(sessionUser.tenant_id, sessionUser.sub, body.events);
-  }
-
+ 
   @Post('apply-events/:cattleNumber')
   @ApiOperation({ summary: 'Apply multiple simple events to a single cattle by number' })
   @ApiResponse({ status: 200, description: 'Events applied successfully', type: [AnimalSimpleEvent] })
+  @ApiResponse({ status: 404, description: 'Cattle {cattleNumber} not found / Device {deveui} not found'}) 
+  @ApiResponse({ status: 500, description: 'Unexpected error during application process'})
   @RequireAction('update')
   @ApiBody({
     schema: {
@@ -233,6 +201,50 @@ export class CattleController {
     );
     this.logger.debug(`log_cattle 1: Applied events: ${appliedEvents}`);
     return appliedEvents;
+  }
+
+  @Post('apply-simple-events')
+  @ApiOperation({ summary: 'Apply multiple simple events to multiple cattle by their number' })
+  @ApiResponse({ status: 200, description: 'Events applied successfully', type: [CattleResponseDto] })
+  @RequireAction('update')
+  @ApiBody({
+    type: ApplySimpleEventsDto,
+    examples: {
+      example1: {
+        summary: 'Apply various events',
+        value: {
+          events: [
+            {
+              cattleNumber: 'C-001',
+              type: 'weight',
+              data: { weight: 350 },
+              idMassiveEvent: 'uuid-massive-event-1',
+              idSimpleEvent: 'uuid-simple-event-1'
+            },
+            {
+              cattleNumber: 'C-002',
+              type: 'eartag',
+              data: { eartagNumber: 'ET-789' },
+              idMassiveEvent: 'uuid-massive-event-1',
+              idSimpleEvent: 'uuid-simple-event-2'
+            },
+            {
+              cattleNumber: 'C-003',
+              type: 'eartag',
+              data: { eartagNumber: 'ET-790' },
+              idMassiveEvent: 'uuid-massive-event-2',
+              idSimpleEvent: 'uuid-simple-event-3'
+            }
+          ]
+        }
+      }
+    }
+  })
+  async applySimpleEventsToSeveralCattle(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Body() body: ApplySimpleEventsDto
+  ) {
+    return this.cattleService.applyBulkSimpleEvents(sessionUser.tenant_id, sessionUser.sub, body.events);
   }
 
 
@@ -302,6 +314,36 @@ export class CattleController {
       cb(null, true);
     },
   }))
+  @ApiResponse({
+    status: 201,
+    description: 'Cattle imported successfully',
+    schema: {
+      example: {
+        importedCount: 25,
+        skippedCount: 2,
+        errors: [],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file type. Only Excel files are allowed.',
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'File processed but contains invalid cattle records.',
+    schema: {
+      example: {
+        importedCount: 20,
+        skippedCount: 5,
+        errors: [
+          { row: 3, error: 'Missing cattle ID' },
+          { row: 7, error: 'Invalid weight format' },
+        ],
+      },
+    },
+  })
+  @ApiResponse({status: 500, description: 'Unexpected error during import process'})
   import(@SessionUser() sessionUser: SessionUserDto, @UploadedFile() file: Express.Multer.File) {
     return this.cattleService.import(file, sessionUser.tenant_id);
   }

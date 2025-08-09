@@ -87,7 +87,7 @@ export class TenantsService {
   async findOne(id: string): Promise<Tenant> {
     const tenant = await this.tenantRepository.findOne({ where: { id } });
     if (!tenant) {
-      throw new NotFoundException(`Tenant con ID ${id} no encontrado`);
+      throw new NotFoundException(`Tenant with ID ${id} not found`);
     }
     return tenant;
   }
@@ -107,7 +107,7 @@ export class TenantsService {
   async remove(id: string): Promise<void> {
     const result = await this.tenantRepository.delete(id);
     if (result.affected === 0) {
-      throw new NotFoundException(`Tenant con ID ${id} no encontrado`);
+      throw new NotFoundException(`Tenant with ID ${id} not found`);
     }
   }
 */
@@ -121,7 +121,7 @@ export class TenantsService {
       where: { company_username } 
     });
     if (!tenant) {
-      throw new NotFoundException(`Tenant con company_username ${company_username} no encontrado`);
+      throw new NotFoundException(`Tenant with company_username ${company_username} not found`);
     }
     return tenant;
   }

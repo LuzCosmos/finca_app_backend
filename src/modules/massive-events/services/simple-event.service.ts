@@ -1,6 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { SimpleEventRepository } from '../repositories/simple-event.repository';
-import { MassiveEventRepository } from '../repositories/massive-event.repository';
 import { CreateSimpleEventDto, ValidateDataFields } from '../dto/create-simple-event.dto';
 import { DataSource, EntityManager } from 'typeorm';
 import { SimpleEvent } from '../entities/simple-event.entity';
@@ -8,13 +7,15 @@ import { SyncSimpleEventDto } from '../dto/sync-simple-events.dto';
 import { SyncSimpleEventResultDto } from '../dto/sync-simple-events.dto';
 import { SimpleEventType } from '../enums/simple-event-type.enum';
 import { v4 as uuidv4 } from 'uuid';
+import { MassiveEventService } from './massive-event.service';
+import { MassiveEvent } from '../entities/massive-events.entity';
 
 @Injectable()
 export class SimpleEventService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly simpleEventRepo: SimpleEventRepository,
-    private readonly massiveEventRepo: MassiveEventRepository,
+    private readonly massiveEventSevice: MassiveEventService,
   ) {}
 
   /**
@@ -23,14 +24,11 @@ export class SimpleEventService {
    * @param dto - The data transfer object containing the event date and simple events
    * @returns The created SimpleEvent
    */
-  async createSimpleEvent1(
+  async createSimpleEvent12(
     idTenant: string,
     dto: CreateSimpleEventDto,
   ) {
-    const massiveEvent = await this.massiveEventRepo.findById(dto.idMassiveEvent, idTenant);
-    if (!massiveEvent) {
-      throw new NotFoundException(`MassiveEvent ${dto.idMassiveEvent} not found`);
-    }
+    await this.massiveEventSevice.findByIdOrFail(idTenant, dto.idMassiveEvent);
     const typesWithData = ['brand', 'medication'];
     if (typesWithData.includes(dto.type)) {
       if (!dto.data) {
@@ -50,7 +48,12 @@ export class SimpleEventService {
   }
 
 
-  // 🔹 Método privado reutilizable
+  /**
+   * Save a SimpleEvent
+   * @param manager - The entity manager
+   * @param payload - The payload containing the SimpleEvent data
+   * @returns The saved SimpleEvent
+   */
   private async saveSimpleEvent(
     manager: EntityManager,
     payload: { id: string; idMassiveEvent: string; idTenant: string; type: SimpleEventType; dataJson?: string; createdAt?: string }
@@ -72,9 +75,14 @@ export class SimpleEventService {
     return this.simpleEventRepo.saveWithManager(manager, simpleEvent);
   }
 
+  /**
+   * Create a SimpleEvent
+   * @param idTenant - The tenant ID
+   * @param dto - The data transfer object containing the event date and simple events
+   * @returns The created SimpleEvent
+   */
   async createSimpleEvent(idTenant: string, dto: CreateSimpleEventDto) {
-    const massiveEvent = await this.massiveEventRepo.findById(dto.idMassiveEvent, idTenant);
-    if (!massiveEvent) throw new NotFoundException(`MassiveEvent ${dto.idMassiveEvent} not found`);
+    await this.massiveEventSevice.findByIdOrFail(idTenant, dto.idMassiveEvent);
 
     return this.dataSource.transaction(manager =>
       this.saveSimpleEvent(manager, {
@@ -87,16 +95,23 @@ export class SimpleEventService {
     );
   }
 
-  // ✔️ Nuevo syncSimpleEvents
+  /**
+   * Sync SimpleEvents
+   * @param idTenant - The tenant ID
+   * @param dtos - The data transfer object containing the event date and simple events
+   * @returns The synced SimpleEvents
+   */
   async syncSimpleEvents(idTenant: string, dtos: SyncSimpleEventDto[]): Promise<SyncSimpleEventResultDto[]> {
     return this.dataSource.transaction(async manager => {
       const results: SyncSimpleEventResultDto[] = [];
       for (const dto of dtos) {
-        const massiveEvent = await this.massiveEventRepo.findById(dto.massiveEventServerId, idTenant);
-        if (!massiveEvent) {
+        let massiveEvent: MassiveEvent;
+        try {
+          massiveEvent = await this.massiveEventSevice.findByIdOrFail(idTenant, dto.massiveEventServerId);
+        } catch (error) {
           results.push({ id: dto.id, status: 'failed', serverId: '', message: 'MassiveEvent not found' });
           continue;
-        }
+        } 
         const saved = await this.saveSimpleEvent(manager, {
           id: dto.id,
           idMassiveEvent: massiveEvent.id,
@@ -117,8 +132,10 @@ export class SimpleEventService {
    * @param id - The SimpleEvent ID
    * @returns The SimpleEvent
    */
-  async findById(idTenant: string, id: string) {
-    return this.simpleEventRepo.findById(id);
+  async findByIdOrFail(idTenant: string, id: string, manager?: EntityManager) {
+    const simpleEvent = this.simpleEventRepo.findById(idTenant, id, manager);
+    if (!simpleEvent) throw new NotFoundException(`SimpleEvent ${id} not found`);
+    return simpleEvent;
   }
 
   /**

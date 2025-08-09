@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { SimpleEvent } from '../entities/simple-event.entity';
+import { AnimalSimpleEvent } from '../entities/animal-simple-event.entity';
 
 @Injectable()
 export class SimpleEventRepository {
@@ -23,10 +24,9 @@ export class SimpleEventRepository {
     return manager.save(SimpleEvent, entity);
   }
 
-  async findById(id: string): Promise<SimpleEvent> {
-    const se = await this.repository.findOne({ where: { id } });
-    if (!se) throw new NotFoundException('SimpleEvent not found');
-    return se;
+  async findById(idTenant: string, id: string, manager?: EntityManager): Promise<SimpleEvent | null> {
+    const repo = manager?.getRepository(SimpleEvent) ?? this.repository;
+    return await repo.findOne({ where: { idTenant, id } });
   }
 
   async findByMassiveEvent(idTenant: string, idMassiveEvent: string) {
@@ -44,4 +44,40 @@ export class SimpleEventRepository {
   async deleteByMassiveEvent(manager: EntityManager, idMassiveEvent: string): Promise<void> {
     await manager.delete(SimpleEvent, { idMassiveEvent });
   }
+
+  async deleteUnappliedByMassiveEvent(
+  manager: EntityManager,
+  idTenant: string,
+  idMassiveEvent: string,
+): Promise<number> {
+  // subquery que selecciona los IDs a borrar
+  const sub = manager
+    .createQueryBuilder()
+    .select('se.id')
+    .from(SimpleEvent, 'se')
+    .where('se.idTenant = :idTenant', { idTenant })
+    .andWhere('se.idMassiveEvent = :idMassiveEvent', { idMassiveEvent })
+    .andWhere(() => {
+      const notExists = manager
+        .createQueryBuilder()
+        .subQuery()
+        .select('1')
+        .from(AnimalSimpleEvent, 'ase')
+        .where('ase.idSimpleEvent = se.id')
+        .andWhere('ase.idTenant = se.idTenant')
+        .getQuery();
+      return `NOT EXISTS (${notExists})`;
+    });
+
+  const res = await manager
+    .createQueryBuilder()
+    .delete()
+    .from(SimpleEvent) // sin alias aquí
+    .where(`id IN (${sub.getQuery()})`)
+    .setParameters(sub.getParameters())
+    .execute();
+
+  return res.affected ?? 0;
+}
+
 }

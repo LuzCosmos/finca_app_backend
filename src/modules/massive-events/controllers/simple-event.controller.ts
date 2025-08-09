@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { SimpleEventService } from '../services/simple-event.service';
 import { CreateSimpleEventDto } from '../dto/create-simple-event.dto';
 import { SyncSimpleEventsRequestDto, SyncSimpleEventsResponseDto } from '../dto/sync-simple-events.dto';
@@ -25,7 +25,9 @@ export class SimpleEventController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new simple event and attach to a massive event' })
-  @ApiResponse({ status: 201, description: 'Simple event created successfully',type:SimpleEventResponseDto })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiResponse({ status: 201, description: 'Simple event created successfully',type:SimpleEventResponseDto})
+  @ApiResponse({ status: 404, description: 'Massive event not found'})
   @RequireAction('create')
   @ApiBody({
     type: CreateSimpleEventDto,
@@ -67,7 +69,7 @@ export class SimpleEventController {
         value: {
           idMassiveEvent: 'uuid-massive-event',
           type: 'brand',
-          data: { brandId: 'uuid-brand' }
+          data: { brandId: 'uuid-brand', brandName: 'Brand Name' }
         }
       },
       medication: {
@@ -160,16 +162,18 @@ export class SimpleEventController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a simple event by ID' })
   @ApiResponse({ status: 200, description: 'Simple event found' })
+  @ApiResponse({ status: 404, description: 'Simple event not found'})
   @RequireAction('read')
   findById(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string) {
-    return this.simpleEventService.findById(sessionUser.tenant_id, id);
+    return this.simpleEventService.findByIdOrFail(sessionUser.tenant_id, id);
   }
 
   @Get('by-cattle/:id')
-  @ApiOperation({ summary: 'List all cattle related to a simple event' })
+  @ApiOperation({ summary: 'List all ids of cattle related to a simple event' })
   @ApiResponse({ status: 200, description: 'List of cattle IDs' })
+  //@ApiResponse({ status: 404, description: 'Simple event not found'})
   @RequireAction('read')
-  async findCattleBySimpleEvent(@Param('id') id: string) {
+  async getAppliedCattleIdsBySimpleEvent(@Param('id') id: string) {
     const links = await this.simpleEventCattleRepository.findBySimpleEvent(id);
     return links.map(link => ({
       idCattle: link.idAnimal,

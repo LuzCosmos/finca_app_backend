@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { AnimalSimpleEvent } from '../entities/animal-simple-event.entity';
 
@@ -23,10 +23,8 @@ export class AnimalSimpleEventRepository {
     return manager.save(AnimalSimpleEvent, entity);
   }
 
-  async findById(id: string): Promise<AnimalSimpleEvent> {
-    const item = await this.repository.findOne({ where: { id } });
-    if (!item) throw new NotFoundException('AnimalSimpleEvent not found');
-    return item;
+  async findById(idTenant: string, id: string): Promise<AnimalSimpleEvent | null> {
+    return this.repository.findOne({ where: { idTenant, id } });
   }
 
   async findByCattle(idTenant: string, idCattle: string): Promise<AnimalSimpleEvent[]> {
@@ -41,11 +39,11 @@ export class AnimalSimpleEventRepository {
     return this.repository.find({ where: { idTenant, idSimpleEvent: In(simpleEventIds) } });
   }  
 
-  async deleteById(id: string): Promise<void> {
-    await this.repository.delete({ id });
+  async deleteById(idTenant: string, id: string): Promise<void> {
+    await this.repository.delete({ idTenant, id });
   }
 
-  async deleteByIdWithManager(manager: EntityManager, id: string): Promise<void> {
-    await manager.delete(AnimalSimpleEvent, { id });
+  async deleteByIdWithManager(manager: EntityManager, idTenant: string, id: string): Promise<void> {
+    await manager.delete(AnimalSimpleEvent, { idTenant, id });
   }
 }

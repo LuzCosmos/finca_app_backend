@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Delete, UseGuards, Get, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, UseGuards, Get, ForbiddenException, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantsService } from '../services/tenants.service';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
@@ -16,6 +16,7 @@ export class TenantsController {
 
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo tenant con usuario administrador' })
+  @HttpCode(HttpStatus.CREATED)
   @ApiResponse({
     status: 201,
     description: 'El tenant ha sido creado exitosamente con su usuario administrador',
@@ -75,6 +76,7 @@ export class TenantsController {
   @RequireAction('delete')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Eliminar un tenant' })
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiResponse({ status: 204, description: 'El tenant ha sido eliminado' })
   @ApiResponse({ status: 404, description: 'Tenant no encontrado' })
   async remove(@Param('id') id: string): Promise<void> {

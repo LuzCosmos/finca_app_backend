@@ -49,7 +49,7 @@ export class RoleModulePermissionService {
   async updatePermission(roleId: string,tenantId: string,moduleId: string,permissionDto:UpdatePermissionDto): Promise<RoleModulePermission> {
     const permission = await this.roleModulePermissionRepository.findByRoleAndModuleAndTenant(roleId, moduleId, tenantId); 
     if (!permission) {
-      throw new NotFoundException('Permiso no encontrado');
+      throw new NotFoundException('Permission not found');
     }
     this.logger.debug("********************************************************")
     this.logger.debug(permission);
@@ -70,7 +70,7 @@ export class RoleModulePermissionService {
   async deletePermission(roleId: string,tenantId: string,moduleId: string): Promise<void> {
     const deleteResult = await this.roleModulePermissionRepository.deleteRoleModulePermission(roleId,moduleId,tenantId);
     if (deleteResult.affected === 0) {
-      throw new NotFoundException('Permiso no encontrado');
+      throw new NotFoundException('Permission not found');
     }
     return
   }

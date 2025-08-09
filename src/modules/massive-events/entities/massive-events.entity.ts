@@ -1,11 +1,4 @@
-import {
-  Entity,
-  PrimaryColumn,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  OneToMany,
-} from 'typeorm';
+import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { SimpleEvent } from './simple-event.entity';
 
 @Entity('massive_events')
@@ -34,6 +27,6 @@ export class MassiveEvent {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
   updatedAt: Date;
 
-  @OneToMany(() => SimpleEvent, (simpleEvent) => simpleEvent.idMassiveEvent)
+  @OneToMany(() => SimpleEvent, (simpleEvent) => simpleEvent.massiveEvent)
   simpleEvents: SimpleEvent[];
 }

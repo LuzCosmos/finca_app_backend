@@ -47,11 +47,9 @@ export class BrandService {
   /**
    * Obtener una marca específica
    */
-  async findOne(idTenant: string, id: string): Promise<Brand> {
-    const brand = await this.brandRepository.findOne(idTenant, id);
-    if (!brand) {
-      throw new NotFoundException(`Brand ${id} not found`);
-    }
+  async findByIdOrFail(idTenant: string, id: string, manager?: EntityManager): Promise<Brand> {
+    const brand = await this.brandRepository.findOne(idTenant, id, manager);
+    if (!brand) throw new NotFoundException(`Brand ${id} not found`);
     return brand;
   }
 

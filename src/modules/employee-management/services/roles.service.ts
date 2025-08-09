@@ -38,7 +38,7 @@ export class RoleService {
         const rolesDto = roles.map(role => RoleReadDto.transformToDto(role));
         return rolesDto;    
     } else {
-      throw new NotFoundException('No se encontraron roles para el tenant');
+      throw new NotFoundException('No roles found for tenant');
     }
   }
 
@@ -50,7 +50,7 @@ export class RoleService {
   async findOne(id: string): Promise<RoleReadDto> {
     const role = await this.roleRepository.findById(id);
     if (!role) {
-      throw new NotFoundException(`Rol con ID ${id} no encontrado`);
+      throw new NotFoundException(`Role with ID ${id} not found`);
     }
     return RoleReadDto.transformToDto(role);
   }
@@ -63,7 +63,7 @@ export class RoleService {
   async findByCode(code:string):Promise<Role>{
     const role = await this.roleRepository.findByCode(code);
     if (!role) {
-      throw new NotFoundException(`Rol con código '${code}' no encontrado`);
+      throw new NotFoundException(`Role with code '${code}' not found`);
     }
     return role;
   }

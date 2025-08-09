@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, UseGuards, UploadedFile, UseInterceptors, BadRequestException} from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, UseGuards, UploadedFile, UseInterceptors, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody, } from '@nestjs/swagger';
 import { DevicesService } from '../services/devices.service';
 import { CreateDeviceDto } from '../dto/create-device.dto';
@@ -26,6 +26,7 @@ export class DevicesController {
 
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo dispositivo' })
+  @HttpCode(HttpStatus.CREATED)
   @ApiResponse({ status: 201, description: 'Dispositivo creado exitosamente', type: DeviceResponseDto })
   @RequireAction('create')
   async create(@SessionUser() sessionUser: SessionUserDto, @Body() createDeviceDto: CreateDeviceDto): Promise<DeviceResponseDto> {
@@ -107,6 +108,7 @@ export class DevicesController {
       },
     },
   })
+  @HttpCode(HttpStatus.CREATED)
   @ApiResponse({ status: 201, description: 'Archivo procesado correctamente' })
   async importarExcel(@UploadedFile() file: Express.Multer.File, @Body() body: { deviceProfileId: string }, @SessionUser() sessionUser: SessionUserDto) {
     const result = await this.deviceService.importDevicesFromExcel(file, sessionUser.tenant_id, body.deviceProfileId);

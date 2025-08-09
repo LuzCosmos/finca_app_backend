@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { MassiveEvent } from '../entities/massive-events.entity';
 
@@ -23,14 +23,18 @@ export class MassiveEventRepository {
     return manager.save(MassiveEvent, entity);
   }
 
-  async findById(id: string, idTenant: string): Promise<MassiveEvent> {
-    const event = await this.repository.findOne({ where: { id, idTenant } });
-    if (!event) throw new NotFoundException('MassiveEvent not found');
-    return event;
+  async updateByIdWithManager(manager: EntityManager, id: string, idTenant: string, data: Partial<MassiveEvent>): Promise<void> {
+    await manager.update(MassiveEvent, { id, idTenant }, data);
   }
 
-  async findOneWithSimpleEvents(idTenant: string, idMassiveEvent: string): Promise<MassiveEvent | null> {
-    return this.repository.findOne({
+  async findById(idTenant: string, id: string, manager?: EntityManager): Promise<MassiveEvent | null> {
+    const repo = manager?.getRepository(MassiveEvent) ?? this.repository;
+    return await repo.findOne({ where: { id, idTenant } });
+  }
+
+  async findOneWithSimpleEvents(idTenant: string, idMassiveEvent: string, manager?: EntityManager): Promise<MassiveEvent | null> {
+    const repo = manager?.getRepository(MassiveEvent) ?? this.repository;
+    return await repo.findOne({
       where: { idTenant, id: idMassiveEvent },
       relations: ['simpleEvents'],
     });

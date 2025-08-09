@@ -61,7 +61,7 @@ interface CreateAdminUserDto {
       relations: ['roles']
     });
     if (!user) {
-      throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
     return plainToInstance(UserResponseDto, user);
   }
@@ -76,7 +76,7 @@ interface CreateAdminUserDto {
   async update(id: string, updateUserDto: UpdateUserDto, sessionUser: SessionUserDto): Promise<UserResponseDto> {
     const user = await this.userCustomRepository.findById(id);
     if (!user) {
-      throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
     // Verificar permisos
     const isOwnUser = sessionUser.sub === id;
@@ -118,7 +118,7 @@ interface CreateAdminUserDto {
   async remove(id: string, sessionUser: SessionUserDto): Promise<void> {
     const user = await this.userCustomRepository.findById(id);
     if (!user) {
-      throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
     // Verificar si es el propio usuario o tiene permisos de eliminación
     const isOwnUser = sessionUser.sub === id;
@@ -130,7 +130,7 @@ interface CreateAdminUserDto {
     // Eliminar el usuario y sus roles en una transacción
     const deleted = await this.userCustomRepository.deleteUserWithRoles(id);
     if (!deleted) {
-      throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
   }
 
@@ -244,7 +244,7 @@ interface CreateAdminUserDto {
 
     const adminRole = await this.rolesService.findByCode('SYS_ADMIN');
     if (!adminRole) {
-      throw new NotFoundException('No se encontró el rol de administrador');
+      throw new NotFoundException('Admin role not found');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Delete, UseGuards, Get, ForbiddenException, Put, Patch, Request } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, UseGuards, Get, Put, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -24,6 +24,7 @@ export class UsersController {
   @Post()
   @RequireAction('create')
   @ApiOperation({ summary: 'Crear un nuevo usuario' })
+  @HttpCode(HttpStatus.CREATED)
   @ApiResponse({ 
     status: 201, 
     description: 'Usuario creado exitosamente',

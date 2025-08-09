@@ -10,10 +10,10 @@ export class MassiveEventResponseDto {
   @ApiProperty({ example: 'uuid-tenant', description: 'Tenant identifier' })
   idTenant: string;
 
-  @ApiProperty({ example: 'closed', description: 'Status of the massive event' })
+  @ApiProperty({ example: 'open', description: 'Status of the massive event' })
   status: string;
   
-  @ApiProperty({ example: '2022-01-01T00:00:00', description: 'Event date' }) 
+  @ApiProperty({ example: '2022-01-01', description: 'Event date' }) 
   eventDate:Date;
 
   @ApiProperty({ example: '2025-07-24T12:00:00Z', description: 'Date when the massive event was created' })

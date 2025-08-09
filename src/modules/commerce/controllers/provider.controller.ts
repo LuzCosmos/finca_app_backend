@@ -1,6 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put } from '@nestjs/common';
 import { ProviderService } from '../services/provider.service';
-import { Provider } from '../entities/provider.entity';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
 import { SessionUser } from '../../../common/decorators/session-user.decorator';
@@ -26,6 +25,7 @@ export class ProviderController {
   @Post()
   @RequireAction('create')
   @ApiOperation({ summary: 'Create a new provider' })
+  @HttpCode(HttpStatus.CREATED)
   @ApiResponse({ status: 201, description: 'Provider created successfully', type: ProviderResponseDto })
   @ApiResponse({ status: 409, description: 'NIT already exists for this tenant' })
   @ApiBody({ type: CreateProviderDto, required: true, examples:{
@@ -37,7 +37,7 @@ export class ProviderController {
       },
     }
   } })
-  async createProvider(@Body() body: CreateProviderDto, @SessionUser() user: SessionUserDto): Promise<ProviderResponseDto> {
+  async create(@Body() body: CreateProviderDto, @SessionUser() user: SessionUserDto): Promise<ProviderResponseDto> {
     const provider = await this.providerService.createProvider({
       ...body,
       idTenant: user.tenant_id,
@@ -58,7 +58,7 @@ export class ProviderController {
   @RequireAction('read')
   @ApiOperation({ summary: 'Find provider by NIT' })
   @ApiResponse({ status: 200, description: 'Provider found', type: ProviderResponseDto })
-  @ApiResponse({ status: 404, description: 'Provider not found by NIT' }) 
+  @ApiResponse({ status: 404, description: 'Provider not found by NIT' })
   async findByNit(@Param('nit') nit: string, @SessionUser() user: SessionUserDto): Promise<ProviderResponseDto> {
     return ProviderResponseDto.toProviderResponse(await this.providerService.findByNit(nit, user.tenant_id));
   }
@@ -89,6 +89,7 @@ export class ProviderController {
   @Put(':id')
   @RequireAction('update')
   @ApiOperation({ summary: 'Update provider by ID' })
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiResponse({ status: 204, description: 'Provider updated' })
   @ApiResponse({ status: 404, description: 'Provider not found by ID' })
   @ApiResponse({ status: 409, description: 'NIT already exists for this tenant' })
@@ -120,6 +121,7 @@ export class ProviderController {
   @Put('nit/:nit')
   @RequireAction('update')
   @ApiOperation({ summary: 'Update provider by NIT (NIT cannot be changed)' })
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiResponse({ status: 204, description: 'Provider updated' })
   @ApiResponse({ status: 400, description: 'NIT update not allowed in this endpoint' })
   @ApiResponse({ status: 404, description: 'Provider not found by NIT' })
@@ -141,6 +143,7 @@ export class ProviderController {
   @Delete(':id')
   @RequireAction('delete')
   @ApiOperation({ summary: 'Delete provider by ID' })
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiResponse({ status: 204, description: 'Provider deleted' })
   async deleteById(@Param('id') id: string, @SessionUser() user: SessionUserDto): Promise<void> {
     await this.providerService.deleteById(id, user.tenant_id);
@@ -149,6 +152,7 @@ export class ProviderController {
   @Delete('nit/:nit')
   @RequireAction('delete')
   @ApiOperation({ summary: 'Delete provider by NIT' })
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiResponse({ status: 204, description: 'Provider deleted' })
   async deleteByNit(@Param('nit') nit: string, @SessionUser() user: SessionUserDto): Promise<void> {
     await this.providerService.deleteByNit(nit, user.tenant_id);

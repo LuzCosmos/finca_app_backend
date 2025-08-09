@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { PurchaseService } from '../services/purchase.service';
 import { CreatePurchaseDto } from '../dto/create-purchase.dto';
 import { UpdatePurchaseDto } from '../dto/update-purchase.dto';
@@ -31,6 +22,7 @@ export class PurchaseController {
   @Post()
   @RequireAction('create')
   @ApiOperation({ summary: 'Create a new purchase' })
+  @HttpCode(HttpStatus.CREATED)
   @ApiResponse({ status: 201, type: PurchaseResponseDto })
   async createPurchase(
     @Body() dto: CreatePurchaseDto,
@@ -44,7 +36,7 @@ export class PurchaseController {
   @Patch(':id')
   @RequireAction('update')
   @ApiOperation({ summary: 'Update an existing purchase' })
-  @ApiResponse({ status: 201, type: PurchaseResponseDto })
+  @ApiResponse({ status: 200, type: PurchaseResponseDto })
   async updatePurchase(
     @Param('id') id: string,
     @Body() dto: UpdatePurchaseDto,
@@ -79,6 +71,7 @@ export class PurchaseController {
   @Delete(':id')
   @RequireAction('delete')
   @ApiOperation({ summary: 'Delete a purchase by ID' })
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiResponse({ status: 204 })
   async deleteById(
     @Param('id') id: string,

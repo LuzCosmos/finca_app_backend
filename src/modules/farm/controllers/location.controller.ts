@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus } from '@nestjs/common';
 import { LocationService } from '../services/location.service';
 import { CreateLocationDto } from '../dto/create-location.dto';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -22,6 +22,7 @@ export class LocationController {
 
   /*
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new location' })
   @ApiResponse({ status: 201, description: 'Location created successfully', type: Location })
   create(@Body() dto: CreateLocationDto) {
