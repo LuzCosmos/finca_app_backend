@@ -1,21 +1,22 @@
 services:
   redis:
-    image: redis:latest
+    image: redis:7.4-alpine
     container_name: fa_redis_server
-    restart: always
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
     ports:
-      - "${REDIS_PORT}:6379"
+      - '${REDIS_PORT}:6379'
     volumes:
-      - fa_redisdata:/data
+      - /${ENVIRONMENT}-srv/docker-data/fa-redis:/data
     networks:
       - finca_app_network
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
 
-volumes:
-  fa_redisdata:
-
 networks:
-  finca_app_network:
-    driver: bridge
+  finca_app_net:
+    external: true
