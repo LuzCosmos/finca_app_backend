@@ -20,11 +20,28 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    const mqttUrl = this.configService.get<string>('MQTT_BROKER_URL');
-    if (!mqttUrl) {
-      throw new Error('MQTT_BROKER_URL is not defined in environment variables');
+    const mqttHost = this.configService.get<string>('MQTT_BROKER_HOST');
+    if (!mqttHost) {
+      throw new Error('MQTT_BROKER_HOST is not defined in environment variables');
     }
-    this.client = mqtt.connect(mqttUrl);
+    const mqttPort = this.configService.get<string>('MQTT_BROKER_PORT');
+    if (!mqttPort) {
+      throw new Error('MQTT_BROKER_PORT is not defined in environment variables');
+    }
+    const mqttProtocol = this.configService.get<string>('MQTT_BROKER_PROTOCOL');
+    if (!mqttProtocol) {
+      throw new Error('MQTT_BROKER_PROTOCOL is not defined in environment variables');
+    }
+    const mqttOptions: mqtt.IClientOptions = {
+      host: mqttHost,
+      port: parseInt(mqttPort),
+      protocol: mqttProtocol as mqtt.MqttProtocol,
+      reconnectPeriod: 3000,
+      connectTimeout: 15000,
+      keepalive: 30,
+    };
+    this.logger.log(`MQTT_BROKER_URL=${mqttProtocol}://${mqttHost}:${mqttPort}`);
+    this.client = mqtt.connect(mqttOptions);
 
     this.client.on('connect', () => {
       this.logger.log('Conectado al servidor MQTT');

@@ -27,9 +27,9 @@ export class DevicesService {
     private readonly configService: ConfigService,
   ) {
     const chirpstackUrl = this.configService.get<string>('CHIRPSTACK_API_URL');
-    const chirpstackToken = this.configService.get<string>('CHIRPSTACK_API_TOKEN');
+    const chirpstackToken = this.configService.get<string>('CHIRPSTACK_API_KEY');
     if (!chirpstackUrl || !chirpstackToken) {
-      throw new Error('CHIRPSTACK_API_URL and CHIRPSTACK_API_TOKEN must be defined in environment variables');
+      throw new Error('CHIRPSTACK_API_URL and CHIRPSTACK_API_KEY must be defined in environment variables');
     }
     this.chirpstackUrl = chirpstackUrl;
     this.chirpstackToken = chirpstackToken;

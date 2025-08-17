@@ -133,7 +133,7 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
       (uuid_generate_v4(), 'MASSIVE_EVENTS', 'Eventos Masivos', 'Gestión de eventos masivos', '{"massive_events":"CRUDL","massive_events": "CRUDL", "simple_events":"CRUDL", "animal_simple_events":"CRUDL"}');
     `);
 
-    await queryRunner.query(`ALTER TABLE devices RENAME COLUMN id_chirpstack TO id_chirpstack_profile;`);
+    await queryRunner.query(`ALTER TABLE devices RENAME COLUMN id_chipstack TO id_chirpstack_profile;`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

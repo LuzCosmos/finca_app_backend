@@ -84,4 +84,8 @@ export class CattleRepository {
       throw err;
     }
   }
+
+  findByEartag(idTenant: string, eartag: string): Promise<Cattle | null> {
+    return this.repository.findOne({ where: { idTenant, eartag } });
+  }
 }

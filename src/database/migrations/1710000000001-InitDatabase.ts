@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitDatabase1710000000000 implements MigrationInterface {
-  name = 'InitDatabase1710000000000';
+export class InitDatabase1710000000001 implements MigrationInterface {
+  name = 'InitDatabase1710000000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Crear tabla tenants

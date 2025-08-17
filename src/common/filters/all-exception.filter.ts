@@ -75,7 +75,7 @@ export class AllExceptionFilter implements ExceptionFilter {
             error: this.getErrorType(exception),
             path: request.url,
             timestamp: new Date().toISOString(),
-            //...(process.env.NODE_ENV !== 'production' ? { stack: exception.stack } : {})
+            //...(process.env.ENVIRONMENT == 'develop' ? { stack: exception.stack } : {})
         });
     }
 

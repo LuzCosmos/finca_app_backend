@@ -2,17 +2,17 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe, Logger, LogLevel } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   // Configurar niveles de log según el entorno
-  const logLevels: LogLevel[] = process.env.NODE_ENV === 'production'
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const configService = app.get(ConfigService);
+  const logLevels: LogLevel[] = configService.get<string>('ENVIRONMENT') === 'production'
     ? ['error', 'warn', 'log']
     : ['error', 'warn', 'log', 'debug', 'verbose'];
-
-  const app = await NestFactory.create(AppModule, {
-    logger: logLevels,
-    bufferLogs: true, // Almacena logs hasta que el sistema de logging esté listo
-  });
+  
+  Logger.overrideLogger(logLevels);
 
   // Configurar el logger global con timestamp
   app.useLogger(new Logger('FincaApp'));
@@ -28,7 +28,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   // Configuración de Swagger
-  const config = new DocumentBuilder()
+  const swaggerCfg = new DocumentBuilder()
     .setTitle('API Finca')
     .setDescription('API para la aplicación de gestión de finca')
     .setVersion('0.0.1')
@@ -45,12 +45,14 @@ async function bootstrap() {
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, swaggerCfg);
   SwaggerModule.setup('api', app, document);
 
   // Configuración de CORS
   app.enableCors();
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = configService.get<number>('APP_PORT') ?? 3000;
+  await app.listen(port);
+  console.log(`🚀 API escuchando en http://localhost:${port} (env=${configService.get('ENVIRONMENT')})`);
 }
 bootstrap();

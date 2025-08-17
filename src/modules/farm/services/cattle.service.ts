@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Cattle } from '../entities/cattle.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
@@ -184,6 +184,10 @@ export class CattleService {
         break;
   
       case SimpleEventType.EARTAG:
+        const cattleWithSameEartag = await this.cattleRepository.findByEartag(idTenant, ev.data.eartagNumber);
+        if (cattleWithSameEartag && cattleWithSameEartag.id !== cattle.id) {
+          throw new ConflictException(`Eartag ${ev.data.eartagNumber} already exists for another cattle`);
+        }
         cattle.eartag = ev.data.eartagNumber;
         await this.cattleEartagHistoryRepository.createWithManager(manager, {
           idTenant: idTenant,
