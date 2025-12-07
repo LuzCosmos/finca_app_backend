@@ -9,7 +9,7 @@ const configService = new ConfigService();
 
 export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
-  host: configService.get('DB_HOST'),
+  host: configService.get('FA_DB_HOST'),
   port: configService.get('FA_DB_PORT'),
   username: configService.get('FA_DB_USER'),
   password: configService.get('FA_DB_PASSWORD'),
