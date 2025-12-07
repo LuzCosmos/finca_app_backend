@@ -15,7 +15,8 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
         "created_by" uuid REFERENCES users(id),
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now(),
-        CONSTRAINT "pk_massive_events" PRIMARY KEY ("id")
+        CONSTRAINT "pk_massive_events" PRIMARY KEY ("id"),
+        CONSTRAINT "fk_massive_events_tenant" FOREIGN KEY ("id_tenant") REFERENCES "tenants"("id") ON DELETE CASCADE
       );
     `);
 
@@ -28,7 +29,9 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
       ALTER TABLE "cattle_device_history"
       ADD COLUMN "id_tenant" uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
       ADD COLUMN "assigned_by" uuid NULL REFERENCES users(id),
-      ADD COLUMN "idMassiveEvent" uuid NULL REFERENCES massive_events(id);
+      ADD COLUMN "idMassiveEvent" uuid NULL REFERENCES massive_events(id),
+      ADD CONSTRAINT "fk_cattle_device_assignments_tenant" FOREIGN KEY ("id_tenant") REFERENCES "tenants"("id") ON DELETE CASCADE,
+      ADD CONSTRAINT "fk_cattle_device_cattle_id" FOREIGN KEY ("idMassiveEvent") REFERENCES "massive_events"("id") ON DELETE CASCADE;
     `);
 
     await queryRunner.query(`CREATE TYPE "simple_event_type_enum" AS ENUM (
@@ -130,14 +133,14 @@ export class CreateMassiveEventTablesAndHistories1710000000012 implements Migrat
 
     await queryRunner.query(`
       INSERT INTO modules (id, code, name, description, access_details) VALUES
-      (uuid_generate_v4(), 'MASSIVE_EVENTS', 'Eventos Masivos', 'Gestión de eventos masivos', '{"massive_events":"CRUDL","massive_events": "CRUDL", "simple_events":"CRUDL", "animal_simple_events":"CRUDL"}');
+      (uuid_generate_v4(), 'MASSIVE_EVENTS', 'Eventos Masivos', 'Gestión de eventos masivos', '{"massive_events":"CRUDL","cattle": "0RU0L", "simple_events":"CRUDL", "animal_simple_events":"CRUDL"}');
     `);
 
     await queryRunner.query(`ALTER TABLE devices RENAME COLUMN id_chipstack TO id_chirpstack_profile;`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE devices RENAME COLUMN id_chirpstack_profile TO id_chirpstack;`);
+    await queryRunner.query(`ALTER TABLE devices RENAME COLUMN id_chirpstack_profile TO id_chipstack;`);
     await queryRunner.query(`
       ALTER TABLE "cattle_device_history"
       DROP COLUMN "id_tenant",
