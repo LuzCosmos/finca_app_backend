@@ -29,7 +29,7 @@ import { Brand } from './entities/brand.entity';
   imports: [
     forwardRef(() => MassiveEventsModule),
     TypeOrmModule.forFeature([
-      Cattle, 
+      Cattle,
       CattleDeviceHistory,
       CattleWeightHistory,
       CattleEartagHistory,
@@ -61,7 +61,8 @@ import { Brand } from './entities/brand.entity';
   exports: [
     CattleService,
     LocationService,
-    CattleRepository
+    CattleRepository,
+    CattleDeviceHistoryRepository
   ],
 })
-export class FarmModule {} 
+export class FarmModule { } 
