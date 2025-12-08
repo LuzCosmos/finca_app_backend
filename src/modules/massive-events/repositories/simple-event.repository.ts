@@ -29,8 +29,9 @@ export class SimpleEventRepository {
     return await repo.findOne({ where: { idTenant, id } });
   }
 
-  async findByMassiveEvent(idTenant: string, idMassiveEvent: string) {
-    return this.repository.find({ where: { idTenant, idMassiveEvent } });
+  async findByMassiveEvent(idTenant: string, idMassiveEvent: string, manager?:EntityManager) {
+    const repo = manager?.getRepository(SimpleEvent) ?? this.repository;
+    return repo.find({ where: { idTenant, idMassiveEvent } });
   }
 
   async deleteById(id: string): Promise<void> {

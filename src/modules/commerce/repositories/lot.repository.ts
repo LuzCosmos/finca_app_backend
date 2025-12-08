@@ -32,8 +32,9 @@ export class LotRepository {
     await manager.delete(Lot, { idPurchase, idTenant });
   }
 
-  async findByPurchaseId(idPurchase: string, idTenant: string): Promise<Lot[]> {
-    return this.repository.find({ where: { idPurchase, idTenant } });
+  async findByPurchaseId(idPurchase: string, idTenant: string,manager?:EntityManager): Promise<Lot[]> {
+    const repo = manager?.getRepository(Lot) ?? this.repository;
+    return repo.find({ where: { idPurchase, idTenant } });
   }
 
   async findById(id: string, idTenant: string): Promise<Lot | null> {

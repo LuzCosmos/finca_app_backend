@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query } from '@nestjs/common';
 import { CattleService } from '../services/cattle.service';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
@@ -8,16 +8,19 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from 'src/common/application-permissions/application-permissions.guard';
 import { UseGuards } from '@nestjs/common';
 import { CattleResponseDto } from '../dto/cattle-response.dto';
+import { CattleBasicResponseDto } from '../dto/cattle-basic-response.dto';
+import { CattleBasicPageDto } from '../dto/cattle-basic-page.dto';
+import { CattleBasicQueryDto } from '../dto/cattle-basic-query.dto';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-import { ApplySimpleEventsDto } from 'src/modules/massive-events/dto/apply-simple-events.dto';
-import { AnimalSimpleEventRepository } from 'src/modules/massive-events/repositories/animal-simple-event.repository';
-import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } from 'src/modules/massive-events/dto/sync-animal-simple-event.dto';
+import { ApplySimpleEventsDto } from '../../massive-events/dto/apply-simple-events.dto';
+import { AnimalSimpleEventRepository } from '../../massive-events/repositories/animal-simple-event.repository';
+import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } from '../../massive-events/dto/sync-animal-simple-event.dto';
 import { isMarkedAsUntransferable } from 'worker_threads';
-import { AnimalSimpleEvent } from 'src/modules/massive-events/entities/animal-simple-event.entity';
+import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
 import { Logger } from '@nestjs/common';
 
 @ApiTags('Cattle')
@@ -122,6 +125,26 @@ export class CattleController {
   list(@SessionUser() sessionUser: SessionUserDto) {
     return this.cattleService.list(sessionUser.tenant_id);
   }
+
+  @Get('basic-info')
+  @ApiOperation({ summary: 'Get basic info of all cattle' })
+  @ApiResponse({ status: 200, description: 'Basic info of all cattle', type: [CattleBasicResponseDto] })
+  @RequireAction('read')
+  getBasicInfo(@SessionUser() sessionUser: SessionUserDto) {
+    return this.cattleService.getBasicInfo(sessionUser.tenant_id);
+  }
+
+  @Get('basic')
+  @ApiOperation({ summary: 'Get basic cattle info (paged with cursor & optional delta)' })
+  @ApiResponse({ status: 200, type: CattleBasicPageDto })
+  @RequireAction('read')
+  getBasicInfoPaged(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Query() query: CattleBasicQueryDto,
+  ) {
+    return this.cattleService.getBasicInfoPaged(sessionUser.tenant_id, query);
+  }
+
   @Get('simple-events/:id')
   @ApiOperation({ summary: 'List all simple events applied to a cattle' })
   @ApiResponse({ status: 200, description: 'List of simple events IDs' })
@@ -373,7 +396,9 @@ export class CattleController {
     @Body() dto: any, // Import RecordWeightDto from cattle-weight.dto.ts
     @SessionUser() user: SessionUserDto,
   ) {
-    return this.cattleService.recordWeightHistory(id, dto, user.tenant_id, user.username);
+    console.log(dto);
+
+    return this.cattleService.recordWeightHistory(id, dto, user.tenant_id, user.sub);
   }
 
   @Put(':id/weight')

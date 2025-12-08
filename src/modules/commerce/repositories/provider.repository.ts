@@ -2,6 +2,7 @@ import { ILike, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Provider } from '../entities/provider.entity';
 import { Injectable } from '@nestjs/common';
+import { EntityManager } from 'typeorm';
 
 @Injectable()
 export class ProviderRepository {
@@ -61,8 +62,9 @@ export class ProviderRepository {
    * @param idTenant - The tenant ID
    * @returns The provider
    */
-  async findById(id: string, idTenant: string): Promise<Provider | null> {
-    return this.repository.findOne({
+  async findById(id: string, idTenant: string, manager?: EntityManager): Promise<Provider | null> {
+    const repo = manager?.getRepository(Provider) ?? this.repository;
+    return repo.findOne({
       where: {
         id,
         idTenant,

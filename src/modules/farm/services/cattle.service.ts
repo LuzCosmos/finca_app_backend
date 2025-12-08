@@ -4,6 +4,7 @@ import { Cattle } from '../entities/cattle.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
 import { SyncAnimalSimpleEventDto, SyncAnimalSimpleEventResultDto } from 'src/modules/massive-events/dto/sync-animal-simple-event.dto';
+import { CattleBasicQueryDto } from '../dto/cattle-basic-query.dto';
 import { ApplySimpleEventsResponseDto } from 'src/modules/massive-events/dto/apply-simple-events-response.dto';
 import { CattleRepository } from '../repositories/cattle.repository';
 import { CattleDeviceHistoryRepository } from '../repositories/cattle-device-history.repository';
@@ -19,6 +20,12 @@ import * as fs from 'fs';
 import { SimpleEventType } from 'src/modules/massive-events/enums/simple-event-type.enum';
 import { AnimalSimpleEvent } from 'src/modules/massive-events/entities/animal-simple-event.entity';
 import { Type } from 'class-transformer';
+import { ColorRepository } from '../repositories/color.repository';
+import { CharacteristicRepository } from '../repositories/characteristic.repository';
+import { CattleCharacteristicRepository } from '../repositories/cattle-characteristic.repository';
+import { ForbiddenException } from '@nestjs/common';
+//import { ReceptionDocStatus } from '../../reception/entities/purchase-reception.entity';
+
 
 @Injectable()
 export class CattleService {
@@ -31,6 +38,9 @@ export class CattleService {
     private readonly cattleWeightHistoryRepository: CattleWeightHistoryRepository,
     private readonly cattleEartagHistoryRepository: CattleEartagHistoryRepository,
     private readonly cattleMedicationHistoryRepository: CattleMedicationHistoryRepository,
+    private readonly colorRepository: ColorRepository,
+    private readonly characteristicRepository: CharacteristicRepository,
+    private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
     private readonly deviceService: DevicesService,
     private readonly animalSimpleEventRepository: AnimalSimpleEventRepository,
     private readonly dataSource: DataSource,
@@ -647,7 +657,7 @@ export class CattleService {
       throw new NotFoundException('Cattle not found');
     }
 
-    await this.cattleRepository.update(idTenant, cattleId, { weight } as any);
+    await this.cattleRepository.update(idTenant, cattleId, { lastWeight: weight } as any);
     return { success: true, message: 'Weight updated successfully' };
   }
 
@@ -681,6 +691,116 @@ export class CattleService {
       results,
     };
   }
+
+  async getBasicInfo(idTenant: string): Promise<Cattle[]> {
+    return this.cattleRepository.getBasicInfo(idTenant);
+  }
+
+  async getBasicInfoPaged(idTenant: string, query: CattleBasicQueryDto) {
+    const { limit, cursor, updated_after } = query;
+    const updatedAfter = updated_after ? new Date(updated_after) : undefined;
+    return this.cattleRepository.getBasicInfoPaged({
+      idTenant,
+      limit,
+      cursor,
+      updatedAfter,
+    });
+  }
+
+  /**
+   * Recibir UNA res dentro de una recepción:
+   * - Verifica recepción y deriva purchaseId + massEventId.
+   * - Reserva número seguro (salta colisiones activas).
+   * - Asigna color (por id o por nombre creando si no existe).
+   * - Asocia características (N:M).
+   * - Aplica simple events a la res (vinculados al massive_event de la recepción).
+   * - Asigna lote opcional y recalcula métricas del lote (si aplica).
+   * Todo en UNA transacción.
+   */
+  /*async receiveOneFromReception(params: {
+    tenantId: string;
+    userId: string;
+    receptionId: string;
+    dto: ReceiveCattleDto;
+  }): Promise<ReceiveCattleResponseDto> {
+    const { tenantId, userId, receptionId, dto } = params;
+
+    return this.dataSource.transaction(async (m) => {
+      // 1) Cargar la recepción y derivar batch/purchase/evento masivo
+      const prRepo = m.getRepository(PurchaseReception);
+      const rec = await prRepo.findOne({
+        where: { id: receptionId },
+        relations: ['batch', 'batch.purchase', 'batch.massiveEvent', 'batch.purchase.idTenant'],
+      });
+      if (!rec) throw new NotFoundException('Recepción no encontrada');
+      if ((rec.batch.purchase as any).idTenant?.id !== tenantId) {
+        throw new ForbiddenException('Acceso a recepción de otro tenant');
+      }
+      if (rec.status !== ReceptionDocStatus.DRAFT && rec.status !== ReceptionDocStatus.CONFIRMED) {
+        throw new BadRequestException('La recepción no admite intake en su estado actual');
+      }
+
+      const purchaseId = (rec.batch.purchase as any).id as string;
+      const massEventId = (rec.batch.massiveEvent as any).id as string;
+
+      // 2) Resolver COLOR (id > nombre > ninguno)
+      let colorId: string | undefined = dto.colorId;
+      if (!colorId && dto.colorName?.trim()) {
+        const color = await this.colorRepository.getOrCreateByNameCI(tenantId, dto.colorName.trim(), m);
+        colorId = color.id;
+      }
+
+      // 3) Crear CATTLE con número seguro (salta duplicados activos)
+      const { entity: cattle, numberAssigned } = await this.cattleRepository.createActiveWithAutoNumber({
+        tenantId,
+        baseNumber: dto.number,
+        payload: {
+          idPurchase: { id: purchaseId } as any,
+          idLot: dto.lotId ? ({ id: dto.lotId } as any) : null,
+          receivedAt: new Date(),                    // o parsear dto si lo agregas
+          receivedWeight: dto.weightKg,
+          purchaseWeight: dto.weightKg,              // mismo valor a la entrada
+          castrated: dto.castrated ?? false,
+          eartag: dto.eartag ?? null,
+          comments: dto.comments ?? null,
+          color: colorId ? ({ id: colorId } as any) : null, // FK id_color
+        } as any,
+      }, m);
+
+      // 4) Características (N:M)
+      if (dto.characteristicsIds?.length) {
+        // Valida que las características pertenezcan al tenant
+        const found = await this.characteristicRepository.findManyByTenantAndIds(tenantId, dto.characteristicsIds, m);
+        const foundIds = new Set(found.map((x) => x.id));
+        const invalid = dto.characteristicsIds.filter((id) => !foundIds.has(id));
+        if (invalid.length) {
+          throw new BadRequestException(`Características inválidas o de otro tenant: ${invalid.join(', ')}`);
+        }
+        await this.cattleCharacteristicRepository.attachMany(cattle.id, tenantId, dto.characteristicsIds, m);
+      }
+
+      // 5) Simple events (si vienen)
+      if (dto.simpleEventIds?.length) {
+        const rows = dto.simpleEventIds.map((idSimple) => ({
+          idTenant: { id: tenantId } as any,
+          idMassiveEvent: { id: massEventId } as any,
+          idSimpleEvent: { id: idSimple } as any,
+          idAnimal: { id: cattle.id } as any,
+          appliedBy: { id: userId } as any,
+          data: null,
+        }));
+        await this.animalSimpleEventRepository.insertMany(rows, m); // crea un helper insertMany en tu repo
+      }
+
+      // 6) Asignación de lote opcional y métrica (si la pasaste ya lo pusimos en payload;
+      //    si quisieras soporte de PATCH posterior, usa cattleRepository.assignLot)
+
+      // 7) Siguiente sugerido
+      const nextSuggestion = (BigInt(numberAssigned) + 1n).toString();
+
+      return { cattleId: cattle.id, numberAssigned, nextSuggestion };
+    });
+  }*/
 
 }
 

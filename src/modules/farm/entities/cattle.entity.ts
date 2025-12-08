@@ -7,13 +7,25 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  Index,
+  OneToMany,
 } from 'typeorm';
 import { Device } from '../../production-center/entities/device.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
-import { Lot } from '../../commerce/entities/lot.entity';
-import { Provider } from '../../commerce/entities/provider.entity';
+import { Color } from './color.entity';
+import { CattleCharacteristic } from './cattle-characteristic.entity';
+
+export enum CattleStatus {
+  ACTIVE = 'ACTIVE',
+  SOLD = 'SOLD',
+  DEAD = 'DEAD',
+  LOST = 'LOST',
+}
+
 
 @Entity('cattle')
+@Index(['idTenant', 'number'])
+@Index(['idTenant', 'status'])
 export class Cattle {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -119,16 +131,25 @@ export class Cattle {
   @Column({ name: 'castration_date', type: 'timestamp', nullable: true })
   castrationDate: Date;
 
+  @Column({
+    type: 'enum',
+    enum: CattleStatus,
+    enumName: 'cattle_status_enum',
+    default: CattleStatus.ACTIVE,
+  })
+  status: CattleStatus;
+
+  @ManyToOne(() => Color, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'id_color' })
+  color?: Color;
+
+  @OneToMany(() => CattleCharacteristic, (cattleCharacteristic) => cattleCharacteristic.cattle)
+  cattleCharacteristics: CattleCharacteristic[];
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
-  @Column({
-    type: 'enum',
-    enum: ['ACTIVE', 'SOLD', 'DEAD', 'LOST'],
-    default: 'ACTIVE',
-  })
-  status: string;
 }
+
