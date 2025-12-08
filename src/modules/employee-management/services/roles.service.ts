@@ -1,0 +1,71 @@
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
+import { Role } from '../entities/role.entity';
+import { RoleModulePermission } from '../entities/role-module-permission.entity';
+import { ModuleEntity } from '../entities/module.entity';
+import { User } from '../entities/user.entity';
+import { RoleRepository } from '../repositories/role.repository';
+import { RoleReadDto } from '../dto/role-read.dto';
+import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
+import { RoleModulePermissionService } from './role-module-permission.services';
+
+@Injectable()
+export class RoleService {
+  private readonly logger = new Logger(RoleService.name);
+  constructor(
+    @InjectRepository(Role)
+    private readonly roleRepository_2: Repository<Role>,
+    private readonly roleRepository: RoleRepository,
+    @InjectRepository(RoleModulePermission)
+    private readonly permissionRepository: Repository<RoleModulePermission>,
+    private readonly roleModulePermissionService:RoleModulePermissionService,
+    @InjectRepository(ModuleEntity)
+    private readonly moduleRepository: Repository<ModuleEntity>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
+
+  /**
+   * Find all roles by tenantId
+   * @param requestUser - The session user
+   * @returns The roles found
+   */
+  async findAll(requestUser: SessionUserDto): Promise<RoleReadDto[]> {
+    const roles = await this.roleRepository.findAllByTenantID(requestUser.tenant_id);
+    // Transform and return the results in DTO format
+    if(roles.length > 0){
+        const rolesDto = roles.map(role => RoleReadDto.transformToDto(role));
+        return rolesDto;    
+    } else {
+      throw new NotFoundException('No roles found for tenant');
+    }
+  }
+
+  /**
+   * Find a role by its ID
+   * @param id - The ID of the role
+   * @returns The role found
+   */
+  async findOne(id: string): Promise<RoleReadDto> {
+    const role = await this.roleRepository.findById(id);
+    if (!role) {
+      throw new NotFoundException(`Role with ID ${id} not found`);
+    }
+    return RoleReadDto.transformToDto(role);
+  }
+
+  /**
+   * Find a role by its code
+   * @param code - The code of the role
+   * @returns The role found
+   */
+  async findByCode(code:string):Promise<Role>{
+    const role = await this.roleRepository.findByCode(code);
+    if (!role) {
+      throw new NotFoundException(`Role with code '${code}' not found`);
+    }
+    return role;
+  }
+
+}

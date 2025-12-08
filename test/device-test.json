@@ -1,0 +1,16 @@
+{
+  "devEui": "abcdef1234567890",
+  "deviceName": "rastreador_abcdef1234567890",
+  "deviceType": "CATTLE",
+  "deviceProfileId": "0123456789acbdcdf95ffe4debd801234",
+  "description": "Dispositivo de prueba para ganado",
+  "joinEui": "abcd123456789edf",
+  "tags": {
+    "location": "Sector_A",
+    "animal_id": "COW_001"
+  },
+  "variables": {
+    "update_interval": "900",
+    "battery_threshold": "20"
+  }
+} 
