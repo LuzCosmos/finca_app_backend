@@ -4,6 +4,13 @@ import {
   Column,
 } from 'typeorm';
 
+export enum WeightContext {
+  SALE = 'SALE',
+  PURCHASE = 'PURCHASE',
+  EVENT = 'EVENT',
+  MANUAL = 'MANUAL',
+}
+
 @Entity('cattle_weight_history')
 export class CattleWeightHistory {
   @PrimaryGeneratedColumn('uuid')
@@ -20,6 +27,13 @@ export class CattleWeightHistory {
 
   @Column({ type: 'timestamp' })
   date: Date;
+
+  @Column({
+    type: 'enum',
+    enum: WeightContext,
+    default: WeightContext.MANUAL
+  })
+  context: WeightContext;
 
   @Column({ name: 'idMassiveEvent', type: 'uuid', nullable: true })
   idMassiveEvent?: string;

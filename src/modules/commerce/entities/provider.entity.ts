@@ -1,5 +1,14 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Unique, ManyToOne, JoinColumn } from 'typeorm';
 import { IsNotEmpty } from 'class-validator';
+import { Contact } from './contact.entity';
+
+export enum ProviderType {
+  BUYER = 'BUYER',
+  TRANSPORTER = 'TRANSPORTER',
+  VET = 'VET',
+  OTHER = 'OTHER',
+  PROVIDER = 'PROVIDER',
+}
 
 @Unique(['nit', 'idTenant'])
 @Entity('providers')
@@ -16,6 +25,23 @@ export class Provider {
   @Column({ length: 20, nullable: false })
   @IsNotEmpty()
   nit: string;
+
+  @Column({
+    type: 'enum',
+    enum: ProviderType,
+    default: ProviderType.OTHER,
+  })
+  type: ProviderType;
+
+  @Column({ length: 255, nullable: true })
+  address: string;
+
+  @Column({ name: 'contact_person_id', type: 'uuid', nullable: true })
+  contactPersonId: string;
+
+  @ManyToOne(() => Contact, { nullable: true })
+  @JoinColumn({ name: 'contact_person_id' })
+  contactPerson: Contact;
 
   @CreateDateColumn()
   created_at: Date;

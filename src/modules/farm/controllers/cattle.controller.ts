@@ -29,60 +29,62 @@ import { Logger } from '@nestjs/common';
 @RequireEntity('cattles')
 @RequireModule('FARM')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
-export class CattleController { 
+export class CattleController {
 
   private readonly logger = new Logger(CattleController.name);
 
   constructor(
     private readonly cattleService: CattleService,
     private readonly simpleEventCattleRepository: AnimalSimpleEventRepository,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new cattle' })
   @RequireAction('create')
-  @ApiBody({ type: CreateCattleDto, required: true, examples:{
-    example1: {
-      summary: 'Mandatory fields',
-      value: {
-        sysNumber: '1234567890',
-        number: '1234567890',
-        receivedAt: '2021-01-01',
-        receivedWeight: 100,
-        purchaseFrom: 'Lugar de compra',
-        purchasePrice: 100,
-        purchaseWeight: 100
+  @ApiBody({
+    type: CreateCattleDto, required: true, examples: {
+      example1: {
+        summary: 'Mandatory fields',
+        value: {
+          sysNumber: '1234567890',
+          number: '1234567890',
+          receivedAt: '2021-01-01',
+          receivedWeight: 100,
+          purchaseFrom: 'Lugar de compra',
+          purchasePrice: 100,
+          purchaseWeight: 100
+        },
       },
-    },
-    example2: {
-      summary: 'Create a new cattle with all fields',
-      value: {
-        deveui: 'string',
-        sysNumber: 'string',
-        number: 'string',
-        brand: 'string',
-        colorMain: 'string',
-        colorDescription: 'string',
-        colorFeature: 'string',
-        lot: 'string',
-        receivedAt: 'string',
-        receivedWeight: 0,
-        purchaseWeight: 0,
-        comments: 'string',
-        purchasedFrom: 'string',
-        purchasePrice: 0,
-        purchaseCommission: 0,
-        negotiatedPricePerKg: 0,
-        lotPricePerWeight: 0,
+      example2: {
+        summary: 'Create a new cattle with all fields',
+        value: {
+          deveui: 'string',
+          sysNumber: 'string',
+          number: 'string',
+          brand: 'string',
+          colorMain: 'string',
+          colorDescription: 'string',
+          colorFeature: 'string',
+          lot: 'string',
+          receivedAt: 'string',
+          receivedWeight: 0,
+          purchaseWeight: 0,
+          comments: 'string',
+          purchasedFrom: 'string',
+          purchasePrice: 0,
+          purchaseCommission: 0,
+          negotiatedPricePerKg: 0,
+          lotPricePerWeight: 0,
+        },
       },
-    },
-  } })
+    }
+  })
   @HttpCode(HttpStatus.CREATED)
   @ApiResponse({ status: 201, description: 'Cattle created successfully', type: CattleResponseDto })
-  @ApiResponse({status: 400, description: 'Invalid request body'})
-  @ApiResponse({ status: 404, description: 'Device {deveui} not found'}) 
-  @ApiResponse({status: 409, description: 'Cattle number already exists'})
-  @ApiResponse({status: 500, description: 'Unexpected error during creation process'})
+  @ApiResponse({ status: 400, description: 'Invalid request body' })
+  @ApiResponse({ status: 404, description: 'Device {deveui} not found' })
+  @ApiResponse({ status: 409, description: 'Cattle number already exists' })
+  @ApiResponse({ status: 500, description: 'Unexpected error during creation process' })
   create(@SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateCattleDto) {
     return this.cattleService.create(sessionUser.tenant_id, dto);
   }
@@ -90,7 +92,7 @@ export class CattleController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a cattle by ID' })
   @ApiResponse({ status: 200, description: 'Cattle found', type: CattleResponseDto })
-  @ApiResponse({ status: 404, description: 'Cattle not found'})
+  @ApiResponse({ status: 404, description: 'Cattle not found' })
   @RequireAction('read')
   findOne(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
     return this.cattleService.findByIdOrFail(sessionUser.tenant_id, id);
@@ -99,8 +101,8 @@ export class CattleController {
   @Put(':id')
   @ApiOperation({ summary: 'Update a cattle' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiResponse({ status: 204, description: 'Cattle updated'})
-  @ApiResponse({ status: 404, description: 'Cattle not found'})
+  @ApiResponse({ status: 204, description: 'Cattle updated' })
+  @ApiResponse({ status: 404, description: 'Cattle not found' })
   @RequireAction('update')
   update(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto, @Body() dto: UpdateCattleDto) {
     this.cattleService.update(sessionUser.tenant_id, id, dto);
@@ -110,7 +112,7 @@ export class CattleController {
   @ApiOperation({ summary: 'Delete a cattle' })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiResponse({ status: 204, description: 'Cattle deleted successfully' })
-  @ApiResponse({ status: 404, description: 'Cattle not found'})
+  @ApiResponse({ status: 404, description: 'Cattle not found' })
   @RequireAction('delete')
   remove(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
     this.cattleService.remove(sessionUser.tenant_id, id);
@@ -146,7 +148,7 @@ export class CattleController {
   @Get('simple-events/:id')
   @ApiOperation({ summary: 'List all simple events applied to a cattle' })
   @ApiResponse({ status: 200, description: 'List of simple events IDs' })
-  @ApiResponse({ status: 404, description: 'Cattle not found'})
+  @ApiResponse({ status: 404, description: 'Cattle not found' })
   @RequireAction('read')
   async findSimpleEventsByCattle(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
     const links = await this.simpleEventCattleRepository.findByCattle(sessionUser.tenant_id, id);
@@ -156,12 +158,12 @@ export class CattleController {
       appliedBy: link.appliedBy,
     }));
   }
- 
+
   @Post('apply-events/:cattleNumber')
   @ApiOperation({ summary: 'Apply multiple simple events to a single cattle by number' })
   @ApiResponse({ status: 200, description: 'Events applied successfully', type: [AnimalSimpleEvent] })
-  @ApiResponse({ status: 404, description: 'Cattle {cattleNumber} not found / Device {deveui} not found'}) 
-  @ApiResponse({ status: 500, description: 'Unexpected error during application process'})
+  @ApiResponse({ status: 404, description: 'Cattle {cattleNumber} not found / Device {deveui} not found' })
+  @ApiResponse({ status: 500, description: 'Unexpected error during application process' })
   @RequireAction('update')
   @ApiBody({
     schema: {
@@ -173,7 +175,7 @@ export class CattleController {
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['weight','eartag','tracker','brand','castration','medication'] },
+              type: { type: 'string', enum: ['weight', 'eartag', 'tracker', 'brand', 'castration', 'medication'] },
               data: { type: 'object' },
               appliedBy: { type: 'string' },
               idSimpleEvent: { type: 'string' }
@@ -189,13 +191,13 @@ export class CattleController {
           applied: {
             idMassiveEvent: 'uuid-massive-event-1',
             events: [
-              { type: 'weight', data: { weight: 350.58 }, idSimpleEvent: 'uuid-simple-event-1'},
-              { type: 'eartag', data: { eartagNumber: 'ET-789'}, idSimpleEvent: 'uuid-simple-event-2'},
-              { type: 'tracker', data: { tracker_deveui: 'a173ecf6ffe3abcd'}, idSimpleEvent: 'uuid-simple-event-3'},
-              { type: 'castration', data: {}, idSimpleEvent: 'uuid-simple-event-4'},
-              { type: 'medication', data:{ medicationName:"Antrimizin NF 85 mg",dosage:"1.2 mg/kg",route:"oral",lot:"LOT-2025"}, idSimpleEvent: 'uuid-simple-event-5'},
-              { type: 'medication', data:{ medicationName:"Boldenona 50 mg",dosage:"1 mL/90 Kg",route:"Intramuscular profunda",lot:"LOT-2025"}, idSimpleEvent: 'uuid-simple-event-6'},
-              { type: 'brand', data: {idBrand: "abc123"}, idSimpleEvent: 'uuid-simple-event-7'}
+              { type: 'weight', data: { weight: 350.58 }, idSimpleEvent: 'uuid-simple-event-1' },
+              { type: 'eartag', data: { eartagNumber: 'ET-789' }, idSimpleEvent: 'uuid-simple-event-2' },
+              { type: 'tracker', data: { tracker_deveui: 'a173ecf6ffe3abcd' }, idSimpleEvent: 'uuid-simple-event-3' },
+              { type: 'castration', data: {}, idSimpleEvent: 'uuid-simple-event-4' },
+              { type: 'medication', data: { medicationName: "Antrimizin NF 85 mg", dosage: "1.2 mg/kg", route: "oral", lot: "LOT-2025" }, idSimpleEvent: 'uuid-simple-event-5' },
+              { type: 'medication', data: { medicationName: "Boldenona 50 mg", dosage: "1 mL/90 Kg", route: "Intramuscular profunda", lot: "LOT-2025" }, idSimpleEvent: 'uuid-simple-event-6' },
+              { type: 'brand', data: { idBrand: "abc123" }, idSimpleEvent: 'uuid-simple-event-7' }
             ]
           }
         }
@@ -208,7 +210,7 @@ export class CattleController {
     @Body('applied') applied: {
       idMassiveEvent: string;
       events: Array<{
-        type: 'weight'|'eartag'|'tracker'|'brand'|'castration'|'medication';
+        type: 'weight' | 'eartag' | 'tracker' | 'brand' | 'castration' | 'medication';
         data: any;
         appliedBy?: string;
         idSimpleEvent: string;
@@ -366,8 +368,57 @@ export class CattleController {
       },
     },
   })
-  @ApiResponse({status: 500, description: 'Unexpected error during import process'})
+  @ApiResponse({ status: 500, description: 'Unexpected error during import process' })
   import(@SessionUser() sessionUser: SessionUserDto, @UploadedFile() file: Express.Multer.File) {
     return this.cattleService.import(file, sessionUser.tenant_id);
+  }
+
+  // New endpoints for Create Sale workflow
+
+  @Get('validate-number/:number')
+  @RequireAction('read')
+  @ApiOperation({ summary: 'Validate cattle by number for sale (checks ACTIVE status)' })
+  @ApiResponse({ status: 200, description: 'Cattle is valid and ACTIVE', type: CattleResponseDto })
+  @ApiResponse({ status: 400, description: 'Cattle not found or not ACTIVE' })
+  async validateCattleByNumber(
+    @Param('number') number: string,
+    @SessionUser() user: SessionUserDto,
+  ) {
+    return this.cattleService.validateCattleByNumber(number, user.tenant_id);
+  }
+
+  @Post(':id/weight-history')
+  @RequireAction('update')
+  @ApiOperation({ summary: 'Record weight measurement in history' })
+  @ApiResponse({ status: 201, description: 'Weight recorded successfully' })
+  async recordWeightHistory(
+    @Param('id') id: string,
+    @Body() dto: any, // Import RecordWeightDto from cattle-weight.dto.ts
+    @SessionUser() user: SessionUserDto,
+  ) {
+    return this.cattleService.recordWeightHistory(id, dto, user.tenant_id, user.username);
+  }
+
+  @Put(':id/weight')
+  @RequireAction('update')
+  @ApiOperation({ summary: 'Update cattle current weight' })
+  @ApiResponse({ status: 200, description: 'Weight updated successfully' })
+  async updateCattleWeight(
+    @Param('id') id: string,
+    @Body() dto: any, // Import UpdateCattleWeightDto
+    @SessionUser() user: SessionUserDto,
+  ) {
+    return this.cattleService.updateCattleWeight(id, dto.weight, user.tenant_id);
+  }
+
+  @Put('bulk-status')
+  @RequireAction('update')
+  @ApiOperation({ summary: 'Bulk update cattle status' })
+  @ApiResponse({ status: 200, description: 'Cattle statuses updated successfully' })
+  async bulkUpdateStatus(
+    @Body() dto: any, // Import BulkUpdateCattleStatusDto
+    @SessionUser() user: SessionUserDto,
+  ) {
+    return this.cattleService.bulkUpdateStatus(dto.cattleIds, dto.status, user.tenant_id);
   }
 }

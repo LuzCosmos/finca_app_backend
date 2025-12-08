@@ -36,7 +36,7 @@ import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
     forwardRef(() => MassiveEventsModule),
     TypeOrmModule.forFeature([
       Cattle,
-      CattleCharacteristic, 
+      CattleCharacteristic,
       Characteristic,
       Color,
       CattleDeviceHistory,
@@ -73,7 +73,8 @@ import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
   exports: [
     CattleService,
     LocationService,
-    CattleRepository
+    CattleRepository,
+    CattleDeviceHistoryRepository
   ],
 })
-export class FarmModule {} 
+export class FarmModule { } 

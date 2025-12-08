@@ -151,4 +151,11 @@ export class Cattle {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @Column({
+    type: 'enum',
+    enum: ['ACTIVE', 'SOLD', 'DEAD', 'LOST'],
+    default: 'ACTIVE',
+  })
+  status: string;
 }

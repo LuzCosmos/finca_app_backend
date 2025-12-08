@@ -82,6 +82,18 @@ export class ProviderRepository {
   }
 
   /**
+   * Find all providers with contact relations
+   * @param idTenant - The tenant ID
+   * @returns The providers with contact person loaded
+   */
+  async findAllWithRelations(idTenant: string): Promise<Provider[]> {
+    return this.repository.find({
+      where: { idTenant },
+      relations: ['contactPerson'],
+    });
+  }
+
+  /**
    * Update a provider by ID
    * @param id - The ID of the provider
    * @param idTenant - The tenant ID
