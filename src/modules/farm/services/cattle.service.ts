@@ -18,7 +18,7 @@ import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import { SimpleEventType } from 'src/modules/massive-events/enums/simple-event-type.enum';
 import { AnimalSimpleEvent } from 'src/modules/massive-events/entities/animal-simple-event.entity';
-import { Type } from 'class-transformer'; 
+import { Type } from 'class-transformer';
 
 @Injectable()
 export class CattleService {
@@ -36,7 +36,7 @@ export class CattleService {
     private readonly dataSource: DataSource,
     private readonly massiveEventService: MassiveEventService,
     private readonly simpleEventService: SimpleEventService,
-  ) {}
+  ) { }
 
   /**
    * Apply multiple simple events to cattle by their number
@@ -50,7 +50,7 @@ export class CattleService {
     idCurrentUser: string,
     events: Array<{
       cattleNumber: string;
-      type: 'weight'|'eartag'|'tracker'|'brand'|'castration'|'medication';
+      type: 'weight' | 'eartag' | 'tracker' | 'brand' | 'castration' | 'medication';
       data: any;
       appliedBy?: string;
       idMassiveEvent: string;
@@ -59,8 +59,8 @@ export class CattleService {
   ): Promise<Cattle[]> {
     return this.dataSource.transaction(async manager => {
       type MinimumSimpleEvent = { idSimEv: string; type: string };
-      type  MinimumMassiveEvents= Record<string, MinimumSimpleEvent[]>;
-      var minimumMassiveEvents : MinimumMassiveEvents = {};
+      type MinimumMassiveEvents = Record<string, MinimumSimpleEvent[]>;
+      var minimumMassiveEvents: MinimumMassiveEvents = {};
       const results: Cattle[] = [];
       for (const ev of events) {
         const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, ev.cattleNumber, manager);
@@ -87,11 +87,11 @@ export class CattleService {
         await this.cattleRepository.saveWithManager(manager, cattle);
         results.push(cattle);
       }
-  
+
       return results;
     });
   }
-  
+
   /**
    * Apply multiple simple events to a single cattle by number
    * @param idTenant - The tenant ID
@@ -106,7 +106,7 @@ export class CattleService {
     cattleNumber: string,
     idMassiveEvent: string,
     events: Array<{
-      type: 'weight'|'eartag'|'tracker'|'brand'|'castration'|'medication';
+      type: 'weight' | 'eartag' | 'tracker' | 'brand' | 'castration' | 'medication';
       data: any;
       appliedBy?: string;
       appliedAt?: Date;
@@ -118,7 +118,7 @@ export class CattleService {
       if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
       const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, cattleNumber, manager);
       if (!cattle) throw new NotFoundException(`Cattle ${cattleNumber} not found`);
-      const createdEvents:ApplySimpleEventsResponseDto[] = [] ;
+      const createdEvents: ApplySimpleEventsResponseDto[] = [];
       for (const ev of events) {
         if (ev.type === SimpleEventType.CASTRATION && cattle.castrated) {
           continue;
@@ -136,11 +136,12 @@ export class CattleService {
           appliedBy: ev.appliedBy ?? idCurrentUser,
           data: ev.data,
         });
-        const responsedto: ApplySimpleEventsResponseDto = { ...event,
+        const responsedto: ApplySimpleEventsResponseDto = {
+          ...event,
           idAnimal: cattle.id,
           type: ev.type,
           animalNumber: cattleNumber,
-          data:ev.data
+          data: ev.data
         }
         createdEvents.push(responsedto);
       }
@@ -174,7 +175,7 @@ export class CattleService {
       case SimpleEventType.WEIGHT:
         cattle.lastWeight = ev.data.weight;
         const event = await this.cattleWeightHistoryRepository.createWithManager(manager, {
-          idTenant:idTenant,
+          idTenant: idTenant,
           idCattle: cattle.id,
           weight: ev.data.weight,
           date: ev.appliedAt ?? new Date(),
@@ -182,7 +183,7 @@ export class CattleService {
           recordedBy: ev.appliedBy ?? idCurrentUser,
         } as any);
         break;
-  
+
       case SimpleEventType.EARTAG:
         const cattleWithSameEartag = await this.cattleRepository.findByEartag(idTenant, ev.data.eartagNumber);
         if (cattleWithSameEartag && cattleWithSameEartag.id !== cattle.id) {
@@ -198,21 +199,21 @@ export class CattleService {
           idMassiveEvent: ev.idMassiveEvent,
         } as any);
         break;
-  
+
       case SimpleEventType.TRACKER:
         const device = await this.deviceService.findOne(ev.data.tracker_deveui, idTenant, manager);
         if (device) {
           if (cattle.idDevice !== device.id) {
             await this.cattleDeviceHistoryRepository.unassignDeviceByidCattle(idTenant, cattle.id, manager, ev.appliedAt ?? new Date());
-            await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, device.id, manager, ev.appliedAt ?? new Date());  
+            await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, device.id, manager, ev.appliedAt ?? new Date());
             await this.cattleRepository.unsetDevice(idTenant, device.id, manager);
-            
+
             const tags = device.tags ?? {};
             tags.idCattle = cattle.id;
             tags.idDevice = device.id;
             tags.idTenant = idTenant;
             const deviceUpdateDto = {
-                tags: tags
+              tags: tags
             };
             await this.deviceService.updateWithDevice(device, deviceUpdateDto, manager);
             cattle.idDevice = device.id;
@@ -230,11 +231,11 @@ export class CattleService {
           throw new NotFoundException(`Device ${ev.data.tracker_deveui} not found`);
         }
         break;
-  
+
       case SimpleEventType.BRAND:
         cattle.idBrand = ev.data.idBrand;
         break;
-  
+
       case SimpleEventType.CASTRATION:
         if (!cattle.castrated) {
           cattle.castrated = true;
@@ -242,10 +243,10 @@ export class CattleService {
           cattle.updatedAt = new Date();
         }
         break;
-  
+
       case SimpleEventType.MEDICATION:
         await this.cattleMedicationHistoryRepository.createWithManager(manager, {
-          idTenant:idTenant,
+          idTenant: idTenant,
           idCattle: cattle.id,
           medicationName: ev.data.medicationName,
           dosage: ev.data.dosage,
@@ -301,7 +302,7 @@ export class CattleService {
       return results;
     });
   }
-  
+
 
   /**
    * Create or update a cattle with device tags
@@ -329,7 +330,7 @@ export class CattleService {
       if (idcattle) {
         cattle = await this.cattleRepository.update(idTenant, idcattle, dtoWithoutDeveui as UpdateCattleDto, manager);
       } else {
-       cattle = await this.cattleRepository.create(dtoWithoutDeveui as CreateCattleDto, manager);
+        cattle = await this.cattleRepository.create(dtoWithoutDeveui as CreateCattleDto, manager);
       }
       if (!cattle) throw new NotFoundException(`Cattle ${idcattle} not found`);
       const cattleDeviceHistory = await this.cattleDeviceHistoryRepository.assignDeviceToCattle(dto.idDevice, cattle.id, idTenant, undefined, undefined, undefined, manager);
@@ -337,7 +338,7 @@ export class CattleService {
         applicationId: device.csApplicationId,
         description: device.description,
         name: device.name,
-        tags: {id_cattle: cattle.id, id_device: dto.idDevice}
+        tags: { id_cattle: cattle.id, id_device: dto.idDevice }
       };
       const deviceTags = await this.deviceService.updateWithDevice(device, deviceUpdateDto, manager);
       await queryRunner.commitTransaction();
@@ -399,7 +400,7 @@ export class CattleService {
     }
   }
 
-  async remove(idTenant: string, id: string): Promise<void> { 
+  async remove(idTenant: string, id: string): Promise<void> {
     await this.cattleRepository.delete(idTenant, id);
   }
 
@@ -416,7 +417,7 @@ export class CattleService {
       await workbook.xlsx.readFile(file.path);
       const worksheet = workbook.worksheets[0];
       if (!worksheet) {
-        throw new BadRequestException('The Excel sheet does not exist or is empty'); 
+        throw new BadRequestException('The Excel sheet does not exist or is empty');
       }
       const datos = await this.processSheet(worksheet, idTenant);
       return datos;
@@ -456,10 +457,10 @@ export class CattleService {
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       try {
         const row = worksheet.getRow(rowNumber);
-          const rowValues = Array.isArray(row.values)
+        const rowValues = Array.isArray(row.values)
           ? row.values.slice(1).map((v: any) =>
-              typeof v === 'object' && v?.result !== undefined ? v.result : v,
-            )
+            typeof v === 'object' && v?.result !== undefined ? v.result : v,
+          )
           : [];
         if (rowValues.length === 0) {
           results.errors.push(`Row ${rowNumber} is empty`);
@@ -576,4 +577,123 @@ export class CattleService {
     }
   }
 
+  // New methods for Create Sale workflow
+
+  /**
+   * Validate cattle by number for sale - only allows ACTIVE status
+   * @param number - Cattle number
+   * @param idTenant - Tenant ID
+   * @returns Cattle if valid and ACTIVE
+   * @throws BadRequestException if not found or not ACTIVE
+   */
+  async validateCattleByNumber(number: string, idTenant: string) {
+    const cattle = await this.cattleRepository.findByNumberAndTenantId(idTenant, number);
+
+    if (!cattle) {
+      throw new BadRequestException(`Cattle with number ${number} not found for this tenant`);
+    }
+
+    if (cattle.status !== 'ACTIVE') {
+      let message = `Cattle ${number} cannot be added to sale. `;
+      if (cattle.status === 'SOLD') {
+        message += 'This cattle has already been sold.';
+      } else if (cattle.status === 'DEAD') {
+        message += 'This cattle is marked as dead.';
+      } else if (cattle.status === 'LOST') {
+        message += 'This cattle is marked as lost.';
+      } else {
+        message += `Status: ${cattle.status}`;
+      }
+      throw new BadRequestException(message);
+    }
+
+    return cattle;
+  }
+
+  /**
+   * Record weight measurement in history
+   * @param cattleId - Cattle ID
+   * @param dto - Weight record data
+   * @param idTenant - Tenant ID
+   * @param userId - User ID who recorded
+   */
+  async recordWeightHistory(cattleId: string, dto: any, idTenant: string, userId?: string) {
+    const cattle = await this.cattleRepository.findOne(idTenant, cattleId);
+    if (!cattle) {
+      throw new NotFoundException('Cattle not found');
+    }
+
+    // Create weight history using repository (no need for full entity)
+    const weightHistory = {
+      idCattle: cattleId,
+      weight: dto.weight,
+      date: new Date(dto.measuredDate || new Date()),
+      recordedBy: userId,
+      idTenant,
+    };
+
+    return this.cattleWeightHistoryRepository.create(weightHistory as any);
+  }
+
+  /**
+   * Update cattle current weight
+   * @param cattleId - Cattle ID
+   * @param weight - New weight
+   * @param idTenant - Tenant ID
+   */
+  async updateCattleWeight(cattleId: string, weight: number, idTenant: string) {
+    const cattle = await this.cattleRepository.findOne(idTenant, cattleId);
+    if (!cattle) {
+      throw new NotFoundException('Cattle not found');
+    }
+
+    await this.cattleRepository.update(idTenant, cattleId, { weight } as any);
+    return { success: true, message: 'Weight updated successfully' };
+  }
+
+  /**
+   * Bulk update cattle status
+   * @param cattleIds - Array of cattle IDs
+   * @param status - New status
+   * @param idTenant - Tenant ID
+   */
+  async bulkUpdateStatus(cattleIds: string[], status: string, idTenant: string): Promise<BulkStatusUpdateResult> {
+    const results: StatusResult[] = [];
+
+    for (const id of cattleIds) {
+      try {
+        const cattle = await this.cattleRepository.findOne(idTenant, id);
+        if (cattle) {
+          await this.cattleRepository.update(idTenant, id, { status } as any);
+          results.push({ id, success: true });
+        } else {
+          results.push({ id, success: false, error: 'Cattle not found' });
+        }
+      } catch (error) {
+        results.push({ id, success: false, error: error.message });
+      }
+    }
+
+    return {
+      totalProcessed: cattleIds.length,
+      successful: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      results,
+    };
+  }
+
+}
+
+// Export types for controller
+export interface StatusResult {
+  id: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface BulkStatusUpdateResult {
+  totalProcessed: number;
+  successful: number;
+  failed: number;
+  results: StatusResult[];
 }

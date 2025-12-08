@@ -47,6 +47,36 @@ export class ProviderController {
     return ProviderResponseDto.toProviderResponse(provider);
   }
 
+  // IMPORTANT: Specific routes like 'search' MUST come before parameterized routes like ':id'
+  // Otherwise '/providers/search' gets matched as ':id' with value 'search'
+  @Get('search')
+  @RequireAction('read')
+  @ApiOperation({ summary: 'Search providers by name' })
+  @ApiQuery({ name: 'name', required: true, description: 'Search term for provider name' })
+  @ApiQuery({ name: 'type', required: false, description: 'Filter by provider type (BUYER, TRANSPORTER, VET, OTHER)' })
+  @ApiResponse({ status: 200, description: 'List of matching providers with contact info', type: [ProviderResponseDto] })
+  async searchByName(
+    @SessionUser() user: SessionUserDto,
+    @Query('name') name: string,
+    @Query('type') type?: string,
+  ): Promise<ProviderResponseDto[]> {
+    const providers = await this.providerService.searchByName(name, user.tenant_id);
+    const filtered = type ? providers.filter(p => p.type === type) : providers;
+    return filtered.map(ProviderResponseDto.toProviderResponse);
+  }
+
+  @Get('search/by-nit')
+  @RequireAction('read')
+  @ApiQuery({ name: 'query', required: true, description: 'Fragmento parcial del NIT' })
+  @ApiResponse({ status: 200, description: 'Proveedores coincidentes con fragmento del NIT', type: [ProviderResponseDto] })
+  async searchByNit(
+    @Query('query') query: string,
+    @SessionUser() session: SessionUserDto,
+  ): Promise<ProviderResponseDto[]> {
+    const results = await this.providerService.searchProvidersByNit(query, session.tenant_id);
+    return results.map(ProviderResponseDto.toProviderResponse);
+  }
+
   @Get(':id')
   @RequireAction('read')
   @ApiOperation({ summary: 'Find provider by ID' })
@@ -65,22 +95,10 @@ export class ProviderController {
     return ProviderResponseDto.toProviderResponse(await this.providerService.findByNit(nit, user.tenant_id));
   }
 
-  @Get('search/by-nit')
-  @RequireAction('read')
-  @ApiQuery({ name: 'query', required: true, description: 'Fragmento parcial del NIT' })
-  @ApiResponse({ status: 200, description: 'Proveedores coincidentes con fragmento del NIT', type: [ProviderResponseDto] })
-  async searchByNit(
-    @Query('query') query: string,
-    @SessionUser() session: SessionUserDto,
-  ): Promise<ProviderResponseDto[]> {
-    const results = await this.providerService.searchProvidersByNit(query, session.tenant_id);
-    return results.map(ProviderResponseDto.toProviderResponse);
-  }
-
   @Get()
   @RequireAction('read')
   @ApiOperation({ summary: 'Get all providers by tenant' })
-  @ApiQuery({ name: 'type', required: false, description: 'Filter by provider type (BUYER, TRANSPORTER, VET, OTHER)' })
+  @ApiQuery({ name: 'type', required: false, description: 'Filter by provider type (BUYER, TRANSPORTER, VET, OTHER, PROVIDER)' })
   @ApiResponse({ status: 200, description: 'List of providers', type: [ProviderResponseDto] })
   async findAll(
     @SessionUser() user: SessionUserDto,

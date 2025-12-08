@@ -7,6 +7,7 @@ export enum ProviderType {
   TRANSPORTER = 'TRANSPORTER',
   VET = 'VET',
   OTHER = 'OTHER',
+  PROVIDER = 'PROVIDER',
 }
 
 @Unique(['nit', 'idTenant'])

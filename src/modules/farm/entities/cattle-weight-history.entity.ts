@@ -4,6 +4,13 @@ import {
   Column,
 } from 'typeorm';
 
+export enum WeightContext {
+  SALE = 'SALE',
+  PURCHASE = 'PURCHASE',
+  EVENT = 'EVENT',
+  MANUAL = 'MANUAL',
+}
+
 @Entity('cattle_weight_history')
 export class CattleWeightHistory {
   @PrimaryGeneratedColumn('uuid')

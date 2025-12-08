@@ -12,7 +12,7 @@ export class CreateSalesModuleEntities1710000000013 implements MigrationInterfac
         await queryRunner.query(`CREATE TABLE "sale_details" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "sale_id" uuid NOT NULL, "cattle_id" uuid NOT NULL, "measured_weight" numeric(6,2) NOT NULL, "is_approved" boolean NOT NULL, "rejection_reason" text, "tracker_removed" boolean NOT NULL DEFAULT false, "calculated_price" numeric(10,2) NOT NULL, "id_tenant" uuid NOT NULL, "created_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_a8e8b6d243f38e3587378d401f5" PRIMARY KEY ("id"))`);
 
         // 3. Update Cattle (Status)
-        await queryRunner.query(`CREATE TYPE "public"."cattle_status_enum" AS ENUM('ACTIVE', 'SOLD', 'DEAD', 'LOST')`)
+        await queryRunner.query(`CREATE TYPE "public"."cattle_status_enum" AS ENUM('ACTIVE', 'SOLD', 'DEAD', 'LOST', 'PROVIDER')`)
             ;
         await queryRunner.query(`ALTER TABLE "cattle" ADD "status" "public"."cattle_status_enum" NOT NULL DEFAULT 'ACTIVE'`);
 
@@ -21,9 +21,6 @@ export class CreateSalesModuleEntities1710000000013 implements MigrationInterfac
         await queryRunner.query(`ALTER TABLE "providers" ADD "type" "public"."providers_type_enum" NOT NULL DEFAULT 'OTHER'`);
         await queryRunner.query(`ALTER TABLE "providers" ADD "address" character varying(255)`);
 
-        // Drop old contact fields if they exist (from previous migrations)
-        await queryRunner.query(`ALTER TABLE "providers" DROP COLUMN IF EXISTS "phone"`);
-        await queryRunner.query(`ALTER TABLE "providers" DROP COLUMN IF EXISTS "email"`);
 
         // Add FK to contacts table
         await queryRunner.query(`ALTER TABLE "providers" ADD "contact_person_id" uuid`);
