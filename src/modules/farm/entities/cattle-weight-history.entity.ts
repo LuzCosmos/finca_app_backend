@@ -28,6 +28,13 @@ export class CattleWeightHistory {
   @Column({ type: 'timestamp' })
   date: Date;
 
+  @Column({
+    type: 'enum',
+    enum: WeightContext,
+    default: WeightContext.MANUAL
+  })
+  context: WeightContext;
+
   @Column({ name: 'idMassiveEvent', type: 'uuid', nullable: true })
   idMassiveEvent?: string;
 
