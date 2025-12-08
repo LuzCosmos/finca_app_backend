@@ -1,5 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Unique, ManyToOne, JoinColumn } from 'typeorm';
 import { IsNotEmpty } from 'class-validator';
+import { Contact } from './contact.entity';
 
 export enum ProviderType {
   BUYER = 'BUYER',
@@ -34,11 +35,12 @@ export class Provider {
   @Column({ length: 255, nullable: true })
   address: string;
 
-  @Column({ length: 50, nullable: true })
-  phone: string;
+  @Column({ name: 'contact_person_id', type: 'uuid', nullable: true })
+  contactPersonId: string;
 
-  @Column({ length: 150, nullable: true })
-  email: string;
+  @ManyToOne(() => Contact, { nullable: true })
+  @JoinColumn({ name: 'contact_person_id' })
+  contactPerson: Contact;
 
   @CreateDateColumn()
   created_at: Date;

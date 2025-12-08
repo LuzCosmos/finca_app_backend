@@ -5,6 +5,7 @@ import { ApplicationPermissionsModule } from '../../common/application-permissio
 import { FarmModule } from '../farm/farm.module';
 import { ProductionCenterModule } from '../production-center/production-center.module';
 
+import { Contact } from './entities/contact.entity';
 import { Provider } from './entities/provider.entity';
 import { ProviderController } from './controllers/provider.controller';
 import { ProviderService } from './services/provider.service';
@@ -28,6 +29,7 @@ import { SalesService } from './services/sales.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      Contact,
       Provider,
       Purchase,
       Lot,

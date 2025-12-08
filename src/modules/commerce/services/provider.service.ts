@@ -1,21 +1,51 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ProviderRepository } from '../repositories/provider.repository';
 import { Provider } from '../entities/provider.entity';
+import { Contact } from '../entities/contact.entity';
 import { ConflictException } from '@nestjs/common';
+import { CreateProviderDto } from '../dto/create-provider.dto';
 
 @Injectable()
 export class ProviderService {
 
   private readonly logger = new Logger(ProviderService.name);
 
-  constructor(private readonly providerRepository: ProviderRepository) {}
+  constructor(
+    private readonly providerRepository: ProviderRepository,
+    @InjectRepository(Contact)
+    private readonly contactRepository: Repository<Contact>,
+  ) { }
 
-  async createProvider(data: Partial<Provider>): Promise<Provider> {
+  async createProvider(data: Partial<Provider> & CreateProviderDto & { idTenant: string }): Promise<Provider> {
     const existing = await this.providerRepository.findByNit(data.nit!, data.idTenant!);
     if (existing) {
       throw new ConflictException('NIT already exists for this tenant');
     }
-    return this.providerRepository.createProvider(data);
+
+    // Create contact if contact information is provided
+    let contactPersonId: string | undefined;
+    if (data.contactPersonName || data.phone1 || data.phone2 || data.email) {
+      const contact = this.contactRepository.create({
+        idTenant: data.idTenant,
+        name: data.contactPersonName || '',
+        phone1: data.phone1,
+        phone2: data.phone2,
+        email: data.email,
+      });
+      const savedContact = await this.contactRepository.save(contact);
+      contactPersonId = savedContact.id;
+    }
+
+    return this.providerRepository.createProvider({
+      name: data.name,
+      nit: data.nit,
+      idTenant: data.idTenant,
+      type: data.type,
+      address: data.address,
+      contactPersonId,
+    });
   }
 
   async findByNit(nit: string, idTenant: string): Promise<Provider> {
