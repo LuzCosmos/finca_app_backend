@@ -109,9 +109,23 @@ export class ProviderService {
   }
 
   async searchByName(name: string, idTenant: string): Promise<Provider[]> {
-    const allProviders = await this.providerRepository.findAll(idTenant);
+    this.logger.debug(`Searching providers by name: "${name}" for tenant: ${idTenant}`);
+
+    // Load all providers with contact relations
+    const allProviders = await this.providerRepository.findAllWithRelations(idTenant);
+
+    this.logger.debug(`Found ${allProviders.length} total providers for tenant`);
+
+    if (!name || name.trim() === '') {
+      return allProviders;
+    }
+
     const searchTerm = name.toLowerCase();
-    return allProviders.filter(p => p.name.toLowerCase().includes(searchTerm));
+    const filtered = allProviders.filter(p => p.name.toLowerCase().includes(searchTerm));
+
+    this.logger.debug(`Filtered to ${filtered.length} providers matching "${searchTerm}"`);
+
+    return filtered;
   }
 
   async updateById(id: string, idTenant: string, data: Partial<Provider>): Promise<void> {

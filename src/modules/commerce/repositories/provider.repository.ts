@@ -9,7 +9,7 @@ export class ProviderRepository {
   constructor(
     @InjectRepository(Provider)
     private readonly repository: Repository<Provider>,
-  ) {}
+  ) { }
 
   /**
    * Create a new provider
@@ -77,6 +77,18 @@ export class ProviderRepository {
    */
   async findAll(idTenant: string): Promise<Provider[]> {
     return this.repository.find({ where: { idTenant } });
+  }
+
+  /**
+   * Find all providers with contact relations
+   * @param idTenant - The tenant ID
+   * @returns The providers with contact person loaded
+   */
+  async findAllWithRelations(idTenant: string): Promise<Provider[]> {
+    return this.repository.find({
+      where: { idTenant },
+      relations: ['contactPerson'],
+    });
   }
 
   /**
