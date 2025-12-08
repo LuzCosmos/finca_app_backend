@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddColorAndCharacteristics1710000000014 implements MigrationInterface {
-  name = 'AddColorAndCharacteristics1710000000014';
+export class AddColorAndCharacteristics1710000000015 implements MigrationInterface {
+  name = 'AddColorAndCharacteristics1710000000015';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Extensión para gen_random_uuid()

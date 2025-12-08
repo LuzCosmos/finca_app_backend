@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query } from '@nestjs/common';
 import { CattleService } from '../services/cattle.service';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
@@ -396,7 +396,9 @@ export class CattleController {
     @Body() dto: any, // Import RecordWeightDto from cattle-weight.dto.ts
     @SessionUser() user: SessionUserDto,
   ) {
-    return this.cattleService.recordWeightHistory(id, dto, user.tenant_id, user.username);
+    console.log(dto);
+
+    return this.cattleService.recordWeightHistory(id, dto, user.tenant_id, user.sub);
   }
 
   @Put(':id/weight')

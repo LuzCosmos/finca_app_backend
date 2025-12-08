@@ -657,7 +657,7 @@ export class CattleService {
       throw new NotFoundException('Cattle not found');
     }
 
-    await this.cattleRepository.update(idTenant, cattleId, { weight } as any);
+    await this.cattleRepository.update(idTenant, cattleId, { lastWeight: weight } as any);
     return { success: true, message: 'Weight updated successfully' };
   }
 
