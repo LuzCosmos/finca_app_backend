@@ -24,16 +24,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    console.log('JwtStrategy validating payload:', payload);
     if (!payload || !payload.sub) {
+      console.log('JwtStrategy: Payload missing or no sub');
       throw new UnauthorizedException();
     }
     // Retrieve the session data from Redis
     const sessionData = await this.permissionsService.getSessionFromRedis(payload.sub);
     if (!sessionData) {
+      console.log('JwtStrategy: No session data found in Redis for sub:', payload.sub);
       throw new UnauthorizedException('Session expired or invalid.');
     }
     // Validate that the permissions hash matches
     if (sessionData.permissionsHash !== payload.permissionsHash) {
+      console.log('JwtStrategy: Permissions hash mismatch.', sessionData.permissionsHash, payload.permissionsHash);
       throw new UnauthorizedException('Permissions outdated. Please refresh your session.');
     }
     // Return the session data (or customize as needed)

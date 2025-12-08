@@ -30,6 +30,6 @@ import { LotService } from './services/lot.service';
   ],
   controllers: [ProviderController, PurchaseController, LotController],
   providers: [ProviderService, ProviderRepository, PurchaseService, PurchaseRepository, LotRepository, LotService],
-  exports: [],
+  exports: [ProviderRepository, PurchaseRepository, LotRepository],
 })
 export class CommerceModule {}

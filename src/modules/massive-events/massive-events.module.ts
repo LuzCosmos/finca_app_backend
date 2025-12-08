@@ -24,6 +24,12 @@ import { ApplicationPermissionsModule } from '../../common/application-permissio
     MassiveEventService,
     SimpleEventService
   ],
-  exports: [MassiveEventService, SimpleEventService,AnimalSimpleEventRepository],
+  exports: [
+    MassiveEventRepository,
+    SimpleEventRepository,
+    AnimalSimpleEventRepository,
+    MassiveEventService,
+    SimpleEventService,
+  ],
 })
 export class MassiveEventsModule {}

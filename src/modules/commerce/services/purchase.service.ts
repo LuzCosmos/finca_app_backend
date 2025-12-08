@@ -10,6 +10,9 @@ import { UpdatePurchaseDto } from '../dto/update-purchase.dto';
 import { Purchase } from '../entities/purchase.entity';
 import { Lot } from '../entities/lot.entity';
 import { Logger } from '@nestjs/common';
+import { PurchaseListQueryDto } from '../dto/purchase-list.query.dto';
+import { PurchaseListItemDto } from '../dto/purchase-list.item.dto';
+
 
 @Injectable()
 export class PurchaseService {
@@ -19,7 +22,7 @@ export class PurchaseService {
     private readonly dataSource: DataSource,
     private readonly purchaseRepository: PurchaseRepository,
     private readonly lotRepository: LotRepository,
-  ) {}
+  ) { }
 
   async createPurchase(data: CreatePurchaseDto, idTenant: string, createdBy: string): Promise<Purchase> {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -52,7 +55,7 @@ export class PurchaseService {
           idTenant
         });
         const savedLot = await this.lotRepository.saveWithManager(queryRunner.manager, lot);
-        savedLots.push(savedLot); 
+        savedLots.push(savedLot);
       }
       savedPurchase.lots = savedLots;
       await queryRunner.commitTransaction();
@@ -100,7 +103,7 @@ export class PurchaseService {
           idTenant
         });
         const savedLot = await this.lotRepository.saveWithManager(queryRunner.manager, lot);
-        savedLots.push(savedLot); 
+        savedLots.push(savedLot);
       }
       savedPurchase.lots = savedLots;
       await queryRunner.commitTransaction();
@@ -152,4 +155,23 @@ export class PurchaseService {
       await queryRunner.release();
     }
   }
+
+  async listPaged(tenantId: string, q: PurchaseListQueryDto) {
+    const page = Math.max(1, q.page ?? 1);
+    const limit = Math.max(1, q.limit ?? 10);
+    const { total, rows } = await this.purchaseRepository.listPaged(tenantId, q, page, limit);
+    const items: PurchaseListItemDto[] = rows.map((r) => ({
+      id: r.id,
+      purchaseDate: new Date(r.purchaseDate).toISOString(),
+      providerName: r.providerName ?? null, // DTO permite null
+      totalCattle: Number(r.totalCattle ?? 0),
+      totalWeight: Number(r.totalWeight ?? 0),
+      receivedCattle: Number(r.receivedCattle ?? 0),
+      receivedWeight: Number(r.receivedWeight ?? 0),
+      canReceive: Number(r.receivedCattle ?? 0) < Number(r.totalCattle ?? 0),
+    }));
+
+    return { page, limit, total, items };
+  }
+
 }

@@ -15,7 +15,7 @@ export class AnimalSimpleEventRepository {
     return this.repository.create(data);
   }
 
-  async save(entity: AnimalSimpleEvent): Promise<AnimalSimpleEvent> {
+  async saveAnimalSimpleEvent(entity: AnimalSimpleEvent): Promise<AnimalSimpleEvent> {
     return this.repository.save(entity);
   }
 
@@ -27,8 +27,9 @@ export class AnimalSimpleEventRepository {
     return this.repository.findOne({ where: { idTenant, id } });
   }
 
-  async findByCattle(idTenant: string, idCattle: string): Promise<AnimalSimpleEvent[]> {
-    return this.repository.find({ where: { idTenant, idAnimal: idCattle } });
+  async findByCattle(idTenant: string, idCattle: string, manager?: EntityManager): Promise<AnimalSimpleEvent[]> {
+    const repo = manager?.getRepository(AnimalSimpleEvent) ?? this.repository;
+    return repo.find({ where: { idTenant, idAnimal: idCattle } });
   }
 
   async findBySimpleEvent(idSimpleEvent: string): Promise<AnimalSimpleEvent[]> {
@@ -46,4 +47,22 @@ export class AnimalSimpleEventRepository {
   async deleteByIdWithManager(manager: EntityManager, idTenant: string, id: string): Promise<void> {
     await manager.delete(AnimalSimpleEvent, { idTenant, id });
   }
+
+    /**
+   * Inserta en bulk varios registros de animal_simple_event (ignora duplicados).
+   */
+    async insertMany(
+      rows: Partial<AnimalSimpleEvent>[],
+      manager?: EntityManager,
+    ): Promise<void> {
+      if (!rows?.length) return;
+      const m = manager ?? this.dataSource.manager;
+      await m
+        .createQueryBuilder()
+        .insert()
+        .into(AnimalSimpleEvent)
+        .values(rows)
+        .orIgnore() // evita reventar por duplicados
+        .execute();
+    }
 }

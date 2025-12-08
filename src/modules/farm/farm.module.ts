@@ -24,12 +24,21 @@ import { BrandController } from './controllers/brand.controller';
 import { BrandRepository } from './repositories/brand.repository';
 import { BrandService } from './services/brand.service';
 import { Brand } from './entities/brand.entity';
+import { Characteristic } from './entities/characteristic.entity';
+import { Color } from './entities/color.entity';
+import { ColorRepository } from './repositories/color.repository';
+import { CharacteristicRepository } from './repositories/characteristic.repository';
+import { CattleCharacteristicRepository } from './repositories/cattle-characteristic.repository';
+import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
 
 @Module({
   imports: [
     forwardRef(() => MassiveEventsModule),
     TypeOrmModule.forFeature([
-      Cattle, 
+      Cattle,
+      CattleCharacteristic, 
+      Characteristic,
+      Color,
       CattleDeviceHistory,
       CattleWeightHistory,
       CattleEartagHistory,
@@ -48,6 +57,9 @@ import { Brand } from './entities/brand.entity';
     CattleWeightHistoryRepository,
     CattleEartagHistoryRepository,
     CattleMedicationHistoryRepository,
+    ColorRepository,
+    CharacteristicRepository,
+    CattleCharacteristicRepository,
     LocationService,
     LocationRepository,
     BrandRepository,

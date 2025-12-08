@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards, Query, Logger } from '@nestjs/common';
 import { PurchaseService } from '../services/purchase.service';
 import { CreatePurchaseDto } from '../dto/create-purchase.dto';
 import { UpdatePurchaseDto } from '../dto/update-purchase.dto';
@@ -6,9 +6,13 @@ import { SessionUser } from '../../../common/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiOkResponse } from '@nestjs/swagger';
 import { PurchaseResponseDto } from '../dto/purchase-response.dto';
 import { RequireEntity, RequireModule, RequireAction } from '../../../common/application-permissions/application-permissions.decorator';
+import { PagedResponseDto } from 'src/shared/dto/paged-response.dto';
+import { PurchaseListItemDto } from 'src/modules/commerce/dto/purchase-list.item.dto';
+import { PurchaseListQueryDto } from 'src/modules/commerce/dto/purchase-list.query.dto';
+
 
 @ApiTags('Purchases')
 @ApiBearerAuth('access-token')
@@ -17,6 +21,7 @@ import { RequireEntity, RequireModule, RequireAction } from '../../../common/app
 @RequireModule('COMMERCE')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class PurchaseController {
+  private readonly logger = new Logger(PurchaseController.name);
   constructor(private readonly purchaseService: PurchaseService) {}
 
   @Post()
@@ -45,7 +50,7 @@ export class PurchaseController {
     const purchase = await this.purchaseService.updatePurchase(id, dto, user.tenant_id, user.sub);
     return PurchaseResponseDto.toPurchaseResponse(purchase);
   }
-
+/*
   @Get()
   @RequireAction('read')
   @ApiOperation({ summary: 'Get all purchases for tenant' })
@@ -55,6 +60,22 @@ export class PurchaseController {
   ): Promise<PurchaseResponseDto[]> {
     const purchases = await this.purchaseService.findAll(user.tenant_id);
     return purchases.map(purchase => PurchaseResponseDto.toPurchaseResponse(purchase));
+  }*/
+
+
+  @Get()
+  @RequireAction('read')
+  @ApiOkResponse({ type: PagedResponseDto<PurchaseListItemDto> as any })
+  async list(
+    @SessionUser() user: SessionUserDto,
+    @Query() q: PurchaseListQueryDto,
+  ): Promise<PagedResponseDto<PurchaseListItemDto>> {
+    this.logger.debug("COMPRAS FILTRADAS ")
+    const { items, total, page, limit } =
+      await this.purchaseService.listPaged(user.tenant_id, q);
+    const resp = PagedResponseDto.of(page, limit, total, items);
+    this.logger.debug(resp);
+    return resp;
   }
 
   @Get(':id')
@@ -79,4 +100,5 @@ export class PurchaseController {
   ): Promise<void> {
     await this.purchaseService.deleteById(id, user.tenant_id);
   }
+
 }

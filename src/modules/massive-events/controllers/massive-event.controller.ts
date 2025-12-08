@@ -3,10 +3,10 @@ import { MassiveEventService } from '../services/massive-event.service';
 import { CreateMassiveEventDto } from '../dto/create-massive-event.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
-import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from 'src/common/application-permissions/application-permissions.guard';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
-import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
+import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { MassiveEventResponseDto } from '../dto/massive-event-response.dto';
 import { SyncMassiveEventsRequestDto, SyncMassiveEventsResponseDto } from '../dto/sync-massive-event.dto';
 
@@ -14,7 +14,7 @@ import { SyncMassiveEventsRequestDto, SyncMassiveEventsResponseDto } from '../dt
 @ApiBearerAuth('access-token')
 @Controller('massive-events')
 @RequireEntity('massive_events')
-@RequireModule('FARM')
+@RequireModule('MASSIVE_EVENTS')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class MassiveEventController {
   constructor(private readonly massiveEventService: MassiveEventService) {}

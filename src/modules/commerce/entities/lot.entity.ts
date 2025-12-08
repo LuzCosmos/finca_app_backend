@@ -22,11 +22,17 @@ export class Lot {
   @Column({ name: 'cattle_count', type: 'int', default: 0 })
   cattleCount: number;
 
+  @Column({ name: 'received_cattle_count', type: 'int', default: 0 })
+  receivedCattleCount: number;
+
   @Column({ name: 'average_weight', type: 'numeric', precision: 8, scale: 2, nullable: true })
   averageWeight: number;
 
   @Column({ name: 'total_weight', type: 'numeric', precision: 10, scale: 2, nullable: true })
   totalWeight: number;
+  
+  @Column({ name: 'received_total_weight', type: 'numeric', precision: 10, scale: 2, nullable: true })
+  receivedTotalWeight: number;
 
   @Column({ name: 'price_per_kg', type: 'numeric', precision: 10, scale: 2, nullable: true })
   pricePerKg: number;

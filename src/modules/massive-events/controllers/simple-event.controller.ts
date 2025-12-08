@@ -8,14 +8,14 @@ import { AnimalSimpleEventRepository } from '../repositories/animal-simple-event
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from 'src/common/application-permissions/application-permissions.guard';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
-import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
+import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { SimpleEventResponseDto } from '../dto/simple-event-response.dto';
 
 @ApiTags('Simple Events')
 @ApiBearerAuth('access-token')
 @Controller('simple-events')
 @RequireEntity('simple_events')
-@RequireModule('FARM')
+@RequireModule('MASSIVE_EVENTS')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class SimpleEventController {
   constructor(

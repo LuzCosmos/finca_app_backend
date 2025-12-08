@@ -1,9 +1,24 @@
 import { ConflictException, HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, QueryFailedError, Repository } from 'typeorm';
+import { EntityManager, In, QueryFailedError, Repository, IsNull } from 'typeorm';
 import { Cattle } from '../entities/cattle.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
+
+
+type PagedInput = {
+  idTenant: string;
+  limit: number;
+  cursor?: string;
+  updatedAfter?: Date;
+};
+
+type PagedOutput = {
+  items: Array<Pick<Cattle, 'id' | 'number' | 'sysNumber'>>;
+  nextCursor: string | null;
+  hasMore: boolean;
+  total: number | null; // opcional, aquí lo dejamos null para no encarecer
+};
 
 @Injectable()
 export class CattleRepository {
@@ -41,6 +56,16 @@ export class CattleRepository {
 
   async findByIds(idTenant: string, ids: string[]): Promise<Cattle[]> {
     return this.repository.find({ where: { idTenant, id: In(ids) } });
+  }
+
+  async findByIdPurchaseWithoutLot(idTenant: string, idPurchase: string, manager?: EntityManager): Promise<Cattle[]> {
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    return repo.find({ where: { idTenant, idPurchase, idLot: IsNull() } });
+  }
+
+  async findByIdLot(idTenant: string, idLot: string, manager?: EntityManager): Promise<Cattle[]> {
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    return repo.find({ where: { idTenant, idLot } });
   }
 
   async findAll(idTenant: string): Promise<Cattle[]> {
@@ -88,4 +113,181 @@ export class CattleRepository {
   findByEartag(idTenant: string, eartag: string): Promise<Cattle | null> {
     return this.repository.findOne({ where: { idTenant, eartag } });
   }
+
+  getBasicInfo(idTenant: string): Promise<Cattle[]> {
+    return this.repository.find({
+      where: { idTenant},
+      select: {
+        id: true,
+        number: true,
+        sysNumber: true,
+      }
+    });
+  }
+
+  async getBasicInfoPaged(input: PagedInput): Promise<PagedOutput> {
+    const { idTenant, limit, cursor, updatedAfter } = input;
+
+    // Decode cursor (base64 JSON: { updatedAt: string, id: string })
+    let lastUpdatedAt: Date | null = null;
+    let lastId: string | null = null;
+    if (cursor) {
+      try {
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64').toString('utf8'));
+        if (decoded?.updatedAt) lastUpdatedAt = new Date(decoded.updatedAt);
+        if (decoded?.id) lastId = String(decoded.id);
+      } catch {
+        // cursor inválido: lo ignoramos para empezar desde el principio
+      }
+    }
+
+    // Query base
+    const qb = this.repository
+      .createQueryBuilder('c')
+      .where('c.idTenant = :idTenant', { idTenant });
+
+    // Delta-sync
+    if (updatedAfter) {
+      qb.andWhere('c.updatedAt > :updatedAfter', { updatedAfter });
+    }
+
+    // Cursor (orden estable por updatedAt asc, id asc)
+    if (lastUpdatedAt && lastId) {
+      qb.andWhere(
+        '(c.updatedAt > :lastUpdatedAt OR (c.updatedAt = :lastUpdatedAt AND c.id > :lastId))',
+        { lastUpdatedAt, lastId },
+      );
+    }
+
+    qb
+      .select(['c.id', 'c.number', 'c.sysNumber', 'c.updatedAt'])
+      .orderBy('c.updatedAt', 'ASC')
+      .addOrderBy('c.id', 'ASC')
+      .limit(limit + 1); // pedimos uno extra para saber si hay más
+
+    const rows = await qb.getMany();
+
+    // Cortar a "limit" y construir nextCursor
+    const hasMore = rows.length > limit;
+    const pageItems = hasMore ? rows.slice(0, limit) : rows;
+
+    let nextCursor: string | null = null;
+    if (hasMore) {
+      const last = pageItems[pageItems.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({ updatedAt: last.updatedAt.toISOString(), id: last.id }),
+        'utf8',
+      ).toString('base64');
+    }
+
+    // Map a DTO ligero
+    const items = pageItems.map(r => ({
+      idTenant: r.idTenant,
+      id: r.id,
+      number: r.number,
+      sysNumber: (r as any).sysNumber,
+    }));
+
+    return {
+      items,
+      nextCursor,
+      hasMore,
+      total: null, // opcional: puedes calcularlo sólo en la primera página si necesitas
+    };
+  }
+
+
+
+
+
+
+  async lockForTenant(tenantId: string, manager?: EntityManager): Promise<void> {
+    const m = manager ?? this.repository;
+    await m.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${tenantId}:cattle_number`]);
+  }
+
+  /**
+   * Devuelve el primer número libre >= from, considerando SOLO status='active'.
+   */
+  async suggestNextNumber(tenantId: string, from: bigint, manager?: EntityManager): Promise<string> {
+    const m = manager ?? this.repository.manager;
+    await this.lockForTenant(tenantId, m);
+
+    const rows = await m.query(
+      `SELECT number::bigint AS n
+         FROM public.cattle
+        WHERE id_tenant = $1
+          AND status = 'active'
+          AND number ~ '^[1-9][0-9]*$'
+          AND number::bigint >= $2
+        ORDER BY number::bigint
+        LIMIT 1000`,
+      [tenantId, from.toString()],
+    );
+
+    let candidate = from;
+    for (const r of rows) {
+      const n = BigInt(r.n);
+      if (n === candidate) candidate++;
+      else if (n > candidate) break;
+    }
+    return candidate.toString();
+  }
+
+  /**
+   * Crea un bovino status='active' reservando número >= baseNumber de forma consistente.
+   * Retorna el número asignado y la entidad.
+   */
+  async createActiveWithAutoNumber(params: {
+    tenantId: string;
+    baseNumber: string; // validado: ^[1-9]\d*$
+    payload: Partial<Cattle>; // otros campos (purchase, lot, weights, etc.)
+  }, manager?: EntityManager): Promise<{ entity: Cattle; numberAssigned: string }> {
+    const m = manager ?? this.repository.manager;
+    await this.lockForTenant(params.tenantId, m);
+
+    let candidate = BigInt(params.baseNumber);
+    // primer hueco libre
+    candidate = BigInt(await this.suggestNextNumber(params.tenantId, candidate, m));
+
+    let saved: Cattle | null = null;
+    for (let tries = 0; tries < 4; tries++) {
+      try {
+        const ent = m.create(Cattle, {
+          ...params.payload,
+          idTenant: { id: params.tenantId } as any,
+          number: candidate.toString(),
+          status: 'active' as any,
+        });
+        saved = await m.save(Cattle, ent);
+        break;
+      } catch (e: any) {
+        const msg = String(e?.message ?? '');
+        if (msg.includes('uq_cattle_tenant_number_active') || msg.includes('duplicate key')) {
+          candidate++;
+          continue;
+        }
+        throw e;
+      }
+    }
+    if (!saved) throw new Error('No se pudo reservar un número de res libre.');
+
+    return { entity: saved, numberAssigned: candidate.toString() };
+  }
+
+  async assignLot(cattleId: string, lotId: string, manager?: EntityManager): Promise<void> {
+    const m = manager ?? this.repository.manager;
+    await m.query(
+      `UPDATE public.cattle SET id_lot = $2 WHERE id = $1`,
+      [cattleId, lotId],
+    );
+    // recalcular métricas del lote (cant/avg) en SQL si quieres aquí
+  }
+
+  async changeStatus(cattleId: string, status: 'active'|'sold'|'dead'|'lost', manager?: EntityManager): Promise<void> {
+    const m = manager ?? this.repository.manager;
+    await m.update(Cattle, { id: cattleId }, { status: status as any } as any);
+  }
+
+
 }
