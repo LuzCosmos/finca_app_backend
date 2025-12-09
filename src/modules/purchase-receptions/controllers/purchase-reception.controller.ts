@@ -60,6 +60,7 @@ export class ReceptionController {
           idDevice: 'uuid-device-999', // Optional
           castrated: true, // Optional
           comments: 'Initial reception check completed.', // Optional
+          idProvider: 'uuid-provider-123', // Optional
           idSimpleEvents: ['uuid-simple-event-1', 'uuid-simple-event-2'] // Optional
         }
       }

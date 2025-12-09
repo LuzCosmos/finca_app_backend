@@ -117,6 +117,9 @@ export class ReceptionsService {
         comments: cattleDto.comments ?? null,
         createdAt: new Date(),
         updatedAt: new Date(),
+        lastWeight: cattleDto.receivedWeight,
+        status: CattleStatus.ACTIVE,
+        idProvider: cattleDto.idProvider ?? null,
       }
       cattle = await this.cattleRepo.saveWithManager(manager, cattleData as unknown as Cattle);
       var weightHistory: CattleWeightHistory = {

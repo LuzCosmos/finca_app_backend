@@ -51,6 +51,10 @@ export class ReceiveCattleRequestDto {
   comments?: string;
 
   @IsOptional()
+  @IsUUID()
+  idProvider?: string;
+
+  @IsOptional()
   @IsArray()
   @IsUUID('4', { each: true })
   idSimpleEvents?: string[];
