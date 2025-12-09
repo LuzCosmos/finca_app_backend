@@ -6,6 +6,8 @@ import { Cattle } from '../../farm/entities/cattle.entity';
 import { Lot } from '../../commerce/entities/lot.entity';
 import { PurchaseReception } from '../entities/purchase-reception.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
+import { MassiveEvent } from '../../massive-events/entities/massive-events.entity'
+import { SimpleEventResponseDto } from 'src/modules/massive-events/dto/simple-event-response.dto';
 
 export class AnimalSimpleEventReceptionResponseDto {
 
@@ -108,6 +110,26 @@ export class LotReceptionResponseDto {
   }
 }
 
+export class ReceptionMassiveEventResponseDto {
+  @ApiProperty({ format: 'uuid', description: 'ID del evento masivo' })
+  @IsUUID()
+  id: string;
+
+  @ApiProperty({ type: [SimpleEventResponseDto], description: 'List of simple events involved in this massive event' })
+  simpleEvents: SimpleEventResponseDto[];
+
+  @ApiProperty({ example: 'open', description: 'Status of the massive event' })
+  status: string;
+
+  static toResponseDto(entity: MassiveEvent): ReceptionMassiveEventResponseDto {
+    return {
+      id: entity.id,
+      status: entity.status,
+      simpleEvents: entity.simpleEvents.map(SimpleEventResponseDto.toResponseDto),
+    };
+  }
+}
+
 export class ReceptionResponseDto {
   @ApiProperty({ format: 'uuid', description: 'ID de la recepción' })
   @IsUUID()
@@ -116,6 +138,10 @@ export class ReceptionResponseDto {
   @ApiProperty({ format: 'uuid', description: 'ID de la compra (purchase) a la cual se asocia la recepción' })
   @IsUUID()
   purchaseId!: string;
+
+  @ApiProperty({ format: 'uuid', description: 'ID del proveedor (provider) a la cual se asocia la recepción' })
+  @IsUUID()
+  providerId!: string;
 
   @ApiPropertyOptional({ format: 'uuid', description: 'ID del evento masivo a crear junto con la recepción.' })
   @IsOptional() @IsUUID()
@@ -144,7 +170,11 @@ export class ReceptionResponseDto {
   @ApiProperty({ type: [CattleReceptionResponseDto], description: 'List of cattle involved in this reception' })
   cattle: CattleReceptionResponseDto[];
 
-  static toResponseDto(entity: PurchaseReception, purchase: Purchase, providerName: string, lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[], appliedEvents: Record<string, AnimalSimpleEvent[]>): ReceptionResponseDto {
+  @ApiProperty({ type: [ReceptionMassiveEventResponseDto], description: 'List of massive events involved in this reception' })
+  massiveEvent: ReceptionMassiveEventResponseDto;
+
+
+  static toResponseDto(entity: PurchaseReception, purchase: Purchase, providerName: string, lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[], appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent): ReceptionResponseDto {
     var responseLots: LotReceptionResponseDto[] = [];
     for (const l of lots) {
       responseLots.push(LotReceptionResponseDto.toResponseDto(l, lotCattle[l.id], appliedEvents));
@@ -153,13 +183,18 @@ export class ReceptionResponseDto {
     for (const c of cattle) {
       responseCattle.push(CattleReceptionResponseDto.toResponseDto(c, appliedEvents[c.id]));
     }
+    console.log("-----------------------------------------------------------appliedEvents")
+    console.log(appliedEvents)
     return {
       id: entity.id,
       purchaseId: entity.idPurchase,
+      providerId: purchase.idProvider,
       purchaseDate: new Date(purchase.purchaseDate).toISOString(),
       purchaseProviderName: providerName,
       lots: responseLots,
       cattle: responseCattle,
+      massiveEvent: ReceptionMassiveEventResponseDto.toResponseDto(massiveEvent),
+
     };
   }
 

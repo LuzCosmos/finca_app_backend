@@ -13,6 +13,12 @@ export class CattleCharacteristic {
   @JoinColumn({ name: 'id_tenant' })
   idTenant: Tenant;
 
+  @Column({ name: 'id_cattle', type: 'uuid', nullable: false })
+  idCattle: string;
+
+  @Column({ name: 'id_characteristic', type: 'uuid', nullable: false })
+  idCharacteristic: string;
+
   @ManyToOne(() => Cattle, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_cattle' })
   cattle: Cattle;
