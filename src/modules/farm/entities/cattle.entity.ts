@@ -33,21 +33,39 @@ export class Cattle {
   @Column({ name: 'id_tenant', type: 'uuid' })
   idTenant: string;
 
-  @Column({ name: 'id_device', type: 'uuid', nullable: true })
-  idDevice: string | null;
-
-  @OneToOne(() => Device, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'id_device' })
-  device?: Device;
-
   @Column({ name: 'sys_number', length: 50 })
   sysNumber: string;
 
   @Column({ length: 50 })
   number: string;
 
+  @Column({ name: 'received_at', type: 'date' })
+  receivedAt: Date;
+
+  @Column({ name: 'received_weight', type: 'numeric', precision: 6, scale: 2 })
+  receivedWeight: number;
+
+  @Column({ name: 'id_purchase', type: 'uuid', nullable: true })
+  idPurchase: string;
+
+  @ManyToOne(() => Purchase, (purchase) => purchase.cattle, { nullable: true })
+  @JoinColumn({ name: 'id_purchase' })
+  purchase?: Purchase;
+
+  @Column({ name: 'purchase_weight', type: 'numeric', precision: 6, scale: 2 })
+  purchaseWeight: number;
+
+  @Column({ name: 'purchase_price', type: 'numeric', precision: 10, scale: 2 })
+  purchasePrice: number;
+
+  @Column({ name: 'id_lot', type: 'uuid', nullable: true })
+  idLot: string | null;
+
+  @Column({ length: 10, nullable: true })
+  lot: string;
+
   @Column({ name: 'id_brand', type: 'uuid', nullable: true })
-  idBrand: string;
+  idBrand: string | null;
 
   @Column({ name: 'color_description', length: 100, nullable: true })
   colorDescription: string;
@@ -58,26 +76,37 @@ export class Cattle {
   @Column({ name: 'color_feature', length: 25, nullable: true })
   colorFeature: string;
 
-  @Column({ length: 10, nullable: true })
-  lot: string;
+  @Column({ name: 'id_color', type: 'uuid', nullable: true })
+  idColor: string | null;
 
-  @Column({ name: 'received_at', type: 'date' })
-  receivedAt: Date;
+  @ManyToOne(() => Color, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'id_color' })
+  color?: Color;
 
-  @Column({ name: 'received_weight', type: 'numeric', precision: 6, scale: 2 })
-  receivedWeight: number;
+  @OneToMany(() => CattleCharacteristic, (cattleCharacteristic) => cattleCharacteristic.cattle)
+  cattleCharacteristics: CattleCharacteristic[];
 
-  @Column({ name: 'purchase_weight', type: 'numeric', precision: 6, scale: 2 })
-  purchaseWeight: number;
+  /** Eartag actual */
+  @Column({ name: 'eartag', type: 'varchar', length: 50, nullable: true })
+  eartag: string | null;
+
+  @Column({ name: 'id_device', type: 'uuid', nullable: true })
+  idDevice: string | null;
+
+  @OneToOne(() => Device, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'id_device' })
+  device?: Device;
+
+  /** Si está castrado */
+  @Column({ name: 'castrated', type: 'boolean', default: false })
+  castrated: boolean;
+
+  /** Fecha de castración (único evento) */
+  @Column({ name: 'castration_date', type: 'timestamp', nullable: true })
+  castrationDate: Date;
 
   @Column({ type: 'text', nullable: true })
-  comments: string;
-
-  @Column({ name: 'purchased_from', length: 100 })
-  purchasedFrom: string;
-
-  @Column({ name: 'purchase_price', type: 'numeric', precision: 10, scale: 2 })
-  purchasePrice: number;
+  comments: string | null;
 
   @Column({ name: 'purchase_commission', type: 'numeric', precision: 10, scale: 2, nullable: true })
   purchaseCommission: number;
@@ -100,36 +129,15 @@ export class Cattle {
   @Column({ name: 'average_gr', type: 'numeric', precision: 6, scale: 2, nullable: true })
   averageGr: number;
 
-  @Column({ name: 'id_purchase', type: 'uuid', nullable: true })
-  idPurchase: string;
-
-  @ManyToOne(() => Purchase, (purchase) => purchase.cattle, { nullable: true })
-  @JoinColumn({ name: 'id_purchase' })
-  purchase?: Purchase;
-
-  @Column({ name: 'id_lot', type: 'uuid', nullable: true })
-  idLot: string;
+  @Column({ name: 'purchased_from', length: 100 })
+  purchasedFrom: string;
 
   @Column({ name: 'id_provider', type: 'uuid', nullable: true })
   idProvider: string;
 
-  /** ✅ NUEVOS CAMPOS PARA EVENTOS MASIVOS Y ESTADO ACTUAL */
-
   /** Último peso registrado */
   @Column({ name: 'last_weight', type: 'numeric', precision: 6, scale: 2, nullable: true })
   lastWeight: number;
-
-  /** Eartag actual */
-  @Column({ name: 'eartag', type: 'varchar', length: 50, nullable: true })
-  eartag: string;
-
-  /** Si está castrado */
-  @Column({ name: 'castrated', type: 'boolean', default: false })
-  castrated: boolean;
-
-  /** Fecha de castración (único evento) */
-  @Column({ name: 'castration_date', type: 'timestamp', nullable: true })
-  castrationDate: Date;
 
   @Column({
     type: 'enum',
@@ -139,17 +147,9 @@ export class Cattle {
   })
   status: CattleStatus;
 
-  @ManyToOne(() => Color, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'id_color' })
-  color?: Color;
-
-  @OneToMany(() => CattleCharacteristic, (cattleCharacteristic) => cattleCharacteristic.cattle)
-  cattleCharacteristics: CattleCharacteristic[];
-
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }
-

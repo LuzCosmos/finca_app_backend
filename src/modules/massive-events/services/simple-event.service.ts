@@ -16,7 +16,7 @@ export class SimpleEventService {
     private readonly dataSource: DataSource,
     private readonly simpleEventRepo: SimpleEventRepository,
     private readonly massiveEventSevice: MassiveEventService,
-  ) {}
+  ) { }
 
   /**
    * Create a SimpleEvent
@@ -111,7 +111,7 @@ export class SimpleEventService {
         } catch (error) {
           results.push({ id: dto.id, status: 'failed', serverId: '', message: 'MassiveEvent not found' });
           continue;
-        } 
+        }
         const saved = await this.saveSimpleEvent(manager, {
           id: dto.id,
           idMassiveEvent: massiveEvent.id,
@@ -165,9 +165,9 @@ export class SimpleEventService {
     return this.simpleEventRepo.deleteByMassiveEvent(manager, idMassiveEvent);
   }
 
-  validateDataFields(type : string, dataJson: any) {
-    if (type == 'medication') { 
-      if(dataJson == null || dataJson.trim() === '') {
+  validateDataFields(type: string, dataJson: any) {
+    if (type == 'medication') {
+      if (dataJson == null || dataJson.trim() === '') {
         throw new BadRequestException('dataJson is required for type medication');
       } else {
         var data = JSON.parse(dataJson);
@@ -175,18 +175,22 @@ export class SimpleEventService {
         // Check keys presence
         const dataKeys = Object.keys(data);
         const hasAllKeys = requiredKeys.every((k) => dataKeys.includes(k));
-        if (!hasAllKeys){
+        if (!hasAllKeys) {
           throw new BadRequestException('dataJson is invalid for type medication');
-        } 
+        }
         // Check non-empty string values
         var isValid = requiredKeys.every(
           (key) =>
             typeof data[key] === 'string' && data[key].trim().length > 0
         );
-        if (!isValid) { 
+        if (!isValid) {
           throw new BadRequestException('dataJson is invalid for type medication');
         }
       }
     }
+  }
+
+  findByIds(idTenant: string, ids: string[], manager?: EntityManager) {
+    return this.simpleEventRepo.findByIds(idTenant, ids, manager);
   }
 }

@@ -26,8 +26,6 @@ export class AnimalSimpleEventReceptionResponseDto {
       appliedAt: entity.appliedAt.toISOString(),
     };
   }
-
-
 }
 
 export class CattleReceptionResponseDto {
@@ -51,7 +49,7 @@ export class CattleReceptionResponseDto {
   deviceName: string;
 
   @ApiProperty({ example: '1234', description: 'Arete/Caravana del animal' })
-  eartag: string;
+  eartag?: string;
 
   @ApiProperty({ example: [{ id: '1234', type: 'weight', data: { kg: 420 }, appliedAt: '2025-01-01' }], description: 'Eventos simples aplicados' })
   appliedEvents: AnimalSimpleEventReceptionResponseDto[];
@@ -64,7 +62,7 @@ export class CattleReceptionResponseDto {
       receivedWeight: entity.receivedWeight,
       idDevice: entity.idDevice ?? '',
       deviceName: '',
-      eartag: entity.eartag,
+      eartag: entity.eartag ?? undefined,
       appliedEvents: appliedEvents.map(AnimalSimpleEventReceptionResponseDto.toResponseDto),
     };
   }

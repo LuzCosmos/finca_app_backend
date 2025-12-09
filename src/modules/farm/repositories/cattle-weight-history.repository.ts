@@ -9,7 +9,7 @@ export class CattleWeightHistoryRepository {
   constructor(
     @InjectRepository(CattleWeightHistory)
     private readonly repo: Repository<CattleWeightHistory>,
-  ) {}
+  ) { }
 
   async create(entity: CattleWeightHistory): Promise<CattleWeightHistory> {
     return await this.repo.save(entity);
@@ -63,4 +63,5 @@ export class CattleWeightHistoryRepository {
   ): Promise<void> {
     await manager.delete(CattleWeightHistory, { idTenant, id });
   }
+
 }

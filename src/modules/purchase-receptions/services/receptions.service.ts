@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { PurchaseReceptionRepository } from '../repositories/purchase-reception.repository';
 import { ReceptionResponseDto, CattleReceptionResponseDto, LotReceptionResponseDto, AnimalSimpleEventReceptionResponseDto } from '../dto/reception-response.dto';
+import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 import { PurchaseReception } from '../entities/purchase-reception.entity';
+import { ReceiveCattleRequestDto } from '../dto/receive-cattle-request.dto';
 import { NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { MassiveEventRepository } from 'src/modules/massive-events/repositories/massive-event.repository';
@@ -14,9 +16,13 @@ import { AnimalSimpleEventRepository } from 'src/modules/massive-events/reposito
 import { SimpleEventRepository } from 'src/modules/massive-events/repositories/simple-event.repository';
 import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
 import { PurchaseRepository } from 'src/modules/commerce/repositories/purchase.repository';
-import { Cattle } from '../../farm/entities/cattle.entity';
+import { Cattle, CattleStatus } from '../../farm/entities/cattle.entity';
 import { ProviderRepository } from '../../commerce/repositories/provider.repository';
-
+import { CattleService } from 'src/modules/farm/services/cattle.service';
+import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
+import { CattleWeightHistory, WeightContext } from '../../farm/entities/cattle-weight-history.entity';
+import { CattleWeightHistoryRepository } from '../../farm/repositories/cattle-weight-history.repository';
+import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
 
 @Injectable()
 export class ReceptionsService {
@@ -26,16 +32,14 @@ export class ReceptionsService {
     private readonly purchaseRepo: PurchaseRepository,
     private readonly massiveEventRepo: MassiveEventRepository,
     private readonly lotRepo: LotRepository,
+    private readonly cattleService: CattleService,
     private readonly cattleRepo: CattleRepository,
     private readonly animalSimpleEventRepo: AnimalSimpleEventRepository,
     private readonly simpleEventRepo: SimpleEventRepository,
-    private readonly providerRepo: ProviderRepository
+    private readonly providerRepo: ProviderRepository,
+    private readonly configurationsService: ConfigurationsService,
+    private readonly cattleWeightHistoryRepo: CattleWeightHistoryRepository,
   ) { }
-
-  async createReception(idTenant: string, idPurchase: string, manager: EntityManager) {
-    const reception = await this.prRepo.createInstance({ idTenant, idPurchase }, manager);
-    return reception;
-  }
 
   async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<ReceptionResponseDto> {
     var reception = this.ds.transaction(async (manager) => {
@@ -85,4 +89,83 @@ export class ReceptionsService {
     return reception;
   }
 
+
+  async receiveCattle_Transaction(idTenant: string, idCurrentUser: string, cattleDto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
+    return this.ds.transaction(async manager => {
+      let cattle = await this.cattleRepo.findByNumberAndTenantId(idTenant, cattleDto.number, manager);
+      if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST)) {
+        throw new NotFoundException('Cattle already exists');
+      }
+      var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
+      var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
+      await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
+      var cattleData = {
+        id: uuidv4(),
+        idTenant,
+        sysnumber: nextCattleSysnumberValue,
+        number: cattleDto.number,
+        receivedAt: new Date(),
+        receivedWeight: cattleDto.receivedWeight,
+        purchaseWeight: cattleDto.purchaseWeight,
+        purchasePrice: cattleDto.purchasePrice,
+        idLot: cattleDto.idLot ?? null,
+        idBrand: cattleDto.idBrand ?? null,
+        idColor: cattleDto.idColor ?? null,
+        eartag: cattleDto.eartag ?? null,
+        idDevice: cattleDto.idDevice ?? null,
+        castrated: cattleDto.castrated,
+        comments: cattleDto.comments ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      cattle = await this.cattleRepo.saveWithManager(manager, cattleData as unknown as Cattle);
+      var weightHistory: CattleWeightHistory = {
+        id: uuidv4(),
+        idTenant,
+        idCattle: cattle.id,
+        weight: cattleDto.receivedWeight,
+        date: new Date(),
+        context: WeightContext.PURCHASE,
+        recordedBy: idCurrentUser,
+      }
+      await this.cattleWeightHistoryRepo.createWithManager(manager, weightHistory);
+      const simpleEventIds = cattleDto.idSimpleEvents ?? [];
+      var appliedEvents: Array<{
+        type: SimpleEventType;
+        data: any;
+        appliedBy?: string;
+        appliedAt?: Date;
+        idSimpleEvent: string;
+      }> = [];
+      if (simpleEventIds.length > 0) {
+        var simpleEvents = await this.simpleEventRepo.findByIds(idTenant, simpleEventIds, manager);
+        if (simpleEvents && simpleEvents.length > 0) {
+          var events: Array<{
+            type: SimpleEventType;
+            data: any;
+            appliedBy?: string;
+            appliedAt?: Date;
+            idSimpleEvent: string;
+          }> = [];
+          var idMassiveEvent: string | undefined;
+          for (const simpleEvent of simpleEvents) {
+            idMassiveEvent = simpleEvent.idMassiveEvent;
+            if (simpleEvent.type !== SimpleEventType.WEIGHT) {
+              events.push({
+                idSimpleEvent: simpleEvent.id,
+                type: simpleEvent.type as any,
+                data: simpleEvent.data ?? {},
+                appliedBy: idCurrentUser,
+                appliedAt: new Date(),
+              });
+            }
+          }
+          if (idMassiveEvent !== undefined) {
+            appliedEvents = await this.cattleService.applyMultipleSimpleEventsByNumber_manager(idTenant, idCurrentUser, cattle.number, idMassiveEvent, events, manager);
+          }
+        }
+      }
+      return ReceiveCattleResponseDto.toResponseDto(cattle, appliedEvents);
+    });
+  }
 }
