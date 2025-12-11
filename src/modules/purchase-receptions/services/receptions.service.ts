@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { PurchaseReceptionRepository } from '../repositories/purchase-reception.repository';
-import { ReceptionResponseDto, CattleReceptionResponseDto, LotReceptionResponseDto, AnimalSimpleEventReceptionResponseDto } from '../dto/reception-response.dto';
+import { PurchaseReceptionResponseDto } from '../dto/reception-response.dto';
 import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 import { PurchaseReception } from '../entities/purchase-reception.entity';
 import { ReceiveCattleRequestDto } from '../dto/receive-cattle-request.dto';
@@ -24,6 +24,11 @@ import { CattleWeightHistory, WeightContext } from '../../farm/entities/cattle-w
 import { CattleWeightHistoryRepository } from '../../farm/repositories/cattle-weight-history.repository';
 import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
 import { CattleCharacteristicRepository } from '../../farm/repositories/cattle-characteristic.repository';
+import { CattleCharacteristic } from 'src/modules/farm/entities/cattle-characteristic.entity';
+import { Characteristic } from 'src/modules/farm/entities/characteristic.entity';
+import { Color } from 'src/modules/farm/entities/color.entity';
+import { ColorRepository } from 'src/modules/farm/repositories/color.repository';
+import { CharacteristicRepository } from 'src/modules/farm/repositories/characteristic.repository';
 
 @Injectable()
 export class ReceptionsService {
@@ -41,9 +46,11 @@ export class ReceptionsService {
     private readonly configurationsService: ConfigurationsService,
     private readonly cattleWeightHistoryRepo: CattleWeightHistoryRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
+    private readonly colorRepo: ColorRepository,
+    private readonly characteristicRepo: CharacteristicRepository,
   ) { }
 
-  async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<ReceptionResponseDto> {
+  async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<PurchaseReceptionResponseDto> {
     var reception = this.ds.transaction(async (manager) => {
       console.log('idTenant', idTenant);
       console.log('idPurchase', idPurchase);
@@ -93,9 +100,17 @@ export class ReceptionsService {
         appliedEvents[c.id] = animalSimpleEvents;
       }
 
-      return ReceptionResponseDto.toResponseDto(reception, purchase!, provider!.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
+      return PurchaseReceptionResponseDto.toResponseDto(reception, purchase!, provider!.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
     });
     return reception;
+  }
+
+  async getColors(idTenant: string): Promise<Color[]> {
+    return this.colorRepo.listActive(idTenant);
+  }
+
+  async getCharacteristics(idTenant: string): Promise<Characteristic[]> {
+    return this.characteristicRepo.listActive(idTenant);
   }
 
 

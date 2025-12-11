@@ -8,6 +8,8 @@ import { PurchaseReception } from '../entities/purchase-reception.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
 import { MassiveEvent } from '../../massive-events/entities/massive-events.entity'
 import { SimpleEventResponseDto } from 'src/modules/massive-events/dto/simple-event-response.dto';
+import { Color } from '../../farm/entities/color.entity';
+import { Characteristic } from '../../farm/entities/characteristic.entity';
 
 export class AnimalSimpleEventReceptionResponseDto {
 
@@ -79,7 +81,7 @@ export class LotReceptionResponseDto {
   lotNumber: string;
 
   @ApiProperty({ example: 12, description: 'Number of cattle in the lot' })
-  cattleCount: number;
+  purchaseCattleCount: number;
 
   @ApiProperty({ example: 840.5, description: 'Total weight (kg) of cattle in the lot' })
   totalWeight: number;
@@ -101,7 +103,7 @@ export class LotReceptionResponseDto {
     return {
       id: entity.id,
       lotNumber: entity.lotNumber,
-      cattleCount: entity.cattleCount,
+      purchaseCattleCount: entity.cattleCount,
       totalWeight: entity.totalWeight,
       receivedCattleCount: entity.receivedCattleCount,
       receivedTotalWeight: entity.receivedTotalWeight,
@@ -130,7 +132,7 @@ export class ReceptionMassiveEventResponseDto {
   }
 }
 
-export class ReceptionResponseDto {
+export class PurchaseReceptionResponseDto {
   @ApiProperty({ format: 'uuid', description: 'ID de la recepción' })
   @IsUUID()
   id: string;
@@ -174,7 +176,11 @@ export class ReceptionResponseDto {
   massiveEvent: ReceptionMassiveEventResponseDto;
 
 
-  static toResponseDto(entity: PurchaseReception, purchase: Purchase, providerName: string, lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[], appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent): ReceptionResponseDto {
+  static toResponseDto(entity: PurchaseReception, purchase: Purchase, providerName: string,
+    lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
+    appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
+  ): PurchaseReceptionResponseDto {
+
     var responseLots: LotReceptionResponseDto[] = [];
     for (const l of lots) {
       responseLots.push(LotReceptionResponseDto.toResponseDto(l, lotCattle[l.id], appliedEvents));
@@ -183,8 +189,7 @@ export class ReceptionResponseDto {
     for (const c of cattle) {
       responseCattle.push(CattleReceptionResponseDto.toResponseDto(c, appliedEvents[c.id]));
     }
-    console.log("-----------------------------------------------------------appliedEvents")
-    console.log(appliedEvents)
+
     return {
       id: entity.id,
       purchaseId: entity.idPurchase,
@@ -194,8 +199,102 @@ export class ReceptionResponseDto {
       lots: responseLots,
       cattle: responseCattle,
       massiveEvent: ReceptionMassiveEventResponseDto.toResponseDto(massiveEvent),
+    };
+  }
+}
+
+export class ColorResponseDto {
+  @ApiProperty({ format: 'uuid', description: 'ID de la color' })
+  @IsUUID()
+  id: string;
+
+  @ApiProperty({ example: 'Black', description: 'Nombre de la color' })
+  @IsString()
+  name: string;
+
+  static toResponseDto(entity: Color): ColorResponseDto {
+    return {
+      id: entity.id,
+      name: entity.name,
+    };
+  }
+}
+
+export class CharacteristicResponseDto {
+  @ApiProperty({ format: 'uuid', description: 'ID de la característica' })
+  @IsUUID()
+  id: string;
+
+  @ApiProperty({ example: 'White Belly', description: 'Nombre de la característica' })
+  @IsString()
+  name: string;
+
+  static toResponseDto(entity: Characteristic): CharacteristicResponseDto {
+    return {
+      id: entity.id,
+      name: entity.name,
+    };
+  }
+}
+
+
+export class ReceptionResponseDto {
+
+  @ApiProperty({ type: PurchaseReceptionResponseDto, description: 'Purchase reception' })
+  reception: PurchaseReceptionResponseDto;
+
+  @ApiProperty({ type: [ColorResponseDto], description: 'List of colors' })
+  colors: ColorResponseDto[];
+
+  @ApiProperty({ type: [CharacteristicResponseDto], description: 'List of characteristics' })
+  characteristics: CharacteristicResponseDto[];
+
+
+  static toResponseDto(receptionInfo: PurchaseReceptionResponseDto, colors: Color[], characteristics: Characteristic[]
+  ): ReceptionResponseDto {
+
+    var colorsResponse: ColorResponseDto[] = [];
+    for (const c of colors) {
+      colorsResponse.push(ColorResponseDto.toResponseDto(c));
+    }
+    var characteristicsResponse: CharacteristicResponseDto[] = [];
+    for (const c of characteristics) {
+      characteristicsResponse.push(CharacteristicResponseDto.toResponseDto(c));
+    }
+    console.log('colorsResponse', colorsResponse);
+    console.log('characteristicsResponse', characteristicsResponse);
+    return {
+      reception: receptionInfo,
+      colors: colorsResponse,
+      characteristics: characteristicsResponse,
 
     };
   }
+
+  static toResponseDto_optional(entity: PurchaseReception, purchase: Purchase, providerName: string,
+    lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
+    appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
+    colors: Color[], characteristics: Characteristic[]
+  ): ReceptionResponseDto {
+
+    var colorsResponse: ColorResponseDto[] = [];
+    for (const c of colors) {
+      colorsResponse.push(ColorResponseDto.toResponseDto(c));
+    }
+    var characteristicsResponse: CharacteristicResponseDto[] = [];
+    for (const c of characteristics) {
+      characteristicsResponse.push(CharacteristicResponseDto.toResponseDto(c));
+    }
+
+    var receptionInfo = PurchaseReceptionResponseDto.toResponseDto(entity, purchase, providerName, lots, lotCattle, cattle, appliedEvents, massiveEvent);
+    return {
+      reception: receptionInfo,
+      colors: colorsResponse,
+      characteristics: characteristicsResponse,
+
+    };
+  }
+
+
 
 }

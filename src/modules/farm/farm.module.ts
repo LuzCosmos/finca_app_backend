@@ -81,7 +81,9 @@ import { ColorCharacteristicsController } from './controllers/color-characterist
     CattleRepository,
     CattleDeviceHistoryRepository,
     CattleWeightHistoryRepository,
-    CattleCharacteristicRepository
+    CattleCharacteristicRepository,
+    ColorRepository,
+    CharacteristicRepository
   ],
 })
 export class FarmModule { } 

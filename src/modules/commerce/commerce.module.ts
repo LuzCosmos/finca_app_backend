@@ -41,7 +41,7 @@ import { SalesService } from './services/sales.service';
     FarmModule,
     ProductionCenterModule,
   ],
-  controllers: [ProviderController, PurchaseController, LotController, SalesController],
+  controllers: [LotController, ProviderController, PurchaseController, SalesController],
   providers: [
     ProviderService,
     ProviderRepository,

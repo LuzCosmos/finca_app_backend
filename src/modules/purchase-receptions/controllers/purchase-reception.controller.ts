@@ -29,10 +29,13 @@ export class ReceptionController {
   @RequireAction('create')
   async findOrCreateReception(@SessionUser() sessionUser: SessionUserDto, @Param('idPurchase') idPurchase: string) {
     console.log('idPurchase - controller', idPurchase);
-    const receptionResponseDto = await this.receptionsService.findOrCreateReceptionByIdPurchase(
+    const receptionInfo = await this.receptionsService.findOrCreateReceptionByIdPurchase(
       sessionUser.tenant_id,
       idPurchase,
       sessionUser.sub);
+    const colors = await this.receptionsService.getColors(sessionUser.tenant_id);
+    const characteristics = await this.receptionsService.getCharacteristics(sessionUser.tenant_id);
+    const receptionResponseDto = ReceptionResponseDto.toResponseDto(receptionInfo, colors, characteristics);
     return receptionResponseDto;
   }
 
@@ -48,10 +51,10 @@ export class ReceptionController {
       'ReceiveCattleRequestDto': {
         value: {
           number: 'C-001',
-          receivedWeight: 350.5,
+          receivedWeight: 250.5,
           idPurchase: 'uuid-purchase-123',
-          purchaseWeight: 345.0,
-          purchasePrice: 1500000,
+          purchaseWeight: 254.0,
+          purchasePrice: 1900000,
           idLot: 'uuid-lot-456', // Optional
           idBrand: 'uuid-brand-789', // Optional
           idColor: 'uuid-color-101', // Optional
@@ -72,11 +75,4 @@ export class ReceptionController {
       sessionUser.sub,
       dto);
   }
-
-
-
-
-
-
-
 } 
