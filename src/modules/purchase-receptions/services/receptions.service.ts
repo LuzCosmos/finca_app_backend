@@ -4,7 +4,7 @@ import { PurchaseReceptionRepository } from '../repositories/purchase-reception.
 import { PurchaseReceptionResponseDto } from '../dto/reception-response.dto';
 import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 import { PurchaseReception } from '../entities/purchase-reception.entity';
-import { ReceiveCattleRequestDto } from '../dto/receive-cattle-request.dto';
+import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
 import { NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { MassiveEventRepository } from 'src/modules/massive-events/repositories/massive-event.repository';
@@ -29,6 +29,7 @@ import { Characteristic } from 'src/modules/farm/entities/characteristic.entity'
 import { Color } from 'src/modules/farm/entities/color.entity';
 import { ColorRepository } from 'src/modules/farm/repositories/color.repository';
 import { CharacteristicRepository } from 'src/modules/farm/repositories/characteristic.repository';
+import { LotService } from 'src/modules/commerce/services/lot.service';
 
 @Injectable()
 export class ReceptionsService {
@@ -48,6 +49,7 @@ export class ReceptionsService {
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
     private readonly colorRepo: ColorRepository,
     private readonly characteristicRepo: CharacteristicRepository,
+    private readonly lotService: LotService,
   ) { }
 
   async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<PurchaseReceptionResponseDto> {
@@ -146,6 +148,19 @@ export class ReceptionsService {
         idProvider: cattleDto.idProvider ?? null,
         idPurchase: cattleDto.idPurchase,
       }
+
+      if (cattleDto.idLot) {
+        let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
+        if (!lot) {
+          throw new NotFoundException('Lot not found ' + cattleDto.idLot);
+        }
+        if (!cattleData.purchaseWeight) {
+          cattleData.purchaseWeight = lot.averageWeight;
+        }
+        if (!cattleData.purchasePrice) {
+          cattleData.purchasePrice = lot.averageWeight * lot.pricePerKg;
+        }
+      }
       cattle = await this.cattleRepo.saveWithManager(manager, cattleData as unknown as Cattle);
       var weightHistory: CattleWeightHistory = {
         id: uuidv4(),
@@ -161,7 +176,10 @@ export class ReceptionsService {
       if (characteristicsIds.length > 0) {
         await this.cattleCharacteristicRepository.attachMany(cattle.id, idTenant, characteristicsIds, manager);
       }
-      const simpleEventIds = cattleDto.idSimpleEvents ?? [];
+      if (cattleDto.idLot) {
+        await this.lotService.UpdateLotDataAfterReception(idTenant, cattleDto.idLot, manager);
+      }
+      var simpleEventIds = cattleDto.idSimpleEvents ?? [];
       var appliedEvents: Array<{
         type: SimpleEventType;
         data: any;
@@ -196,6 +214,31 @@ export class ReceptionsService {
         }
       }
       return ReceiveCattleResponseDto.toResponseDto(cattle, appliedEvents);
+    });
+  }
+
+  /** 
+   * Update the lot of a cattle
+   * @param idTenant 
+   * @param dto 
+   * @returns Cattle
+   */
+  async assignLotCattle(idTenant: string, dto: UpdateLotCattleRequestDto): Promise<Cattle> {
+    return this.ds.transaction(async manager => {
+      let cattle = await this.cattleRepo.findById(idTenant, dto.idCattle, manager);
+      if (!cattle) {
+        throw new NotFoundException('Cattle not found');
+      }
+      let lot = await this.lotRepo.findById(idTenant, dto.idLot, manager);
+      if (!lot) {
+        throw new NotFoundException('Lot not found');
+      }
+      cattle.idLot = dto.idLot;
+      cattle.purchaseWeight = lot.averageWeight ?? 0;
+      cattle.purchasePrice = (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
+      cattle = await this.cattleRepo.saveWithManager(manager, cattle);
+      await this.lotService.UpdateLotDataAfterReception(idTenant, dto.idLot, manager);
+      return cattle;
     });
   }
 }

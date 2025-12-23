@@ -54,6 +54,10 @@ export class CattleRepository {
     await repo.update({ idTenant, idDevice }, { idDevice: null });
   }
 
+  async findById(idTenant: string, id: string, manager?: EntityManager): Promise<Cattle | null> {
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    return repo.findOne({ where: { idTenant, id } });
+  }
   async findByIds(idTenant: string, ids: string[]): Promise<Cattle[]> {
     return this.repository.find({ where: { idTenant, id: In(ids) } });
   }

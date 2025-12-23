@@ -1,6 +1,8 @@
-import { IsArray, IsOptional, IsString, IsUUID, IsNumber, Min, IsDate, IsBoolean } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUUID, IsNumber, Min, IsDate, IsBoolean, isUUID } from 'class-validator';
 
 export class ReceiveCattleRequestDto {
+  @IsUUID()
+  idPurchase: string;
 
   @IsString()
   number: string;
@@ -8,14 +10,21 @@ export class ReceiveCattleRequestDto {
   @IsNumber()
   receivedWeight: number;
 
-  @IsUUID()
-  idPurchase: string;
-
+  @IsOptional()
   @IsNumber()
-  purchaseWeight: number;
+  purchaseWeight?: number;
 
+  @IsOptional()
   @IsNumber()
-  purchasePrice: number;
+  purchasePrice?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  hasHorn: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  castrated: boolean;
 
   @IsOptional()
   @IsUUID()
@@ -43,10 +52,6 @@ export class ReceiveCattleRequestDto {
   idDevice?: string;
 
   @IsOptional()
-  @IsBoolean()
-  castrated: boolean;
-
-  @IsOptional()
   @IsString()
   comments?: string;
 
@@ -59,3 +64,13 @@ export class ReceiveCattleRequestDto {
   @IsUUID('4', { each: true })
   idSimpleEvents?: string[];
 }
+
+export class UpdateLotCattleRequestDto {
+  @IsUUID()
+  idLot: string;
+
+  @IsUUID()
+  idCattle: string;
+
+}
+

@@ -83,6 +83,9 @@ export class LotReceptionResponseDto {
   @ApiProperty({ example: 12, description: 'Number of cattle in the lot' })
   purchaseCattleCount: number;
 
+  @ApiProperty({ example: 8500, description: 'Price per kg of cattle in the lot' })
+  pricePerKg: number;
+
   @ApiProperty({ example: 840.5, description: 'Total weight (kg) of cattle in the lot' })
   totalWeight: number;
 
@@ -105,6 +108,7 @@ export class LotReceptionResponseDto {
       lotNumber: entity.lotNumber,
       purchaseCattleCount: entity.cattleCount,
       totalWeight: entity.totalWeight,
+      pricePerKg: entity.pricePerKg,
       receivedCattleCount: entity.receivedCattleCount,
       receivedTotalWeight: entity.receivedTotalWeight,
       cattle: cattles,
@@ -163,8 +167,12 @@ export class PurchaseReceptionResponseDto {
     description: 'Fecha/hora efectiva de la recepción.',
     type: String, format: 'date-time'
   })
-  @IsOptional() @IsDateString()
-  receivedAt?: string;
+  @ApiProperty({
+    description: 'Fecha/hora efectiva de la recepción.',
+    type: String, format: 'date-time'
+  })
+  @IsDateString()
+  receivedAt: string;
 
   @ApiProperty({ type: [LotReceptionResponseDto], description: 'List of lots involved in this reception' })
   lots: LotReceptionResponseDto[];
@@ -195,6 +203,7 @@ export class PurchaseReceptionResponseDto {
       purchaseId: entity.idPurchase,
       providerId: purchase.idProvider,
       purchaseDate: new Date(purchase.purchaseDate).toISOString(),
+      receivedAt: new Date(entity.receivedAt).toISOString(),
       purchaseProviderName: providerName,
       lots: responseLots,
       cattle: responseCattle,
