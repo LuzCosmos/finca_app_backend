@@ -49,62 +49,77 @@ export class PurchaseRepository {
 
   async listPaged(tenantId: string, q: PurchaseListQueryDto, page: number, limit: number) {
     const { from, to, provider, status = 'all' } = q;
-
-    // Query base con agregados
     const qb = this.repository.createQueryBuilder('p')
       .leftJoin('providers', 'prov', 'prov.id = p.id_provider')
-      .leftJoin('lots', 'lot', 'lot.id_purchase = p.id')
-      .leftJoin('cattle', 'c', 'c.id_purchase = p.id')
+      // lot_agg
+      .leftJoin(
+        qb1 => qb1
+          .subQuery()
+          .select('lot.id_purchase', 'id_purchase')
+          .addSelect('SUM(lot.cattle_count)', 'total_cattle')
+          .addSelect('SUM(lot.total_weight)', 'total_weight')
+          .addSelect('SUM(lot.received_cattle_count)', 'received_cattle_lot')
+          .from('lots', 'lot')
+          .groupBy('lot.id_purchase'),
+        'lot_agg',
+        'lot_agg.id_purchase = p.id',
+      )
+      // c_agg
+      .leftJoin(
+        qb2 => qb2
+          .subQuery()
+          .select('c.id_purchase', 'id_purchase')
+          .addSelect('COUNT(*)', 'received_cattle_no_lot')
+          .from('cattle', 'c')
+          .where('c.id_lot IS NULL')
+          .groupBy('c.id_purchase'),
+        'c_agg',
+        'c_agg.id_purchase = p.id',
+      )
       .where('p.id_tenant = :tenantId', { tenantId });
 
     if (from) qb.andWhere('p.purchase_date >= :from', { from });
     if (to) qb.andWhere('p.purchase_date <= :to', { to });
-    if (provider) qb.andWhere('(prov.name ILIKE :prov)', { prov: `%${provider}%` });
+    if (provider) qb.andWhere('prov.name ILIKE :prov', { prov: `%${provider}%` });
 
     qb.select([
       'p.id AS id',
       'p.purchase_date AS "purchaseDate"',
       'prov.name AS "providerName"',
-      // SUM(lot.cattle_count) / SUM(lot.total_weight) pueden ser NULL => COALESCE
-      'COALESCE(SUM(lot.cattle_count), 0) AS "totalCattle"',
-      'COALESCE(SUM(lot.total_weight), 0) AS "totalWeight"',
-      'COALESCE(COUNT(c.id), 0) AS "receivedCattle"',
-      'COALESCE(SUM(c.received_weight), 0) AS "receivedWeight"',
-    ])
-      .groupBy('p.id, prov.name, p.purchase_date');
+      'COALESCE(lot_agg.total_cattle, 0) AS "totalCattle"',
+      'COALESCE(lot_agg.total_weight, 0) AS "totalWeight"',
+      'COALESCE(lot_agg.received_cattle_lot, 0) AS "receivedCattleLot"',
+      'COALESCE(c_agg.received_cattle_no_lot, 0) AS "receivedCattleNoLot"',
+      '(COALESCE(lot_agg.received_cattle_lot, 0) + COALESCE(c_agg.received_cattle_no_lot, 0)) AS "receivedCattle"',
+    ]);
 
-    // Filtro por status usando HAVING sobre agregados
+    // status ahora es WHERE normal (no HAVING)
     if (status === 'open') {
-      qb.having('COALESCE(COUNT(c.id), 0) < COALESCE(SUM(lot.cattle_count), 0)');
+      qb.andWhere(
+        '(COALESCE(lot_agg.received_cattle_lot, 0) + COALESCE(c_agg.received_cattle_no_lot, 0)) < COALESCE(lot_agg.total_cattle, 0)',
+      );
     } else if (status === 'received') {
-      qb.having('COALESCE(COUNT(c.id), 0) >= COALESCE(SUM(lot.cattle_count), 0)');
+      qb.andWhere(
+        '(COALESCE(lot_agg.received_cattle_lot, 0) + COALESCE(c_agg.received_cattle_no_lot, 0)) >= COALESCE(lot_agg.total_cattle, 0)',
+      );
     }
 
-    // Contar total de grupos (compras) con mismos filtros (sin paginar)
-    const totalQb = this.repository.createQueryBuilder('p')
-      .leftJoin('providers', 'prov', 'prov.id = p.id_provider')
-      .leftJoin('lots', 'lot', 'lot.id_purchase = p.id')
-      .leftJoin('cattle', 'c', 'c.id_purchase = p.id')
-      .where('p.id_tenant = :tenantId', { tenantId });
-    if (from) totalQb.andWhere('p.purchase_date >= :from', { from });
-    if (to) totalQb.andWhere('p.purchase_date <= :to', { to });
-    if (provider) totalQb.andWhere('(prov.name ILIKE :prov)', { prov: `%${provider}%` });
-    totalQb.select('p.id').groupBy('p.id');
+    // Total (rápido, sin traer todo)
+    const totalRaw = await qb.clone()
+      .select('COUNT(DISTINCT p.id)', 'cnt')
+      .offset(undefined)
+      .limit(undefined)
+      .orderBy()
+      .getRawOne<{ cnt: string }>();
 
-    if (status === 'open') {
-      totalQb.having('COALESCE(COUNT(c.id), 0) < COALESCE(SUM(lot.cattle_count), 0)');
-    } else if (status === 'received') {
-      totalQb.having('COALESCE(COUNT(c.id), 0) >= COALESCE(SUM(lot.cattle_count), 0)');
-    }
+    const total = Number(totalRaw?.cnt ?? 0);
 
-    const total = (await totalQb.getRawMany()).length;
-
-    // Orden + paginación
+    // Paginación
     qb.orderBy('p.purchase_date', 'DESC')
       .offset((page - 1) * limit)
       .limit(limit);
 
-    const rows = (await qb.getRawMany()) as RawRow[];
+    const rows = await qb.getRawMany();
 
     return { total, rows };
   }

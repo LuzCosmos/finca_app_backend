@@ -30,6 +30,7 @@ import { Color } from 'src/modules/farm/entities/color.entity';
 import { ColorRepository } from 'src/modules/farm/repositories/color.repository';
 import { CharacteristicRepository } from 'src/modules/farm/repositories/characteristic.repository';
 import { LotService } from 'src/modules/commerce/services/lot.service';
+import { Lot } from 'src/modules/commerce/entities/lot.entity';
 
 @Injectable()
 export class ReceptionsService {
@@ -114,7 +115,6 @@ export class ReceptionsService {
   async getCharacteristics(idTenant: string): Promise<Characteristic[]> {
     return this.characteristicRepo.listActive(idTenant);
   }
-
 
   async receiveCattle_Transaction(idTenant: string, idCurrentUser: string, cattleDto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
     return this.ds.transaction(async manager => {
@@ -229,6 +229,10 @@ export class ReceptionsService {
       if (!cattle) {
         throw new NotFoundException('Cattle not found');
       }
+      var oldLot: Lot | null = null;
+      if (cattle.idLot) {
+        oldLot = await this.lotRepo.findById(idTenant, cattle.idLot, manager);
+      }
       let lot = await this.lotRepo.findById(idTenant, dto.idLot, manager);
       if (!lot) {
         throw new NotFoundException('Lot not found');
@@ -238,6 +242,9 @@ export class ReceptionsService {
       cattle.purchasePrice = (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
       cattle = await this.cattleRepo.saveWithManager(manager, cattle);
       await this.lotService.UpdateLotDataAfterReception(idTenant, dto.idLot, manager);
+      if (oldLot) {
+        await this.lotService.UpdateLotDataAfterReception(idTenant, oldLot.id, manager);
+      }
       return cattle;
     });
   }
