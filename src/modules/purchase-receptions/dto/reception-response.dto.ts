@@ -81,7 +81,7 @@ export class LotReceptionResponseDto {
   lotNumber: string;
 
   @ApiProperty({ example: 12, description: 'Number of cattle in the lot' })
-  purchaseCattleCount: number;
+  purchasedCattleCount: number;
 
   @ApiProperty({ example: 8500, description: 'Price per kg of cattle in the lot' })
   pricePerKg: number;
@@ -106,7 +106,7 @@ export class LotReceptionResponseDto {
     return {
       id: entity.id,
       lotNumber: entity.lotNumber,
-      purchaseCattleCount: entity.cattleCount,
+      purchasedCattleCount: entity.purchasedCattleCount,
       totalWeight: entity.totalWeight,
       pricePerKg: entity.pricePerKg,
       receivedCattleCount: entity.receivedCattleCount,

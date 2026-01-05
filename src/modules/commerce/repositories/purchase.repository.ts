@@ -56,7 +56,7 @@ export class PurchaseRepository {
         qb1 => qb1
           .subQuery()
           .select('lot.id_purchase', 'id_purchase')
-          .addSelect('SUM(lot.cattle_count)', 'total_cattle')
+          .addSelect('SUM(lot.purchased_cattle_count)', 'total_cattle')
           .addSelect('SUM(lot.total_weight)', 'total_weight')
           .addSelect('SUM(lot.received_cattle_count)', 'received_cattle_lot')
           .from('lots', 'lot')
