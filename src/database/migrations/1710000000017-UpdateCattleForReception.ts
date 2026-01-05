@@ -22,7 +22,7 @@ export class UpdateCattleForReception1710000000017 implements MigrationInterface
     await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_simple_event_tenant ON public.simple_events (id_tenant)`);
     await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_simple_event_tenant_massiveEvent ON public.simple_events (id_tenant, id_massive_event)`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_purchase_receptions_mass_event;`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_animal_simp_even_tentant_cattle ON public.animal_simple_events (id_tenant, id_cattle)`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_animal_simp_even_tentant_cattle ON public.animal_simple_event (id_tenant, id_cattle)`);
 
 
   }
