@@ -25,7 +25,7 @@ export class CattleRepository {
   constructor(
     @InjectRepository(Cattle)
     private readonly repository: Repository<Cattle>,
-  ) {}
+  ) { }
 
   async create(cattleDto: CreateCattleDto, manager?: EntityManager): Promise<Cattle> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
@@ -51,9 +51,13 @@ export class CattleRepository {
 
   async unsetDevice(idTenant: string, idDevice: string, manager?: EntityManager): Promise<void> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
-    await repo.update({idTenant,idDevice}, {idDevice: null});
-  } 
+    await repo.update({ idTenant, idDevice }, { idDevice: null });
+  }
 
+  async findById(idTenant: string, id: string, manager?: EntityManager): Promise<Cattle | null> {
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    return repo.findOne({ where: { idTenant, id } });
+  }
   async findByIds(idTenant: string, ids: string[]): Promise<Cattle[]> {
     return this.repository.find({ where: { idTenant, id: In(ids) } });
   }
@@ -82,12 +86,14 @@ export class CattleRepository {
     await this.repository.delete({ idTenant, id });
   }
 
-  async findBySysNumberAndTenantId(idTenant: string, sysNumber: string): Promise<Cattle | null> {
-    return this.repository.findOne({ where: { idTenant, sysNumber } });
+  async findBySysNumberAndTenantId(idTenant: string, sysNumber: string, manager?: EntityManager): Promise<Cattle | null> {
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    return repo.findOne({ where: { idTenant, sysNumber } });
   }
 
   async findByNumberAndTenantId(idTenant: string, number: string, manager?: EntityManager): Promise<Cattle | null> {
-    return this.repository.findOne({ where: { idTenant, number } });
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    return repo.findOne({ where: { idTenant, number } });
   }
 
   async findOneForUpdateByNumber(idTenant: string, number: string, manager: EntityManager): Promise<Cattle | null> {
@@ -116,7 +122,7 @@ export class CattleRepository {
 
   getBasicInfo(idTenant: string): Promise<Cattle[]> {
     return this.repository.find({
-      where: { idTenant},
+      where: { idTenant },
       select: {
         id: true,
         number: true,
@@ -284,7 +290,7 @@ export class CattleRepository {
     // recalcular métricas del lote (cant/avg) en SQL si quieres aquí
   }
 
-  async changeStatus(cattleId: string, status: 'active'|'sold'|'dead'|'lost', manager?: EntityManager): Promise<void> {
+  async changeStatus(cattleId: string, status: 'active' | 'sold' | 'dead' | 'lost', manager?: EntityManager): Promise<void> {
     const m = manager ?? this.repository.manager;
     await m.update(Cattle, { id: cattleId }, { status: status as any } as any);
   }

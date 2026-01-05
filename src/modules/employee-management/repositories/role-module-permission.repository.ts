@@ -1,4 +1,4 @@
-import { DataSource,DeleteResult,Repository} from 'typeorm';
+import { DataSource, DeleteResult, EntityManager, Repository } from 'typeorm';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { RoleModulePermission } from '../entities/role-module-permission.entity';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
@@ -16,13 +16,14 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
    * @param tenantId - The ID of the tenant
    * @returns The role module permissions found
    */
-  async findByRolesAndTenant(roleIds: string[], tenantId: string): Promise<RoleModulePermission[]> {
+  async findByRolesAndTenant(roleIds: string[], tenantId: string, manager?: EntityManager): Promise<RoleModulePermission[]> {
+    const repository = manager?.getRepository(RoleModulePermission) || this;
     try {
-      const query = this.createQueryBuilder('roleModulePermission')
-        .select([    
-          'roleModulePermission.id_role', 
+      const query = repository.createQueryBuilder('roleModulePermission')
+        .select([
+          'roleModulePermission.id_role',
           'roleModulePermission.id_module',
-          'roleModulePermission.can_create',  
+          'roleModulePermission.can_create',
           'roleModulePermission.can_read',
           'roleModulePermission.can_update',
           'roleModulePermission.can_delete',
@@ -49,15 +50,16 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
    * @param moduleId - The ID of the module
    * @param tenantId - The ID of the tenant
    * @returns The role module permission found
-   */ 
-  async findByRoleAndModuleAndTenant(roleId: string, moduleId:string, tenantId: string): Promise<RoleModulePermission | null> {
+   */
+  async findByRoleAndModuleAndTenant(roleId: string, moduleId: string, tenantId: string, manager?: EntityManager): Promise<RoleModulePermission | null> {
+    const repository = manager?.getRepository(RoleModulePermission) || this;
     try {
       /*const query = this.createQueryBuilder('roleModulePermission')
         .where('roleModulePermission.tenant_id = :tenantId', { tenantId })
         .andWhere('roleModulePermission.id_role = :roleId', { roleId })
         .andWhere('roleModulePermission.id_module = :tenantId', { tenantId });
       const permissions = await query.getOne();*/
-      const permission = await this.findOne({
+      const permission = await repository.findOne({
         where: {
           tenant_id: tenantId,
           id_role: roleId,
@@ -66,7 +68,7 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
       });
       return permission;
     } catch (error) {
-      throw new InternalServerErrorException('Error in data base',{ cause: error.message });
+      throw new InternalServerErrorException('Error in data base', { cause: error.message });
     }
   }
 
@@ -76,9 +78,10 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
    * @param createPermissionDto - The DTO of the permission to create
    * @returns The role module permission created
    */
-  async createRoleModulePermission (tenantId:string, createPermissionDto:CreatePermissionDto): Promise<RoleModulePermission>{
+  async createRoleModulePermission(tenantId: string, createPermissionDto: CreatePermissionDto, manager?: EntityManager): Promise<RoleModulePermission> {
+    const repository = manager?.getRepository(RoleModulePermission) || this;
     try {
-      const permission = this.create({
+      const permission = repository.create({
         tenant_id: tenantId,
         id_role: createPermissionDto.roleId,
         id_module: createPermissionDto.moduleId,
@@ -88,9 +91,9 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
         can_delete: createPermissionDto.can_delete,
         can_list: createPermissionDto.can_list
       });
-      return this.save(permission);
+      return repository.save(permission);
     } catch (error) {
-      throw new InternalServerErrorException('Error in data base',{ cause: error.message });
+      throw new InternalServerErrorException('Error in data base', { cause: error.message });
     }
   }
 
@@ -99,10 +102,11 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
    * @param permission - The role module permission to update
    * @param updatePermissionDto - The DTO of the permission to update
    * @returns The role module permission updated
-   */ 
-  async updateRoleModulePermission (permission: RoleModulePermission, updatePermissionDto: UpdatePermissionDto): Promise<RoleModulePermission>{
+   */
+  async updateRoleModulePermission(permission: RoleModulePermission, updatePermissionDto: UpdatePermissionDto, manager?: EntityManager): Promise<RoleModulePermission> {
+    const repository = manager?.getRepository(RoleModulePermission) || this;
     this.merge(permission, updatePermissionDto);
-    return this.save(permission);
+    return repository.save(permission);
   }
 
   /**
@@ -112,8 +116,9 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
    * @param tenantId - The ID of the tenant
    * @returns The result of the deletion
    */
-  async deleteRoleModulePermission(roleId: string, moduleId:string, tenantId: string):Promise<DeleteResult> {
-    const result = await this.delete({
+  async deleteRoleModulePermission(roleId: string, moduleId: string, tenantId: string, manager?: EntityManager): Promise<DeleteResult> {
+    const repository = manager?.getRepository(RoleModulePermission) || this;
+    const result = await repository.delete({
       id_role: roleId,
       tenant_id: tenantId,
       id_module: moduleId
@@ -127,8 +132,9 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
    * @param tenantId - The ID of the tenant
    * @returns The role module permissions found
    */
-  async findByRoleAndTenant(roleId: string, tenantId: string): Promise<RoleModulePermission[]> {
-    return this.find({
+  async findByRoleAndTenant(roleId: string, tenantId: string, manager?: EntityManager): Promise<RoleModulePermission[]> {
+    const repository = manager?.getRepository(RoleModulePermission) || this;
+    return repository.find({
       where: {
         id_role: roleId,
         tenant_id: tenantId

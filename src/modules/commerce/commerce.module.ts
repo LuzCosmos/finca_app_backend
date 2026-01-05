@@ -41,7 +41,7 @@ import { SalesService } from './services/sales.service';
     FarmModule,
     ProductionCenterModule,
   ],
-  controllers: [ProviderController, PurchaseController, LotController, SalesController],
+  controllers: [LotController, ProviderController, PurchaseController, SalesController],
   providers: [
     ProviderService,
     ProviderRepository,
@@ -51,6 +51,6 @@ import { SalesService } from './services/sales.service';
     LotService,
     SalesService,
   ],
-  exports: [ProviderRepository, PurchaseRepository, LotRepository],
+  exports: [ProviderRepository, PurchaseRepository, LotRepository, LotService],
 })
 export class CommerceModule { }

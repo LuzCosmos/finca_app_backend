@@ -12,12 +12,12 @@ export class CreateSalesModuleEntities1710000000013 implements MigrationInterfac
         await queryRunner.query(`CREATE TABLE "sale_details" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "sale_id" uuid NOT NULL, "cattle_id" uuid NOT NULL, "measured_weight" numeric(6,2) NOT NULL, "is_approved" boolean NOT NULL, "rejection_reason" text, "tracker_removed" boolean NOT NULL DEFAULT false, "calculated_price" numeric(10,2) NOT NULL, "id_tenant" uuid NOT NULL, "created_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_a8e8b6d243f38e3587378d401f5" PRIMARY KEY ("id"))`);
 
         // 3. Update Cattle (Status)
-        await queryRunner.query(`CREATE TYPE "public"."cattle_status_enum" AS ENUM('ACTIVE', 'SOLD', 'DEAD', 'LOST', 'PROVIDER')`)
+        await queryRunner.query(`CREATE TYPE "public"."cattle_status_enum" AS ENUM('ACTIVE', 'SOLD', 'DEAD', 'LOST')`)
             ;
         await queryRunner.query(`ALTER TABLE "cattle" ADD "status" "public"."cattle_status_enum" NOT NULL DEFAULT 'ACTIVE'`);
 
         // 4. Update Providers - Remove old contact fields and add FK to contacts
-        await queryRunner.query(`CREATE TYPE "public"."providers_type_enum" AS ENUM('BUYER', 'TRANSPORTER', 'VET', 'OTHER')`);
+        await queryRunner.query(`CREATE TYPE "public"."providers_type_enum" AS ENUM('BUYER', 'TRANSPORTER', 'VET', 'PROVIDER', 'OTHER')`);
         await queryRunner.query(`ALTER TABLE "providers" ADD "type" "public"."providers_type_enum" NOT NULL DEFAULT 'OTHER'`);
         await queryRunner.query(`ALTER TABLE "providers" ADD "address" character varying(255)`);
 

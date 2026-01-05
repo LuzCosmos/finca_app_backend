@@ -43,7 +43,7 @@ export class CreatePurchaseTablesAndUpdateCattle1710000000011 implements Migrati
         "id_purchase" uuid,
         "lot_number" varchar(5) NOT NULL,
         "origin_place" varchar(150),
-        "cattle_count" integer NOT NULL,
+        "purchased_cattle_count" integer NOT NULL,
         "average_weight" numeric(8,2),
         "total_weight" numeric(10,2),
         "price_per_kg" numeric(10,2),

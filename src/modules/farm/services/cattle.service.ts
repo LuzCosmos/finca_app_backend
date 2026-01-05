@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Cattle } from '../entities/cattle.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
@@ -23,9 +23,7 @@ import { Type } from 'class-transformer';
 import { ColorRepository } from '../repositories/color.repository';
 import { CharacteristicRepository } from '../repositories/characteristic.repository';
 import { CattleCharacteristicRepository } from '../repositories/cattle-characteristic.repository';
-import { ForbiddenException } from '@nestjs/common';
-//import { ReceptionDocStatus } from '../../reception/entities/purchase-reception.entity';
-
+import { WeightContext } from '../entities/cattle-weight-history.entity';
 
 @Injectable()
 export class CattleService {
@@ -48,6 +46,21 @@ export class CattleService {
     private readonly simpleEventService: SimpleEventService,
   ) { }
 
+  /*async createCattle(idTenant: string, idCurrentUser: string, cattleData: any, manager: EntityManager) {
+    const cattle = await this.cattleRepository.findBySysNumberAndTenantId(idTenant, cattleData.number, manager);
+    if (!cattle) {
+      const cattle = await this.cattleRepository.saveWithManager(manager, {
+        id: crypto.randomUUID(),
+        idTenant,
+        sysNumber: cattleNumber,
+        createdAt: new Date(),
+        applicreatedAtedBy: idCurrentUser,
+      });
+    }
+
+
+  }*/
+
   /**
    * Apply multiple simple events to cattle by their number
    * @param idTenant - The tenant ID
@@ -60,7 +73,7 @@ export class CattleService {
     idCurrentUser: string,
     events: Array<{
       cattleNumber: string;
-      type: 'weight' | 'eartag' | 'tracker' | 'brand' | 'castration' | 'medication';
+      type: SimpleEventType;
       data: any;
       appliedBy?: string;
       idMassiveEvent: string;
@@ -110,54 +123,78 @@ export class CattleService {
    * @param appliedBy - The user who applied the events
    * @returns The cattle with the events applied
    */
-  async applyMultipleSimpleEventsByNumber(
+  async applyMultipleSimpleEventsByNumber_transaction(
     idTenant: string,
     idCurrentUser: string,
     cattleNumber: string,
     idMassiveEvent: string,
     events: Array<{
-      type: 'weight' | 'eartag' | 'tracker' | 'brand' | 'castration' | 'medication';
+      type: SimpleEventType;
       data: any;
       appliedBy?: string;
       appliedAt?: Date;
       idSimpleEvent: string;
     }>,
+    manager?: EntityManager,
   ): Promise<ApplySimpleEventsResponseDto[]> {
-    return this.dataSource.transaction(async manager => {
-      const massiveEvent = await this.massiveEventService.findWithSimpleEventsByIdOrFail(idTenant, idMassiveEvent, manager);
-      if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
-      const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, cattleNumber, manager);
-      if (!cattle) throw new NotFoundException(`Cattle ${cattleNumber} not found`);
-      const createdEvents: ApplySimpleEventsResponseDto[] = [];
-      for (const ev of events) {
-        if (ev.type === SimpleEventType.CASTRATION && cattle.castrated) {
-          continue;
-        }
-        await this.simpleEventService.findByIdOrFail(idTenant, ev.idSimpleEvent, manager);
-        await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattle, { ...ev, idMassiveEvent: idMassiveEvent, appliedBy: ev.appliedBy ?? idCurrentUser });
-        const event = await this.animalSimpleEventRepository.saveWithManager(manager, {
-          id: crypto.randomUUID(),
-          idTenant,
-          idSimpleEvent: ev.idSimpleEvent,
-          idMassiveEvent: idMassiveEvent,
-          idAnimal: cattle.id,
-          provisionalNumber: cattleNumber,
-          appliedAt: ev.appliedAt ?? new Date(),
-          appliedBy: ev.appliedBy ?? idCurrentUser,
-          data: ev.data,
-        });
-        const responsedto: ApplySimpleEventsResponseDto = {
-          ...event,
-          idAnimal: cattle.id,
-          type: ev.type,
-          animalNumber: cattleNumber,
-          data: ev.data
-        }
-        createdEvents.push(responsedto);
+    if (manager) {
+      return this.applyMultipleSimpleEventsByNumber_manager(idTenant, idCurrentUser, cattleNumber, idMassiveEvent, events, manager);
+    } else {
+      return this.dataSource.transaction(async manager => {
+        return this.applyMultipleSimpleEventsByNumber_manager(idTenant, idCurrentUser, cattleNumber, idMassiveEvent, events, manager);
+      });
+    }
+
+  }
+
+  async applyMultipleSimpleEventsByNumber_manager(
+    idTenant: string,
+    idCurrentUser: string,
+    cattleNumber: string,
+    idMassiveEvent: string,
+    events: Array<{
+      type: SimpleEventType;
+      data: any;
+      appliedBy?: string;
+      appliedAt?: Date;
+      idSimpleEvent: string;
+    }>,
+    manager: EntityManager,
+    cattle?: Cattle,
+  ): Promise<ApplySimpleEventsResponseDto[]> {
+    const massiveEvent = await this.massiveEventService.findWithSimpleEventsByIdOrFail(idTenant, idMassiveEvent, manager);
+    if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
+    const cattleEntity = cattle ?? await this.cattleRepository.findOneForUpdateByNumber(idTenant, cattleNumber, manager);
+    if (!cattleEntity) throw new NotFoundException(`Cattle ${cattleNumber} not found`);
+    const createdEvents: ApplySimpleEventsResponseDto[] = [];
+    for (const ev of events) {
+      if (ev.type === SimpleEventType.CASTRATION && cattleEntity.castrated) {
+        continue;
       }
-      await this.cattleRepository.saveWithManager(manager, cattle);
-      return createdEvents;
-    });
+      await this.simpleEventService.findByIdOrFail(idTenant, ev.idSimpleEvent, manager);
+      await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattleEntity, { ...ev, idMassiveEvent: idMassiveEvent, appliedBy: ev.appliedBy ?? idCurrentUser });
+      const event = await this.animalSimpleEventRepository.saveWithManager(manager, {
+        id: crypto.randomUUID(),
+        idTenant,
+        idSimpleEvent: ev.idSimpleEvent,
+        idMassiveEvent: idMassiveEvent,
+        idAnimal: cattleEntity.id,
+        provisionalNumber: cattleNumber,
+        appliedAt: ev.appliedAt ?? new Date(),
+        appliedBy: ev.appliedBy ?? idCurrentUser,
+        data: ev.data,
+      });
+      const responsedto: ApplySimpleEventsResponseDto = {
+        ...event,
+        idAnimal: cattleEntity.id,
+        type: ev.type,
+        animalNumber: cattleNumber,
+        data: ev.data
+      }
+      createdEvents.push(responsedto);
+    }
+    await this.cattleRepository.saveWithManager(manager, cattleEntity);
+    return createdEvents;
   }
 
   /**
@@ -173,7 +210,7 @@ export class CattleService {
     idCurrentUser: string,
     cattle: Cattle,
     ev: {
-      type: 'weight' | 'eartag' | 'tracker' | 'brand' | 'castration' | 'medication';
+      type: SimpleEventType;
       data: any;
       appliedBy?: string;
       appliedAt?: Date;
@@ -190,6 +227,7 @@ export class CattleService {
           weight: ev.data.weight,
           date: ev.appliedAt ?? new Date(),
           idMassiveEvent: ev.idMassiveEvent,
+          context: WeightContext.EVENT,
           recordedBy: ev.appliedBy ?? idCurrentUser,
         } as any);
         break;
@@ -268,6 +306,7 @@ export class CattleService {
         } as any);
         break;
     }
+    await manager.save(Cattle, cattle);
   }
 
   async syncCattleSimpleEvents(

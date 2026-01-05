@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere } from 'typeorm';
+import { Repository, FindOptionsWhere, EntityManager } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -23,7 +23,7 @@ interface CreateAdminUserDto {
 }
 
 @Injectable()
-  export class UsersService {
+export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   constructor(
     @InjectRepository(User)
@@ -33,8 +33,8 @@ interface CreateAdminUserDto {
     private readonly rolesRepository: Repository<Role>,
     private readonly rolesService: RoleService,
     private readonly applicationPermissionsService: ApplicationPermissionsService
-  ) {}
-  
+  ) { }
+
   /**
    * Create a new user
    * @param createUserDto - The DTO of the user to create
@@ -54,7 +54,7 @@ interface CreateAdminUserDto {
    */
   async findOne(id: string, sessionUser: SessionUserDto): Promise<UserResponseDto> {
     const user = await this.userRepository.findOne({
-      where: { 
+      where: {
         id,
         tenantId: sessionUser.tenant_id
       },
@@ -72,7 +72,7 @@ interface CreateAdminUserDto {
    * @param updateUserDto - The DTO of the user to update
    * @param sessionUser - The session user
    * @returns The user updated
-   */ 
+   */
   async update(id: string, updateUserDto: UpdateUserDto, sessionUser: SessionUserDto): Promise<UserResponseDto> {
     const user = await this.userCustomRepository.findById(id);
     if (!user) {
@@ -114,7 +114,7 @@ interface CreateAdminUserDto {
    * @param id - The ID of the user
    * @param sessionUser - The session user
    * @returns The user removed
-   */ 
+   */
   async remove(id: string, sessionUser: SessionUserDto): Promise<void> {
     const user = await this.userCustomRepository.findById(id);
     if (!user) {
@@ -152,10 +152,10 @@ interface CreateAdminUserDto {
    * @param tenantId - The ID of the tenant
    * @returns The users found
    */
-  async findAll(tenantId  : string): Promise<User[]> {
+  async findAll(tenantId: string): Promise<User[]> {
     // Obtener usuarios solo del tenant actual
     return this.userCustomRepository.find({
-      where: {tenantId: tenantId},
+      where: { tenantId: tenantId },
       relations: ['roles', 'roles.permissions', 'roles.permissions.module']
     });
   }
@@ -166,13 +166,13 @@ interface CreateAdminUserDto {
    * @param password - The password of the user
    * @param company_username - The company_username of the user
    * @returns The user found
-   */ 
+   */
   async findByUsernameAndPasswordAndCompanyUsername(username: string, password: string, company_username: string): Promise<User | null> {
     try {
       const user_db = await this.userCustomRepository.findByUsernameAndCompanyUsername(username, company_username);
       if (!user_db) {
         throw new UnauthorizedException('Credenciales inválidas');
-        return null;  
+        return null;
       }
       var user: User | null = null;
       const isPasswordValid = await bcrypt.compare(password, user_db.password);
@@ -185,13 +185,13 @@ interface CreateAdminUserDto {
       this.logger.error('Error en findByUsernameAndPasswordAndCompanyUsername:', error);
       throw error;
     }
-  } 
+  }
 
   /**
    * Get the hashed password
    * @param password - The password of the user
    * @returns The hashed password
-   */ 
+   */
   getHashedPassword(password: string): Promise<string> {
     return bcrypt.hash(password, 10);
   }
@@ -229,14 +229,15 @@ interface CreateAdminUserDto {
    * Create an admin user
    * @param dto - The DTO of the user to create
    * @returns The user created
-   */ 
-  async createAdminUser(dto: CreateAdminUserDto): Promise<UserResponseDto> {
+   */
+  async createAdminUser(dto: CreateAdminUserDto, manager?: EntityManager): Promise<UserResponseDto> {
+    const userRepository = manager ? manager.getRepository(User) : this.userRepository;
     const where: FindOptionsWhere<User>[] = [
       { username: dto.username, tenantId: dto.tenantId },
       { email: dto.email, tenantId: dto.tenantId }
     ];
 
-    const existingUser = await this.userRepository.findOne({ where });
+    const existingUser = await userRepository.findOne({ where });
 
     if (existingUser) {
       throw new ConflictException('Ya existe un usuario con ese username o email en este tenant');
@@ -249,7 +250,7 @@ interface CreateAdminUserDto {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    const user = this.userRepository.create({
+    const user = userRepository.create({
       username: dto.username,
       password: hashedPassword,
       email: dto.email,
@@ -258,7 +259,7 @@ interface CreateAdminUserDto {
       tenantId: dto.tenantId,
       roles: [adminRole]
     });
-    const savedUser = await this.userRepository.save(user);
+    const savedUser = await userRepository.save(user);
     return plainToInstance(UserResponseDto, savedUser);
   }
 } 

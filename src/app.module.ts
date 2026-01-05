@@ -10,6 +10,7 @@ import { MqttModule } from 'src/modules/mqtt/mqtt.module';
 import { CommerceModule } from 'src/modules/commerce/commerce.module';
 import { join } from 'path';
 import { ReceptionModule } from 'src/modules/purchase-receptions/reception.module';
+import { ConfigurationModule } from 'src/modules/configurations/configuration.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { ReceptionModule } from 'src/modules/purchase-receptions/reception.modul
     FarmModule,
     CommerceModule,
     ReceptionModule,
-    MqttModule
+    ConfigurationModule,
+    MqttModule,
   ],
 })
 export class AppModule { }

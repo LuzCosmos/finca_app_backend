@@ -38,7 +38,7 @@ export class AnimalSimpleEventRepository {
 
   async findBySimpleEvents(idTenant: string, simpleEventIds: string[]): Promise<AnimalSimpleEvent[]> {
     return this.repository.find({ where: { idTenant, idSimpleEvent: In(simpleEventIds) } });
-  }  
+  }
 
   async deleteById(idTenant: string, id: string): Promise<void> {
     await this.repository.delete({ idTenant, id });
@@ -48,21 +48,21 @@ export class AnimalSimpleEventRepository {
     await manager.delete(AnimalSimpleEvent, { idTenant, id });
   }
 
-    /**
-   * Inserta en bulk varios registros de animal_simple_event (ignora duplicados).
-   */
-    async insertMany(
-      rows: Partial<AnimalSimpleEvent>[],
-      manager?: EntityManager,
-    ): Promise<void> {
-      if (!rows?.length) return;
-      const m = manager ?? this.dataSource.manager;
-      await m
-        .createQueryBuilder()
-        .insert()
-        .into(AnimalSimpleEvent)
-        .values(rows)
-        .orIgnore() // evita reventar por duplicados
-        .execute();
-    }
+  /**
+ * Inserta en bulk varios registros de animal_simple_event (ignora duplicados).
+ */
+  async insertMany(
+    rows: Partial<AnimalSimpleEvent>[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (!rows?.length) return;
+    const m = manager ?? this.dataSource.manager;
+    await m
+      .createQueryBuilder()
+      .insert()
+      .into(AnimalSimpleEvent)
+      .values(rows)
+      .orIgnore() // evita reventar por duplicados
+      .execute();
+  }
 }

@@ -32,13 +32,14 @@ export class LotRepository {
     await manager.delete(Lot, { idPurchase, idTenant });
   }
 
-  async findByPurchaseId(idPurchase: string, idTenant: string,manager?:EntityManager): Promise<Lot[]> {
+  async findByPurchaseId(idPurchase: string, idTenant: string, manager?: EntityManager): Promise<Lot[]> {
     const repo = manager?.getRepository(Lot) ?? this.repository;
     return repo.find({ where: { idPurchase, idTenant } });
   }
 
-  async findById(id: string, idTenant: string): Promise<Lot | null> {
-    const lot = await this.repository.findOne({ where: { id, idTenant } });
+  async findById(idTenant: string, id: string, manager?: EntityManager): Promise<Lot | null> {
+    const repo = manager?.getRepository(Lot) ?? this.repository;
+    const lot = await repo.findOne({ where: { id, idTenant } });
     return lot;
   }
 }

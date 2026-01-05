@@ -22,6 +22,7 @@ import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } fro
 import { isMarkedAsUntransferable } from 'worker_threads';
 import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
 import { Logger } from '@nestjs/common';
+import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 
 @ApiTags('Cattle')
 @ApiBearerAuth('access-token')
@@ -50,7 +51,6 @@ export class CattleController {
           number: '1234567890',
           receivedAt: '2021-01-01',
           receivedWeight: 100,
-          purchaseFrom: 'Lugar de compra',
           purchasePrice: 100,
           purchaseWeight: 100
         },
@@ -210,14 +210,14 @@ export class CattleController {
     @Body('applied') applied: {
       idMassiveEvent: string;
       events: Array<{
-        type: 'weight' | 'eartag' | 'tracker' | 'brand' | 'castration' | 'medication';
+        type: SimpleEventType;
         data: any;
         appliedBy?: string;
         idSimpleEvent: string;
       }>
     }
   ) {
-    const appliedEvents = await this.cattleService.applyMultipleSimpleEventsByNumber(
+    const appliedEvents = await this.cattleService.applyMultipleSimpleEventsByNumber_transaction(
       sessionUser.tenant_id,
       sessionUser.sub,
       cattleNumber,
@@ -396,8 +396,6 @@ export class CattleController {
     @Body() dto: any, // Import RecordWeightDto from cattle-weight.dto.ts
     @SessionUser() user: SessionUserDto,
   ) {
-    console.log(dto);
-
     return this.cattleService.recordWeightHistory(id, dto, user.tenant_id, user.sub);
   }
 

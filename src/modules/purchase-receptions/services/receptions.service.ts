@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { PurchaseReceptionRepository } from '../repositories/purchase-reception.repository';
-import { ReceptionResponseDto, CattleReceptionResponseDto, LotReceptionResponseDto, AnimalSimpleEventReceptionResponseDto } from '../dto/reception-response.dto';
+import { PurchaseReceptionResponseDto } from '../dto/reception-response.dto';
+import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 import { PurchaseReception } from '../entities/purchase-reception.entity';
+import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
 import { NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { MassiveEventRepository } from 'src/modules/massive-events/repositories/massive-event.repository';
@@ -14,9 +16,21 @@ import { AnimalSimpleEventRepository } from 'src/modules/massive-events/reposito
 import { SimpleEventRepository } from 'src/modules/massive-events/repositories/simple-event.repository';
 import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
 import { PurchaseRepository } from 'src/modules/commerce/repositories/purchase.repository';
-import { Cattle } from '../../farm/entities/cattle.entity';
+import { Cattle, CattleStatus } from '../../farm/entities/cattle.entity';
 import { ProviderRepository } from '../../commerce/repositories/provider.repository';
-
+import { CattleService } from 'src/modules/farm/services/cattle.service';
+import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
+import { CattleWeightHistory, WeightContext } from '../../farm/entities/cattle-weight-history.entity';
+import { CattleWeightHistoryRepository } from '../../farm/repositories/cattle-weight-history.repository';
+import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
+import { CattleCharacteristicRepository } from '../../farm/repositories/cattle-characteristic.repository';
+import { CattleCharacteristic } from 'src/modules/farm/entities/cattle-characteristic.entity';
+import { Characteristic } from 'src/modules/farm/entities/characteristic.entity';
+import { Color } from 'src/modules/farm/entities/color.entity';
+import { ColorRepository } from 'src/modules/farm/repositories/color.repository';
+import { CharacteristicRepository } from 'src/modules/farm/repositories/characteristic.repository';
+import { LotService } from 'src/modules/commerce/services/lot.service';
+import { Lot } from 'src/modules/commerce/entities/lot.entity';
 
 @Injectable()
 export class ReceptionsService {
@@ -26,18 +40,20 @@ export class ReceptionsService {
     private readonly purchaseRepo: PurchaseRepository,
     private readonly massiveEventRepo: MassiveEventRepository,
     private readonly lotRepo: LotRepository,
+    private readonly cattleService: CattleService,
     private readonly cattleRepo: CattleRepository,
     private readonly animalSimpleEventRepo: AnimalSimpleEventRepository,
     private readonly simpleEventRepo: SimpleEventRepository,
-    private readonly providerRepo: ProviderRepository
+    private readonly providerRepo: ProviderRepository,
+    private readonly configurationsService: ConfigurationsService,
+    private readonly cattleWeightHistoryRepo: CattleWeightHistoryRepository,
+    private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
+    private readonly colorRepo: ColorRepository,
+    private readonly characteristicRepo: CharacteristicRepository,
+    private readonly lotService: LotService,
   ) { }
 
-  async createReception(idTenant: string, idPurchase: string, manager: EntityManager) {
-    const reception = await this.prRepo.createInstance({ idTenant, idPurchase }, manager);
-    return reception;
-  }
-
-  async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<ReceptionResponseDto> {
+  async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<PurchaseReceptionResponseDto> {
     var reception = this.ds.transaction(async (manager) => {
       console.log('idTenant', idTenant);
       console.log('idPurchase', idPurchase);
@@ -47,6 +63,7 @@ export class ReceptionsService {
         throw new NotFoundException('Purchase not found');
       }
       var reception = await this.prRepo.findByPurchase(idTenant, idPurchase, manager);
+      var massiveEvent;
       if (!reception) {
         var dataMassiveEvent: MassiveEvent = {
           id: uuidv4(),
@@ -57,10 +74,16 @@ export class ReceptionsService {
           createdAt: new Date(),
           updatedAt: new Date(),
           simpleEvents: [],
+          name: 'Reception ' + purchase!.id,
         }
-        var massiveEvent = await this.massiveEventRepo.saveWithManager(manager, dataMassiveEvent);
-        massiveEvent.simpleEvents = await this.simpleEventRepo.findByMassiveEvent(idTenant, massiveEvent.id, manager);
+        massiveEvent = await this.massiveEventRepo.saveWithManager(manager, dataMassiveEvent);
+        massiveEvent.simpleEvents = [];
         reception = await this.prRepo.createInstance({ idTenant, idPurchase, idMassiveEvent: massiveEvent.id }, manager);
+      } else {
+        massiveEvent = await this.massiveEventRepo.findById(idTenant, reception.idMassiveEvent, manager);
+        if (massiveEvent) {
+          massiveEvent.simpleEvents = await this.simpleEventRepo.findByMassiveEvent(idTenant, massiveEvent.id, manager);
+        }
       }
       var provider = await this.providerRepo.findById(purchase!.idProvider, idTenant, manager);
       var lots = await this.lotRepo.findByPurchaseId(idPurchase, idTenant, manager);
@@ -69,20 +92,160 @@ export class ReceptionsService {
       for (const l of lots) {
         var lc = await this.cattleRepo.findByIdLot(idTenant, l.id, manager);
         for (const c of lc) {
-          var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(c.id, idTenant, manager);
+          var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(idTenant, c.id, manager);
           appliedEvents[c.id] = animalSimpleEvents;
         }
         lotCattle[l.id] = lc;
       }
       var cattle = await this.cattleRepo.findByIdPurchaseWithoutLot(idTenant, idPurchase, manager);
       for (const c of cattle) {
-        var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(c.id, idTenant, manager);
+        var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(idTenant, c.id, manager);
         appliedEvents[c.id] = animalSimpleEvents;
       }
-      console.log(provider)
-      return ReceptionResponseDto.toResponseDto(reception, purchase!, provider!.name, lots, lotCattle, cattle, appliedEvents);
+
+      return PurchaseReceptionResponseDto.toResponseDto(reception, purchase!, provider!.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
     });
     return reception;
   }
 
+  async getColors(idTenant: string): Promise<Color[]> {
+    return this.colorRepo.listActive(idTenant);
+  }
+
+  async getCharacteristics(idTenant: string): Promise<Characteristic[]> {
+    return this.characteristicRepo.listActive(idTenant);
+  }
+
+  async receiveCattle_Transaction(idTenant: string, idCurrentUser: string, cattleDto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
+    return this.ds.transaction(async manager => {
+      let cattle = await this.cattleRepo.findByNumberAndTenantId(idTenant, cattleDto.number, manager);
+      if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST)) {
+        throw new NotFoundException('Cattle already exists');
+      }
+      var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
+      var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
+      await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
+      var cattleData = {
+        id: uuidv4(),
+        idTenant,
+        sysNumber: nextCattleSysnumberValue,
+        number: cattleDto.number,
+        receivedAt: new Date(),
+        receivedWeight: cattleDto.receivedWeight,
+        purchaseWeight: cattleDto.purchaseWeight,
+        purchasePrice: cattleDto.purchasePrice,
+        idLot: cattleDto.idLot ?? null,
+        idBrand: cattleDto.idBrand ?? null,
+        idColor: cattleDto.idColor ?? null,
+        eartag: cattleDto.eartag ?? null,
+        idDevice: cattleDto.idDevice ?? null,
+        castrated: cattleDto.castrated,
+        comments: cattleDto.comments ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastWeight: cattleDto.receivedWeight,
+        status: CattleStatus.ACTIVE,
+        idProvider: cattleDto.idProvider ?? null,
+        idPurchase: cattleDto.idPurchase,
+      }
+
+      if (cattleDto.idLot) {
+        let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
+        if (!lot) {
+          throw new NotFoundException('Lot not found ' + cattleDto.idLot);
+        }
+        if (!cattleData.purchaseWeight) {
+          cattleData.purchaseWeight = lot.averageWeight;
+        }
+        if (!cattleData.purchasePrice) {
+          cattleData.purchasePrice = lot.averageWeight * lot.pricePerKg;
+        }
+      }
+      cattle = await this.cattleRepo.saveWithManager(manager, cattleData as unknown as Cattle);
+      var weightHistory: CattleWeightHistory = {
+        id: uuidv4(),
+        idTenant,
+        idCattle: cattle.id,
+        weight: cattleDto.receivedWeight,
+        date: new Date(),
+        context: WeightContext.PURCHASE,
+        recordedBy: idCurrentUser,
+      }
+      await this.cattleWeightHistoryRepo.createWithManager(manager, weightHistory);
+      var characteristicsIds = cattleDto.characteristicsIds ?? [];
+      if (characteristicsIds.length > 0) {
+        await this.cattleCharacteristicRepository.attachMany(cattle.id, idTenant, characteristicsIds, manager);
+      }
+      if (cattleDto.idLot) {
+        await this.lotService.UpdateLotDataAfterReception(idTenant, cattleDto.idLot, manager);
+      }
+      var simpleEventIds = cattleDto.idSimpleEvents ?? [];
+      var appliedEvents: Array<{
+        type: SimpleEventType;
+        data: any;
+        appliedBy?: string;
+        appliedAt?: Date;
+        idSimpleEvent: string;
+      }> = [];
+      if (simpleEventIds.length > 0) {
+        var simpleEvents = await this.simpleEventRepo.findByIds(idTenant, simpleEventIds, manager);
+        if (simpleEvents && simpleEvents.length > 0) {
+          var simpEvents: Array<{
+            type: SimpleEventType;
+            data: any;
+            appliedBy?: string;
+            appliedAt?: Date;
+            idSimpleEvent: string;
+          }> = [];
+          var idMassiveEvent: string | undefined;
+          for (const simpleEvent of simpleEvents) {
+            idMassiveEvent = simpleEvent.idMassiveEvent;
+            if (simpleEvent.type !== SimpleEventType.WEIGHT) {
+              simpEvents.push({
+                type: simpleEvent.type,
+                data: simpleEvent.data,
+                appliedBy: idCurrentUser,
+                appliedAt: new Date(),
+                idSimpleEvent: simpleEvent.id,
+              })
+            }
+          }
+          appliedEvents = await this.cattleService.applyMultipleSimpleEventsByNumber_manager(idTenant, idCurrentUser, cattle.number, idMassiveEvent!, simpEvents, manager, cattle)
+        }
+      }
+      return ReceiveCattleResponseDto.toResponseDto(cattle, appliedEvents);
+    });
+  }
+
+  /** 
+   * Update the lot of a cattle
+   * @param idTenant 
+   * @param dto 
+   * @returns Cattle
+   */
+  async assignLotCattle(idTenant: string, dto: UpdateLotCattleRequestDto): Promise<Cattle> {
+    return this.ds.transaction(async manager => {
+      let cattle = await this.cattleRepo.findById(idTenant, dto.idCattle, manager);
+      if (!cattle) {
+        throw new NotFoundException('Cattle not found');
+      }
+      var oldLot: Lot | null = null;
+      if (cattle.idLot) {
+        oldLot = await this.lotRepo.findById(idTenant, cattle.idLot, manager);
+      }
+      let lot = await this.lotRepo.findById(idTenant, dto.idLot, manager);
+      if (!lot) {
+        throw new NotFoundException('Lot not found');
+      }
+      cattle.idLot = dto.idLot;
+      cattle.purchaseWeight = lot.averageWeight ?? 0;
+      cattle.purchasePrice = (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
+      cattle = await this.cattleRepo.saveWithManager(manager, cattle);
+      await this.lotService.UpdateLotDataAfterReception(idTenant, dto.idLot, manager);
+      if (oldLot) {
+        await this.lotService.UpdateLotDataAfterReception(idTenant, oldLot.id, manager);
+      }
+      return cattle;
+    });
+  }
 }

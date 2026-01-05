@@ -30,6 +30,8 @@ import { ColorRepository } from './repositories/color.repository';
 import { CharacteristicRepository } from './repositories/characteristic.repository';
 import { CattleCharacteristicRepository } from './repositories/cattle-characteristic.repository';
 import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
+import { ColorCharacteristicsService } from './services/color-characteristics.service';
+import { ColorCharacteristicsController } from './controllers/color-characteristics.controller';
 
 @Module({
   imports: [
@@ -63,18 +65,25 @@ import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
     LocationService,
     LocationRepository,
     BrandRepository,
-    BrandService
+    BrandService,
+    ColorCharacteristicsService,
   ],
   controllers: [
     BrandController,
+    ColorCharacteristicsController,
     CattleController,
-    LocationController
+    LocationController,
   ],
   exports: [
+    ColorCharacteristicsService,
     CattleService,
     LocationService,
     CattleRepository,
-    CattleDeviceHistoryRepository
+    CattleDeviceHistoryRepository,
+    CattleWeightHistoryRepository,
+    CattleCharacteristicRepository,
+    ColorRepository,
+    CharacteristicRepository
   ],
 })
 export class FarmModule { } 

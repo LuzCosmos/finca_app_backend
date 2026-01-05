@@ -22,7 +22,7 @@ import { PurchaseListQueryDto } from 'src/modules/commerce/dto/purchase-list.que
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class PurchaseController {
   private readonly logger = new Logger(PurchaseController.name);
-  constructor(private readonly purchaseService: PurchaseService) {}
+  constructor(private readonly purchaseService: PurchaseService) { }
 
   @Post()
   @RequireAction('create')
@@ -50,21 +50,22 @@ export class PurchaseController {
     const purchase = await this.purchaseService.updatePurchase(id, dto, user.tenant_id, user.sub);
     return PurchaseResponseDto.toPurchaseResponse(purchase);
   }
-/*
-  @Get()
-  @RequireAction('read')
-  @ApiOperation({ summary: 'Get all purchases for tenant' })
-  @ApiResponse({ status: 200, type: [PurchaseResponseDto] })
-  async findAll(
-    @SessionUser() user: SessionUserDto,
-  ): Promise<PurchaseResponseDto[]> {
-    const purchases = await this.purchaseService.findAll(user.tenant_id);
-    return purchases.map(purchase => PurchaseResponseDto.toPurchaseResponse(purchase));
-  }*/
+  /*
+    @Get()
+    @RequireAction('read')
+    @ApiOperation({ summary: 'Get all purchases for tenant' })
+    @ApiResponse({ status: 200, type: [PurchaseResponseDto] })
+    async findAll(
+      @SessionUser() user: SessionUserDto,
+    ): Promise<PurchaseResponseDto[]> {
+      const purchases = await this.purchaseService.findAll(user.tenant_id);
+      return purchases.map(purchase => PurchaseResponseDto.toPurchaseResponse(purchase));
+    }*/
 
 
   @Get()
   @RequireAction('read')
+  @ApiOperation({ summary: 'List purchases for tenant' })
   @ApiOkResponse({ type: PagedResponseDto<PurchaseListItemDto> as any })
   async list(
     @SessionUser() user: SessionUserDto,
