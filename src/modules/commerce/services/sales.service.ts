@@ -61,7 +61,6 @@ export class SalesService {
                     // We also update sale-related fields in Cattle as per requirements/legacy columns
                     await manager.update(Cattle, { id: detailDto.cattleId, idTenant: dto.idTenant }, {
                         status: 'SOLD',
-                        saleDate: dto.transactionDate, // Assuming there's a field or we use updated_at? Legacy had 'salePrice', 'saleWeight'
                         saleWeight: detailDto.measuredWeight,
                         salePrice: detailDto.calculatedPrice,
                         salePricePerKg: dto.valuePerKgConfig,
@@ -126,6 +125,43 @@ export class SalesService {
     }
 
     async findAll(idTenant: string, query: GetSalesQueryDto) {
+        const { skip, take, orderBy, order, startDate, endDate, buyerId } = query;
+
+        const queryBuilder = this.dataSource.getRepository(Sale).createQueryBuilder('sale')
+            .leftJoinAndSelect('sale.buyer', 'buyer')
+            .leftJoinAndSelect('sale.transporter', 'transporter')
+            .leftJoinAndSelect('sale.details', 'details')
+            .leftJoin('details.cattle', 'cattle')
+            .addSelect(['cattle.id', 'cattle.number', 'cattle.salePrice', 'cattle.saleWeight'])
+            .where('sale.idTenant = :idTenant', { idTenant });
+
+        if (buyerId) {
+            queryBuilder.andWhere('sale.buyerId = :buyerId', { buyerId });
+        }
+
+        if (startDate) {
+            const start = new Date(startDate);
+            const end = endDate ? new Date(endDate) : new Date('2999-12-31');
+            queryBuilder.andWhere('sale.transactionDate BETWEEN :start AND :end', { start, end });
+        }
+
+        // Validate orderBy to prevent injection or errors if field doesn't exist
+        // Default to createdAt
+        const validSortFields = ['transactionDate', 'totalAmount', 'totalWeightKg', 'createdAt', 'updatedAt'];
+        const sortField = (orderBy && validSortFields.includes(orderBy as string)) ? `sale.${orderBy}` : 'sale.transactionDate';
+        const sortOrder = order === 'ASC' ? 'ASC' : 'DESC';
+
+        queryBuilder.orderBy(sortField, sortOrder);
+
+        queryBuilder.skip(skip).take(take);
+
+        const [items, total] = await queryBuilder.getManyAndCount();
+        console.log(items[0].details)
+
+        return { items, total };
+    }
+
+    async findAll2(idTenant: string, query: GetSalesQueryDto) {
         const { skip, take, orderBy, order, startDate, endDate, buyerId, status } = query;
 
         const where: FindOptionsWhere<Sale> = { idTenant };
@@ -155,6 +191,10 @@ export class SalesService {
 
         return { items, total };
     }
+
+
+
+
 
     async findOne(idTenant: string, id: string): Promise<Sale> {
         const sale = await this.dataSource.getRepository(Sale).findOne({

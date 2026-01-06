@@ -5,6 +5,10 @@ export class CreateSaleDetailDto {
     @IsNotEmpty()
     cattleId: string;
 
+    @IsString()
+    @IsNotEmpty()
+    cattleNumber: string;
+
     @IsNumber()
     @IsNotEmpty()
     measuredWeight: number;

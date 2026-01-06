@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, Put, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Get, Put, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { SalesService } from '../services/sales.service';
 import { CreateSaleDto } from '../dto/create-sale.dto';
 import { GetSalesQueryDto } from '../dto/get-sales-query.dto';
@@ -10,7 +10,10 @@ import { ApplicationPermissionsGuard } from '../../../common/application-permiss
 import { RequireEntity, RequireModule, RequireAction } from '../../../common/application-permissions/application-permissions.decorator';
 import { PaginatedResponseDto } from '../../../common/dto/paginated-response.dto';
 import { Sale } from '../entities/sale.entity';
+import { ApiOperation, ApiTags, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 
+@ApiTags('Sales')
+@ApiBearerAuth('access-token')
 @Controller('sales')
 @RequireEntity('sales')
 @RequireModule('COMMERCE')
@@ -20,14 +23,17 @@ export class SalesController {
 
     @Post()
     @RequireAction('create')
-    async create(@Body() createSaleDto: CreateSaleDto, @SessionUser() user: SessionUserDto) {
+    @ApiOperation({ summary: 'Create a new Sale' })
+    @HttpCode(HttpStatus.CREATED)
+    //@ApiResponse({ status: 201, type: PurchaseResponseDto })
+    async create(
+        @Body() createSaleDto: CreateSaleDto,
+        @SessionUser() user: SessionUserDto) {
         // Inject tenant and creator from authenticated user
         createSaleDto.idTenant = user.tenant_id;
         createSaleDto.createdBy = user.sub;
-
         return await this.salesService.createSale(createSaleDto);
     }
-
 
     @Get()
     @RequireAction('read')
