@@ -11,6 +11,8 @@ import { CommerceModule } from 'src/modules/commerce/commerce.module';
 import { join } from 'path';
 import { ReceptionModule } from 'src/modules/purchase-receptions/reception.module';
 import { ConfigurationModule } from 'src/modules/configurations/configuration.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -31,5 +33,7 @@ import { ConfigurationModule } from 'src/modules/configurations/configuration.mo
     ConfigurationModule,
     MqttModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule { }

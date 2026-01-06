@@ -48,8 +48,12 @@ sudo mkdir -p /srv/develop-srv/docker-data/fa-database,fa-redis}
 sudo chown -R develop_user:develop_user /srv/develop-srv/docker-data/fa-database,fa-redis}
 ```
 
-## 2. Create Containers
+### 2. Build and Start Backend Services
 
 ```bash
+cd finca_app_backend
+docker-compose build
 docker-compose up -d
 ```
+
+This will start PostgreSQL, Redis, and the Backend API.
