@@ -18,11 +18,22 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      ignoreEnvVars: true,
-      envFilePath: [join(__dirname, '..', '.env')],
+      //ignoreEnvVars: true,
+      //envFilePath: [join(__dirname, '..', '.env')],
+      envFilePath: ['.env'],
+      //expandVariables: true,
+      //cache: true,
+    }),
+    /*ConfigModule.forRoot({
+      isGlobal: true,
+      // ✅ permitir process.env (docker-compose)
+      ignoreEnvVars: false, // o simplemente elimínalo (default = false)
+
+      // ✅ opcional: si estás en local y tienes .env, lo lee
+      envFilePath: ['.env'],
       expandVariables: true,
       cache: true,
-    }),
+    }),*/
     TypeOrmModule.forRoot(typeOrmConfig),
     AuthModule,
     EmployeeManagementModule,

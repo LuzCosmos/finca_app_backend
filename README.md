@@ -37,15 +37,15 @@ Replace `$ENV_USER` with the username for that environment.
 Replace `${BASE_PATH}` and `${ENVIRONMENT}` with the value from the `.env` file.
 
 ```bash
-sudo mkdir -p ${BASE_PATH}/${ENVIRONMENT}-srv/docker-data/{fa-database,fa-redis}
-sudo chown -R $ENV_USER:$ENV_USER ${BASE_PATH}/${ENVIRONMENT}-srv/docker-data/fa-database,fa-redis}
+sudo mkdir -p ${BASE_PATH}/${ENVIRONMENT}-srv/docker-data/{fa-database,fa-redis,fa-uploads}
+sudo chown -R $ENV_USER:$ENV_USER ${BASE_PATH}/${ENVIRONMENT}-srv/docker-data/{fa-database,fa-redis,fa-uploads}
 ```
 
 **Example:**
 
 ```bash
-sudo mkdir -p /srv/develop-srv/docker-data/fa-database,fa-redis}
-sudo chown -R develop_user:develop_user /srv/develop-srv/docker-data/fa-database,fa-redis}
+sudo mkdir -p /srv/develop-srv/docker-data/fa-database,fa-redis,fa-uploads
+sudo chown -R develop_user:develop_user /srv/develop-srv/docker-data/fa-database,fa-redis,fa-uploads
 ```
 
 ### 2. Build and Start Backend Services
