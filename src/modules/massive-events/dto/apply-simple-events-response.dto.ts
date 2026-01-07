@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum,IsArray, ValidateNested, IsString, IsIn, IsOptional, IsObject, IsDate } from 'class-validator';
+import { IsEnum, IsArray, ValidateNested, IsString, IsIn, IsOptional, IsObject, IsDate } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SimpleEventType } from '../enums/simple-event-type.enum';
 
@@ -21,9 +21,9 @@ export class ApplySimpleEventsResponseDto {
   @IsString()
   animalNumber: string;
 
-  @ApiProperty({ example: 'weight', description: 'Event type' })
-  @IsString()
-  type: string;
+  @ApiProperty({ example: 'weight', description: 'Event type', enum: SimpleEventType })
+  @IsEnum(SimpleEventType)
+  type: SimpleEventType;
 
   @ApiProperty({ description: 'Event-specific data' })
   @IsObject()

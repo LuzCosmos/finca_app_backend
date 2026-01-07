@@ -13,7 +13,7 @@ export class AuthService {
     private jwtService: JwtService,
     private applicationPermissionsService: ApplicationPermissionsService,
     private roleModulePermissionsService: RoleModulePermissionService
-  ) {}
+  ) { }
 
   async validateUser(username: string, company_username: string, password: string): Promise<any> {
     const user = await this.usersService.findByUsernameAndPasswordAndCompanyUsername(username, password, company_username);
@@ -46,8 +46,10 @@ export class AuthService {
       tenant_id: user.tenantId,
       permissionsHash: permissionsHash
     };
+    const token = this.jwtService.sign(payload);
+    this.logger.debug('Token:', token);
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: token,
       user: {
         id: user.id,
         username: user.username,

@@ -19,8 +19,8 @@ export class Lot {
   @Column({ name: 'origin_place', length: 150, nullable: true })
   originPlace: string;
 
-  @Column({ name: 'cattle_count', type: 'int', default: 0 })
-  cattleCount: number;
+  @Column({ name: 'purchased_cattle_count', type: 'int', default: 0 })
+  purchasedCattleCount: number;
 
   @Column({ name: 'received_cattle_count', type: 'int', default: 0 })
   receivedCattleCount: number;

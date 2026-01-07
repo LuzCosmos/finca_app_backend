@@ -33,7 +33,7 @@ export class PurchaseService {
       var totalCattle = 0;
       var totalWeight = 0;
       if (data.lots) {
-        totalCattle = data.lots.reduce((sum, lot) => sum + lot.cattleCount, 0);
+        totalCattle = data.lots.reduce((sum, lot) => sum + lot.purchasedCattleCount, 0);
         totalWeight = data.lots.reduce((sum, lot) => sum + lot.totalWeight, 0);
       }
 
@@ -84,7 +84,7 @@ export class PurchaseService {
       var totalCattle = 0;
       var totalWeight = 0;
       if (data.lots) {
-        totalCattle = data.lots.reduce((sum, lot) => sum + lot.cattleCount, 0);
+        totalCattle = data.lots.reduce((sum, lot) => sum + lot.purchasedCattleCount, 0);
         totalWeight = data.lots.reduce((sum, lot) => sum + lot.totalWeight, 0);
       }
       const savedPurchase = await this.purchaseRepository.saveWithManager(queryRunner.manager, {

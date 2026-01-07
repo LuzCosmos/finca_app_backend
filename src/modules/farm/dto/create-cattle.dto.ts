@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsDate,IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID} from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 export class CreateCattleDto {
 
@@ -40,7 +40,7 @@ export class CreateCattleDto {
   @IsString()
   @MaxLength(100)
   @IsOptional()
-  colorDescription: string; 
+  colorDescription: string;
 
   @ApiProperty({ required: false })
   @IsString()
@@ -72,7 +72,7 @@ export class CreateCattleDto {
 
   @ApiProperty({ required: false })
   @IsString()
-  purchasedFrom: string;
+  purchasedFrom?: string;
 
   @ApiProperty({ required: true })
   @IsNumber()
@@ -84,7 +84,7 @@ export class CreateCattleDto {
 
   @ApiProperty({ required: false })
   @IsNumber()
-  negotiatedPricePerKg?: number; 
+  negotiatedPricePerKg?: number;
 
   @ApiProperty({ required: false })
   @IsNumber()
@@ -96,14 +96,14 @@ export class CreateCattleDto {
   @IsOptional()
   salePrice?: number;
 
-  @ApiProperty({ required: false }) 
+  @ApiProperty({ required: false })
   @IsNumber()
   @IsOptional()
   salePricePerKg?: number;
 
   @ApiProperty({ required: false })
   @IsNumber()
-  @IsOptional()     
+  @IsOptional()
   saleWeight?: number;
 
   @ApiProperty({ required: false })

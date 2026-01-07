@@ -17,7 +17,7 @@ import { RoleModulePermissionRepository } from './repositories/role-module-permi
 import { RoleModulePermissionService } from './services/role-module-permission.services';
 import { ApplicationPermissionsModule } from '../../common/application-permissions/application-permissions.module';
 import { RoleRepository } from './repositories/role.repository';
-
+import { ConfigurationModule } from '../configurations/configuration.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -27,7 +27,8 @@ import { RoleRepository } from './repositories/role.repository';
       RoleModulePermission,
       ModuleEntity
     ]),
-    ApplicationPermissionsModule
+    ApplicationPermissionsModule,
+    ConfigurationModule
   ],
   controllers: [
     TenantsController,
@@ -41,15 +42,15 @@ import { RoleRepository } from './repositories/role.repository';
     ModulesService,
     RoleModulePermissionService,
     UserRepository,
-    RoleModulePermissionRepository  ,
+    RoleModulePermissionRepository,
     RoleRepository
   ],
   exports: [
     UsersService,
     RoleService,
-    ModulesService, 
+    ModulesService,
     TenantsService,
     RoleModulePermissionService
   ]
 })
-export class EmployeeManagementModule {} 
+export class EmployeeManagementModule { } 

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { SimpleEvent } from '../entities/simple-event.entity';
 import { AnimalSimpleEvent } from '../entities/animal-simple-event.entity';
+import { In } from 'typeorm';
 
 @Injectable()
 export class SimpleEventRepository {
@@ -29,7 +30,7 @@ export class SimpleEventRepository {
     return await repo.findOne({ where: { idTenant, id } });
   }
 
-  async findByMassiveEvent(idTenant: string, idMassiveEvent: string, manager?:EntityManager) {
+  async findByMassiveEvent(idTenant: string, idMassiveEvent: string, manager?: EntityManager) {
     const repo = manager?.getRepository(SimpleEvent) ?? this.repository;
     return repo.find({ where: { idTenant, idMassiveEvent } });
   }
@@ -47,38 +48,43 @@ export class SimpleEventRepository {
   }
 
   async deleteUnappliedByMassiveEvent(
-  manager: EntityManager,
-  idTenant: string,
-  idMassiveEvent: string,
-): Promise<number> {
-  // subquery que selecciona los IDs a borrar
-  const sub = manager
-    .createQueryBuilder()
-    .select('se.id')
-    .from(SimpleEvent, 'se')
-    .where('se.idTenant = :idTenant', { idTenant })
-    .andWhere('se.idMassiveEvent = :idMassiveEvent', { idMassiveEvent })
-    .andWhere(() => {
-      const notExists = manager
-        .createQueryBuilder()
-        .subQuery()
-        .select('1')
-        .from(AnimalSimpleEvent, 'ase')
-        .where('ase.idSimpleEvent = se.id')
-        .andWhere('ase.idTenant = se.idTenant')
-        .getQuery();
-      return `NOT EXISTS (${notExists})`;
-    });
+    manager: EntityManager,
+    idTenant: string,
+    idMassiveEvent: string,
+  ): Promise<number> {
+    // subquery que selecciona los IDs a borrar
+    const sub = manager
+      .createQueryBuilder()
+      .select('se.id')
+      .from(SimpleEvent, 'se')
+      .where('se.idTenant = :idTenant', { idTenant })
+      .andWhere('se.idMassiveEvent = :idMassiveEvent', { idMassiveEvent })
+      .andWhere(() => {
+        const notExists = manager
+          .createQueryBuilder()
+          .subQuery()
+          .select('1')
+          .from(AnimalSimpleEvent, 'ase')
+          .where('ase.idSimpleEvent = se.id')
+          .andWhere('ase.idTenant = se.idTenant')
+          .getQuery();
+        return `NOT EXISTS (${notExists})`;
+      });
 
-  const res = await manager
-    .createQueryBuilder()
-    .delete()
-    .from(SimpleEvent) // sin alias aquí
-    .where(`id IN (${sub.getQuery()})`)
-    .setParameters(sub.getParameters())
-    .execute();
+    const res = await manager
+      .createQueryBuilder()
+      .delete()
+      .from(SimpleEvent) // sin alias aquí
+      .where(`id IN (${sub.getQuery()})`)
+      .setParameters(sub.getParameters())
+      .execute();
 
-  return res.affected ?? 0;
-}
+    return res.affected ?? 0;
+  }
+
+  findByIds(idTenant: string, ids: string[], manager?: EntityManager) {
+    const repo = manager?.getRepository(SimpleEvent) ?? this.repository;
+    return repo.find({ where: { idTenant, id: In(ids) } });
+  }
 
 }

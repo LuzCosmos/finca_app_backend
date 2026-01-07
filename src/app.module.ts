@@ -10,16 +10,30 @@ import { MqttModule } from 'src/modules/mqtt/mqtt.module';
 import { CommerceModule } from 'src/modules/commerce/commerce.module';
 import { join } from 'path';
 import { ReceptionModule } from 'src/modules/purchase-receptions/reception.module';
+import { ConfigurationModule } from 'src/modules/configurations/configuration.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      ignoreEnvVars: true,
-      envFilePath: [join(__dirname, '..', '.env')],
+      //ignoreEnvVars: true,
+      //envFilePath: [join(__dirname, '..', '.env')],
+      envFilePath: ['.env'],
+      //expandVariables: true,
+      //cache: true,
+    }),
+    /*ConfigModule.forRoot({
+      isGlobal: true,
+      // ✅ permitir process.env (docker-compose)
+      ignoreEnvVars: false, // o simplemente elimínalo (default = false)
+
+      // ✅ opcional: si estás en local y tienes .env, lo lee
+      envFilePath: ['.env'],
       expandVariables: true,
       cache: true,
-    }),
+    }),*/
     TypeOrmModule.forRoot(typeOrmConfig),
     AuthModule,
     EmployeeManagementModule,
@@ -27,7 +41,10 @@ import { ReceptionModule } from 'src/modules/purchase-receptions/reception.modul
     FarmModule,
     CommerceModule,
     ReceptionModule,
-    MqttModule
+    ConfigurationModule,
+    MqttModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule { }

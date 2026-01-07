@@ -189,11 +189,7 @@ export class AddColorAndCharacteristics1710000000015 implements MigrationInterfa
     await queryRunner.query(`DROP INDEX IF EXISTS idx_purchase_receptions_tenant_purchase;`);
     await queryRunner.query(`DROP TABLE IF EXISTS public.purchase_receptions;`);
 
-    // Catálogos
-
     await queryRunner.query(`DROP INDEX IF EXISTS idx_purchase_receptions_tenant_purchase_mass_event;`);
-    await queryRunner.query(`DROP INDEX IF EXISTS idx_purchase_receptions_tenant_purchase;`);
-    await queryRunner.query(`DROP INDEX IF EXISTS idx_purchase_receptions_mass_event;`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_cattle_characteristics_chr;`);
     await queryRunner.query(`DROP INDEX IF EXISTS ux_cattle_characteristics_unique;`);
     await queryRunner.query(`DROP TABLE IF EXISTS public.cattle_characteristics;`);

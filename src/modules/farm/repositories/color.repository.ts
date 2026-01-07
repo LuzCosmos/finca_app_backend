@@ -8,6 +8,7 @@ export class ColorRepository extends Repository<Color> {
     super(Color, dataSource.createEntityManager());
   }
 
+
   async listActive(tenantId: string, manager?: EntityManager): Promise<Color[]> {
     const m = manager ?? this.manager;
     return m.find(Color, { where: { idTenant: { id: tenantId } as any, isActive: true }, order: { name: 'ASC' } as any });
@@ -26,7 +27,7 @@ export class ColorRepository extends Repository<Color> {
     const m = manager ?? this.manager;
     const existing = await this.getByNameCI(tenantId, name, m);
     if (existing) return existing;
-    const created = m.create(Color, { idTenant: { id: tenantId } as any, name, isActive: true });
-    return m.save(Color, created);
+    const created = m.create(Color, { idTenant: { id: tenantId } as any, name, isActive: true, createdAt: new Date(), updatedAt: new Date() });
+    return m.save(created);
   }
 }

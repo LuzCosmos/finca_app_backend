@@ -15,7 +15,7 @@ export class CreateLotDto {
   @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
-  cattleCount: number;
+  purchasedCattleCount: number;
 
   @ApiProperty()
   @IsNumber()
