@@ -5,7 +5,7 @@ services:
     image: postgis/postgis:17-3.4
     restart: unless-stopped
     ports:
-      - '${FA_DB_PORT}:5432'
+      - '${FA_DB_PORT_EXTERNAL}:5432'
     environment:
       POSTGRES_DB: ${FA_DB_NAME}
       POSTGRES_USER: ${FA_DB_USER}
@@ -16,7 +16,7 @@ services:
     networks:
       - finca_app_net
     healthcheck:
-      test: [ 'CMD-SHELL', 'pg_isready -U ${FA_DB_USER} -d ${FA_DB_NAME}' ]
+      test: ['CMD-SHELL', 'pg_isready -U ${FA_DB_USER} -d ${FA_DB_NAME}']
       interval: 120s
       timeout: 30s
       retries: 2
@@ -27,9 +27,12 @@ services:
     container_name: fa_redis_server
     restart: unless-stopped
     command: >
-      redis-server --requirepass ${FA_REDIS_PASSWORD} --appendonly yes --appendfsync everysec
+      redis-server
+      --requirepass ${FA_REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
     ports:
-      - '${FA_REDIS_PORT}:6379'
+      - '${FA_REDIS_PORT_EXTERNAL}:6379'
     volumes:
       - ${BASE_PATH}/${ENVIRONMENT}-srv/docker-data/fa-redis:/data
     networks:
@@ -40,17 +43,14 @@ services:
   # Backend API
   backend:
     container_name: finca_app_backend
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: finca_app_backend:1
     restart: unless-stopped
     ports:
-      - '${APP_PORT:-3000}:3000'
+      - '${APP_PORT_EXTERNAL}:3000'
     environment:
       # Application
       NODE_ENV: ${NODE_ENV:-production}
-      APP_PORT: ${APP_PORT:-3000}
-
+      APP_PORT: 3000
       # Database
       FA_DB_HOST: postgres
       FA_DB_PORT: 5432
@@ -74,7 +74,6 @@ services:
       # ChirpStack
       CHIRPSTACK_API_URL: ${CHIRPSTACK_API_URL}
       CHIRPSTACK_API_KEY: ${CHIRPSTACK_API_KEY}
-      CHIRPSTACK_TENANT_ID: ${CHIRPSTACK_TENANT_ID}
 
       # MQTT
       MQTT_BROKER_URL: ${MQTT_BROKER_URL}

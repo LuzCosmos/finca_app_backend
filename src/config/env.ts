@@ -11,6 +11,10 @@ export const reqInt = (k: string) => {
 
 export const ENV = {
   ENVIRONMENT: req('ENVIRONMENT'),
+  APP_PORT_EXTERNAL: reqInt('APP_PORT_EXTERNAL'),
+  FA_DB_PORT_EXTERNAL: reqInt('FA_DB_PORT_EXTERNAL'),
+  FA_REDIS_PORT_EXTERNAL: reqInt('FA_REDIS_PORT_EXTERNAL'),
+
   APP_PORT: reqInt('APP_PORT'),
 
   FA_DB_HOST: req('FA_DB_HOST'),
