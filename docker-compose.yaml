@@ -51,6 +51,8 @@ services:
       # Application
       NODE_ENV: ${NODE_ENV:-production}
       APP_PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      CORS_ALLOWED_LOCAL: ${CORS_ALLOWED_LOCAL}
       # Database
       FA_DB_HOST: postgres
       FA_DB_PORT: 5432
