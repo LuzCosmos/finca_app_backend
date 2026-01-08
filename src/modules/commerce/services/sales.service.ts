@@ -156,7 +156,6 @@ export class SalesService {
         queryBuilder.skip(skip).take(take);
 
         const [items, total] = await queryBuilder.getManyAndCount();
-        console.log(items[0].details)
 
         return { items, total };
     }
