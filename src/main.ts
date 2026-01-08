@@ -50,30 +50,25 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   // Configuración de CORS
-  app.enableCors();
-  /*app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:8080',
-      'http://localhost:4200',
-      'http://localhost:5000',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:8080',
-      'http://127.0.0.1:4200',
-      'http://127.0.0.1:5000',
-      'https://localhost:3000',
-      'https://localhost:8080',
-      'https://localhost:4200',
-      'https://localhost:5000',
-      'https://127.0.0.1:3000',
-      'https://127.0.0.1:8080',
-      'https://127.0.0.1:4200',
-      'https://127.0.0.1:5000',
-    ],
+  const corsOrigins = configService.get<string>('CORS_ORIGINS')?.split(',').map(origin => origin.trim()) || [
+    'http://localhost',
+    'http://127.0.0.1'
+  ];
+  const corsAllowedLocal = configService.get<string>('CORS_ALLOWED_LOCAL')?.trim();
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      const allowed = !origin || corsOrigins.includes(origin) || (corsAllowedLocal && origin.startsWith(corsAllowedLocal));
+      if (allowed) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin not allowed by CORS: ${origin}`));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-  });*/
+  });
 
   //const port = configService.get<number>('APP_PORT') ?? 3000;
   //await app.listen(port);
