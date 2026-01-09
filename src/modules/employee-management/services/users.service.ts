@@ -161,6 +161,49 @@ export class UsersService {
   }
 
   /**
+   * Find users with pagination and filters
+   */
+  async findWithPagination(
+    tenantId: string,
+    page: number = 1,
+    limit: number = 10,
+    filters: { username?: string; lastName?: string } = {}
+  ): Promise<{ items: UserResponseDto[]; total: number }> {
+    const { username, lastName } = filters;
+
+    const query = this.userRepository.createQueryBuilder('user')
+      .leftJoinAndSelect('user.roles', 'roles')
+      .where('user.tenantId = :tenantId', { tenantId });
+
+    if (username) {
+      query.andWhere('LOWER(user.username) LIKE :username', { username: `%${username.toLowerCase()}%` });
+    }
+
+    if (lastName) {
+      query.andWhere('LOWER(user.lastName) LIKE :lastName', { lastName: `%${lastName.toLowerCase()}%` });
+    }
+
+    query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('user.username', 'ASC'); // Default sort
+
+    const [users, total] = await query.getManyAndCount();
+
+    return {
+      items: users.map(user => plainToInstance(UserResponseDto, user)),
+      total,
+    };
+  }
+
+  /**
+   * Get all available roles for the tenant
+   */
+  async getRoles(sessionUser: SessionUserDto) {
+    return this.rolesService.findAll(sessionUser);
+  }
+
+  /**
    * Find a user by its username and password and company_username
    * @param username - The username of the user
    * @param password - The password of the user

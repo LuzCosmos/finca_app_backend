@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Delete, UseGuards, Get, Put, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, UseGuards, Get, Put, HttpCode, HttpStatus, Query, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -19,22 +19,29 @@ import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 @RequireModule('EMP_MGMT')
 @RequireEntity('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Post()
   @RequireAction('create')
   @ApiOperation({ summary: 'Crear un nuevo usuario' })
   @HttpCode(HttpStatus.CREATED)
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Usuario creado exitosamente',
-    type: User 
+    type: User
   })
   @ApiResponse({ status: 403, description: 'No tienes permisos para crear usuarios' })
   async create(@SessionUser() sessionUser: SessionUserDto, @Body() createUserDto: CreateUserDto) {
     // El tenantId se toma del usuario actual
     createUserDto.tenantId = sessionUser.tenant_id;
     return this.usersService.create(createUserDto);
+  }
+
+  @Get('roles')
+  @RequireAction('read')
+  @ApiOperation({ summary: 'Obtener roles disponibles' })
+  async getRoles(@SessionUser() sessionUser: SessionUserDto) {
+    return this.usersService.getRoles(sessionUser);
   }
 
   @Get(':id')
@@ -90,8 +97,14 @@ export class UsersController {
     type: [UserResponseDto]
   })
   @ApiResponse({ status: 403, description: 'No tienes permisos para ver usuarios' })
-  async list(@SessionUser() sessionUser: SessionUserDto): Promise<UserResponseDto[]> {
-    const users = await this.usersService.findByTenant(sessionUser.tenant_id);
-    return users.map(user => plainToInstance(UserResponseDto, user));
+  @ApiResponse({ status: 403, description: 'No tienes permisos para ver usuarios' })
+  async list(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('username') username?: string,
+    @Query('lastName') lastName?: string,
+  ) {
+    return this.usersService.findWithPagination(sessionUser.tenant_id, page, limit, { username, lastName });
   }
 } 
