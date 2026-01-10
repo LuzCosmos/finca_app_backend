@@ -52,7 +52,7 @@ export class ApplicationPermissionsGuard implements CanActivate {
     // Exception: Not allowed to list tenants (action 4)
     if (entity === 'tenants' && action === 'list') { return false; }
     // Check if the user has permissions in Redis
-    const redisSessionData = await this.applicationPermissionsService.getSessionFromRedis(tokenUser.sub);
+    const redisSessionData = await this.applicationPermissionsService.getSessionFromRedis(tokenUser.sub, tokenUser.sessionId);
     if (!redisSessionData) {
       throw new ForbiddenException('No permissions found');
     }
