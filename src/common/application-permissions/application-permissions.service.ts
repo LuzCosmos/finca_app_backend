@@ -7,15 +7,15 @@ import { RoleModulePermission } from 'src/modules/employee-management/entities/r
 @Injectable()
 export class ApplicationPermissionsService {
   private readonly logger = new Logger(ApplicationPermissionsService.name);
-  
-  constructor(private redisService: RedisService) {}
+
+  constructor(private redisService: RedisService) { }
 
   /**
    * Compute a SHA-256 hash based on the permissions object.
    * @param permissions - e.g. {"module_code1": {"user": "11111", "tenant": "11110", ...}, "module_code2": {"role":"01001", "tenant": "11110", ...}}
    * @returns the computed hash as a hexadecimal string.
    */
-  computePermissionsHash(permissions: Record<string, Record<string, string>>): string  {
+  computePermissionsHash(permissions: Record<string, Record<string, string>>): string {
     const permissionsString = JSON.stringify(permissions);
     return crypto.createHash('sha256').update(permissionsString).digest('hex');
   }
@@ -25,9 +25,10 @@ export class ApplicationPermissionsService {
    * @param userId - Unique identifier of the user.
    * @param hash - Computed permissions hash.
    * @param sessionData - Essential session data to store.
+   * @param sessionId - Unique identifier of the session.
    */
-  async saveSessionData(userId: string,sessionData: Record<string, any>): Promise<void> {
-    const key = `session:${userId}`;
+  async saveSessionData(userId: string, sessionId: string, sessionData: Record<string, any>): Promise<void> {
+    const key = `session:${userId}:${sessionId}`;
     // Store the session data with a TTL of 24 hours (86400 seconds)
     await this.redisService.set(key, JSON.stringify(sessionData), 86400);
   }
@@ -35,12 +36,23 @@ export class ApplicationPermissionsService {
   /**
    * Retrieves the session data stored in Redis for a given user.
    * @param userId - Unique identifier of the user.
+   * @param sessionId - Unique identifier of the session.
    * @returns The session data object or null if not found.
    */
-  async getSessionFromRedis(userId: string): Promise<any> {
-    const sessionDataString = await this.redisService.get(`session:${userId}`);
+  async getSessionFromRedis(userId: string, sessionId?: string): Promise<any> {
+    let sessionDataString: string | null = null;
+    if (sessionId) {
+      sessionDataString = await this.redisService.get(`session:${userId}:${sessionId}`);
+    } else {
+      // Fallback for backward compatibility or cases where sessionId might be missing (though it shouldn't be with new tokens)
+      // This part might be tricky if we enforce sessionId. For now, let's just return null if no sessionId is provided but we expect one.
+      // Or, better, if we want to support old sessions temporarily, we could check `session:${userId}`. 
+      // But purely for the new feature:
+      sessionDataString = await this.redisService.get(`session:${userId}`);
+    }
+
     if (!sessionDataString) {
-      this.logger.debug(`No session data found for user ${userId}`);
+      this.logger.debug(`No session data found for user ${userId} and session ${sessionId}`);
       return null;
     }
     const sessionData = JSON.parse(sessionDataString);
@@ -48,22 +60,26 @@ export class ApplicationPermissionsService {
     return sessionData;
   }
 
-  async deleteUserSession(userId: string): Promise<void> {
+  async deleteUserSession(userId: string, sessionId?: string): Promise<void> {
     this.logger.debug(`Deleting session for user ${userId}`);
-    await this.redisService.del(`session:${userId}`);
+    if (sessionId) {
+      await this.redisService.del(`session:${userId}:${sessionId}`);
+    } else {
+      await this.redisService.del(`session:${userId}`);
+    }
   }
 
-   /**
-   * Validates if a user has permission to access a module.
-   * 
-   * @param module_code - The module code.
-   * @param entity - The entity name. 
-   * @param action - The action character. Create: 0, Read: 1, Update: 2, Delete: 3, List: 4
-   * @param permissions - The module permissions.  e.g. {"module_code1": {"user": "11111", "tenant": "11110", ...}, "module_code2": {"role":"01001", "tenant": "11110", ...}}
-   *  
-   * @returns True if the user has permission, otherwise false.
-   */
-   async canAccessModuleEntity(module_code: string, entity: string, action: string, permissions: Record<string, Record<string, string>>): Promise<boolean> {
+  /**
+  * Validates if a user has permission to access a module.
+  * 
+  * @param module_code - The module code.
+  * @param entity - The entity name. 
+  * @param action - The action character. Create: 0, Read: 1, Update: 2, Delete: 3, List: 4
+  * @param permissions - The module permissions.  e.g. {"module_code1": {"user": "11111", "tenant": "11110", ...}, "module_code2": {"role":"01001", "tenant": "11110", ...}}
+  *  
+  * @returns True if the user has permission, otherwise false.
+  */
+  async canAccessModuleEntity(module_code: string, entity: string, action: string, permissions: Record<string, Record<string, string>>): Promise<boolean> {
     if (permissions[module_code] == undefined) {
       return false;
     }
@@ -76,7 +92,7 @@ export class ApplicationPermissionsService {
     const action_permission = entity_permission[actionIndex];
     this.logger.debug(`Action permission for ${module_code} ${entity} ${action}: ${action_permission}`);
     return action_permission == '1';
-  } 
+  }
 
 
   /**
@@ -85,7 +101,7 @@ export class ApplicationPermissionsService {
    * @returns {"module_code1": {"user": "11111", "tenant": "11110", ...}, "module_code2": {"role":"01001", "tenant": "11110", ...}}
    */
   getSimplefiedModulePermissionsByRolesAndModuleAndTenant(roleModulePermissions: RoleModulePermission[]): Record<string, Record<string, string>> {
-    const permissions: Record<string, Record<string, string>> = {}; 
+    const permissions: Record<string, Record<string, string>> = {};
     if (!roleModulePermissions) {
       return permissions;
     }
@@ -110,10 +126,10 @@ export class ApplicationPermissionsService {
         if (permissions[permission.module.code][entity] == undefined) {
           permissions[permission.module.code][entity] = combined_entity_permission;
         } else {
-          const stored_entity_permission = permissions[permission.module.code][entity]; 
+          const stored_entity_permission = permissions[permission.module.code][entity];
           permissions[permission.module.code][entity] = stored_entity_permission.split('')
-          .map((char, index) => (char === '1' || combined_entity_permission[index] === '1' ? '1' : '0'))
-          .join('');
+            .map((char, index) => (char === '1' || combined_entity_permission[index] === '1' ? '1' : '0'))
+            .join('');
         }
       }
     }

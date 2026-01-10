@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../../employee-management/services/users.service';
 import { User } from '../../employee-management/entities/user.entity';
@@ -30,21 +31,24 @@ export class AuthService {
     const permissions = this.applicationPermissionsService.getSimplefiedModulePermissionsByRolesAndModuleAndTenant(roleModulePermissions);
     this.logger.debug('Permissions:', permissions);
     const permissionsHash = this.applicationPermissionsService.computePermissionsHash(permissions);
+    const sessionId = crypto.randomUUID();
     const sessionData = {
       username: user.username,
       sub: user.id,
       tenant_id: user.tenantId,
       date: new Date().toISOString(),
       permissionsHash: permissionsHash,
-      permissions: permissions
+      permissions: permissions,
+      sessionId: sessionId
     };
     // Store the session data in Redis with the permissions hash
-    await this.applicationPermissionsService.saveSessionData(user.id, sessionData);
+    await this.applicationPermissionsService.saveSessionData(user.id, sessionId, sessionData);
     const payload = {
       username: user.username,
       sub: user.id,
       tenant_id: user.tenantId,
-      permissionsHash: permissionsHash
+      permissionsHash: permissionsHash,
+      sessionId: sessionId
     };
     const token = this.jwtService.sign(payload);
     this.logger.debug('Token:', token);
