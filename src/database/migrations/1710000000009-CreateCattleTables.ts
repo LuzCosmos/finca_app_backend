@@ -6,7 +6,7 @@ export class CreateCattleTables1710000000009 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
 
     await queryRunner.query(`
-      UPDATE modules SET access_details = '{"cattles":"CRUDL"}' WHERE code = 'FARM';
+      UPDATE modules SET access_details = '{"brands": "CRUDL", "cattles":"CRUDL"}' WHERE code = 'FARM';
     `);
 
     await queryRunner.query(`
