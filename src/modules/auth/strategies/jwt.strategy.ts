@@ -30,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
     // Retrieve the session data from Redis
-    const sessionData = await this.permissionsService.getSessionFromRedis(payload.sub);
+    const sessionData = await this.permissionsService.getSessionFromRedis(payload.sub, payload.sessionId);
     if (!sessionData) {
       console.log('JwtStrategy: No session data found in Redis for sub:', payload.sub);
       throw new UnauthorizedException('Session expired or invalid.');
