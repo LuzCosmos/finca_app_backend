@@ -17,8 +17,8 @@ export class CreateProviderDto {
 
   @ApiPropertyOptional({ example: 'BUYER', enum: ProviderType, description: 'Provider type' })
   @IsEnum(ProviderType)
-  @IsOptional()
-  type?: ProviderType;
+  @IsNotEmpty()
+  type: ProviderType;
 
   @ApiPropertyOptional({ example: 'Calle 123 #45-67', description: 'Address' })
   @IsString()
