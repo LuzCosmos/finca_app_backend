@@ -24,9 +24,11 @@ The `${BASE_PATH}` and `${ENVIRONMENT}` variables are defined in the `.env` file
 
 **Example:**
 
-`srv/develop-srv/docker-data/fa-database`
+`srv/production-srv/docker-data/fa-database`
 
-`/srv/develop-srv/docker-data/fa-redis`
+`/srv/production-srv/docker-data/fa-redis`
+
+`/srv/production-srv/docker-data/fa-uploads`
 
 **Create the path**
 
@@ -44,16 +46,16 @@ sudo chown -R $ENV_USER:$ENV_USER ${BASE_PATH}/${ENVIRONMENT}-srv/docker-data/{f
 **Example:**
 
 ```bash
-sudo mkdir -p /srv/develop-srv/docker-data/fa-database,fa-redis,fa-uploads
-sudo chown -R develop_user:develop_user /srv/develop-srv/docker-data/fa-database,fa-redis,fa-uploads
+sudo mkdir -p /srv/production-srv/docker-data/{fa-database,fa-redis,fa-uploads}
+sudo chown -R 100000:100000 /srv/production-srv/docker-data/{fa-database,fa-redis,fa-uploads}
 ```
 
 ### 2. Build and Start Backend Services
 
 ```bash
 cd finca_app_backend
-docker-compose build
-docker-compose up -d
+docker compose build
+docker compose up -d
 ```
 
 This will start PostgreSQL, Redis, and the Backend API.
