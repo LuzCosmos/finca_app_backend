@@ -103,3 +103,4 @@ networks:
   finca_app_net:
     name: '${ENVIRONMENT}_finca_app_net'
     driver: bridge
+    external: true
