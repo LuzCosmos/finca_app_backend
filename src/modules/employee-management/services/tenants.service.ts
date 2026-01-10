@@ -36,10 +36,10 @@ export class TenantsService {
       console.log('createTenantDto', createTenantDto);
       const tenantRepo = manager.getRepository(Tenant);
       const existingTenant = await tenantRepo.findOne({
-        where: [
-          { name: createTenantDto.name },
-          { company_username: createTenantDto.company_username }
-        ]
+        where: {
+          name: createTenantDto.name,
+          company_username: createTenantDto.company_username
+        }
       });
 
       if (existingTenant) {

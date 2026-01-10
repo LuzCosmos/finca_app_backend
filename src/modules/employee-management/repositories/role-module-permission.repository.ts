@@ -1,4 +1,4 @@
-import { DataSource, DeleteResult, EntityManager, Repository } from 'typeorm';
+import { DataSource, DeleteResult, EntityManager, Repository, In } from 'typeorm';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { RoleModulePermission } from '../entities/role-module-permission.entity';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
@@ -19,22 +19,13 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
   async findByRolesAndTenant(roleIds: string[], tenantId: string, manager?: EntityManager): Promise<RoleModulePermission[]> {
     const repository = manager?.getRepository(RoleModulePermission) || this;
     try {
-      const query = repository.createQueryBuilder('roleModulePermission')
-        .select([
-          'roleModulePermission.id_role',
-          'roleModulePermission.id_module',
-          'roleModulePermission.can_create',
-          'roleModulePermission.can_read',
-          'roleModulePermission.can_update',
-          'roleModulePermission.can_delete',
-          'roleModulePermission.can_list',
-          'module.code',
-          'module.access_details'
-        ])
-        .innerJoinAndSelect('roleModulePermission.module', 'module')
-        .where('roleModulePermission.id_role IN (:...roleIds)', { roleIds })
-        .andWhere('roleModulePermission.tenant_id = :tenantId', { tenantId });
-      const permissions = await query.getMany();
+      const permissions = await repository.find({
+        where: {
+          id_role: In(roleIds),
+          tenant_id: tenantId
+        },
+        relations: ['module']
+      });
       return permissions;
     } catch (error) {
       throw new InternalServerErrorException(
