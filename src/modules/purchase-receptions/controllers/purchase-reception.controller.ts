@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -10,6 +10,7 @@ import { ReceptionResponseDto } from '../dto/reception-response.dto';
 import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
 import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
 import { Cattle } from 'src/modules/farm/entities/cattle.entity';
+import { Device } from 'src/modules/production-center/entities/device.entity';
 
 @ApiTags('Purchase reception')
 @ApiBearerAuth('access-token')
@@ -38,6 +39,15 @@ export class ReceptionController {
     const characteristics = await this.receptionsService.getCharacteristics(sessionUser.tenant_id);
     const receptionResponseDto = ReceptionResponseDto.toResponseDto(receptionInfo, colors, characteristics);
     return receptionResponseDto;
+  }
+
+  @Get('search-devices/by-query')
+  @ApiOperation({ summary: 'Search devices by name or deveui' })
+  @HttpCode(HttpStatus.OK)
+  @ApiResponse({ status: 200, description: 'Devices found', type: [Device] })
+  @RequireAction('read')
+  async searchDevices(@SessionUser() sessionUser: SessionUserDto, @Query('q') q: string) {
+    return this.receptionsService.searchDevices(sessionUser.tenant_id, q);
   }
 
   @Post('receive-cattle')

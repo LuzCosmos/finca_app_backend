@@ -64,12 +64,12 @@ export class CattleRepository {
 
   async findByIdPurchaseWithoutLot(idTenant: string, idPurchase: string, manager?: EntityManager): Promise<Cattle[]> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
-    return repo.find({ where: { idTenant, idPurchase, idLot: IsNull() } });
+    return repo.find({ where: { idTenant, idPurchase, idLot: IsNull() }, relations: ['device'] });
   }
 
   async findByIdLot(idTenant: string, idLot: string, manager?: EntityManager): Promise<Cattle[]> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
-    return repo.find({ where: { idTenant, idLot } });
+    return repo.find({ where: { idTenant, idLot }, relations: ['device'] });
   }
 
   async findAll(idTenant: string): Promise<Cattle[]> {
