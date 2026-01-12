@@ -31,6 +31,9 @@ export class ReceiveCattleResponseDto {
     @ApiProperty({ example: 'C-001', description: 'eartag' })
     eartag?: string;
 
+    @ApiProperty({ example: 'Tracker 1', description: 'deviceName' })
+    deviceName?: string;
+
     @ApiProperty({ example: 'appliedEvents', description: 'appliedEvents' })
     appliedEvents: Array<{
         type: SimpleEventType;
@@ -51,6 +54,7 @@ export class ReceiveCattleResponseDto {
             idColor: cattle.idColor ?? undefined,
             idDevice: cattle.idDevice ?? undefined,
             eartag: cattle.eartag ?? undefined,
+            deviceName: cattle.device?.name ?? undefined,
             appliedEvents: appliedEvents ?? [],
         };
     }

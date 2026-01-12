@@ -61,22 +61,22 @@ export class DevicesService {
       appKey: deviceProfile.csAppKey,
       nwkKey: deviceProfile.csNwkKey
     }
-    if(createDeviceDto.csJoineui) {
+    if (createDeviceDto.csJoineui) {
       deviceChirpstack.joinEui = createDeviceDto.csJoineui;
     } else {
       createDeviceDto.csJoineui = deviceProfile.csJoineui
     }
-    if(createDeviceDto.csApplicationId){
+    if (createDeviceDto.csApplicationId) {
       deviceChirpstack.applicationId = createDeviceDto.csApplicationId;
     } else {
       createDeviceDto.csApplicationId = deviceProfile.csApplicationId;
     }
-    if(createDeviceDto.csAppKey){
+    if (createDeviceDto.csAppKey) {
       deviceKeys.appKey = createDeviceDto.csAppKey;
     } else {
       createDeviceDto.csAppKey = deviceProfile.csAppKey;
     }
-    if(createDeviceDto.csNwkKey){
+    if (createDeviceDto.csNwkKey) {
       deviceKeys.nwkKey = createDeviceDto.csNwkKey;
     } else {
       createDeviceDto.csNwkKey = deviceProfile.csNwkKey;
@@ -92,7 +92,7 @@ export class DevicesService {
    * @param deviceKeys - The Chirpstack device keys
    * @returns The created device
    */
-  async createDevice(createDeviceDto: CreateDeviceDto, deviceProfile: DeviceProfile, deviceChirpstack: ChirpstackDeviceInterface,deviceKeys: ChirpstackDeviceKeysInterface): Promise<Device> {
+  async createDevice(createDeviceDto: CreateDeviceDto, deviceProfile: DeviceProfile, deviceChirpstack: ChirpstackDeviceInterface, deviceKeys: ChirpstackDeviceKeysInterface): Promise<Device> {
     const existingDevice = await this.deviceRepository.findByDevEuiAndTenantId(createDeviceDto.deveui, createDeviceDto.idTenant).catch(() => null);
     if (existingDevice) {
       throw new ConflictException(`Device with DevEUI ${createDeviceDto.deveui} already exists`);
@@ -111,24 +111,25 @@ export class DevicesService {
    */
   async getDeviceFromChirpstack(deveui: string): Promise<boolean> {
     try {
-      const response = await this.httpService.axiosRef.get(`${this.chirpstackUrl}/api/devices/${deveui}`, 
+      const response = await this.httpService.axiosRef.get(`${this.chirpstackUrl}/api/devices/${deveui}`,
         {
-        headers: {
-          'accept': 'application/json',
-          'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`,
-        },
-      });
+          headers: {
+            'accept': 'application/json',
+            'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`,
+          },
+        });
       this.logger.debug(response.data);
       if (response.status === 200) {
         return true;
       }
-      return false; 
+      return false;
     } catch (error) {
       this.logger.error(error.response?.data);
       if (error.response?.status === 401) {
         return false;
       }
-      throw new BadRequestException(`Error validating device ${deveui} with Chirpstack, error: ${error.response?.data}`);
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || 'Unknown error');
+      throw new BadRequestException(`Error validating device ${deveui} with Chirpstack, error: ${errorMsg}`);
     }
   }
 
@@ -142,19 +143,19 @@ export class DevicesService {
       const deviceExists = await this.getDeviceFromChirpstack(chirpstackDevice.devEui);
       if (!deviceExists) {
         const response = await this.httpService.axiosRef.post(
-          `${this.chirpstackUrl}/api/devices`, 
-          { device: chirpstackDevice}, 
+          `${this.chirpstackUrl}/api/devices`,
+          { device: chirpstackDevice },
           {
             headers: {
               'accept': 'application/json',
               'Content-Type': 'application/json',
-              'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`,
+              'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`,
             },
           }
         );
         if (response.status === 200) {
           const response = await this.httpService.axiosRef.post(
-            `${this.chirpstackUrl}/api/devices/${chirpstackDevice.devEui}/keys`, 
+            `${this.chirpstackUrl}/api/devices/${chirpstackDevice.devEui}/keys`,
             {
               deviceKeys: deviceKeys
             },
@@ -162,7 +163,7 @@ export class DevicesService {
               headers: {
                 'accept': 'application/json',
                 'Content-Type': 'application/json',
-                'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+                'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`
               },
             }
           );
@@ -172,11 +173,13 @@ export class DevicesService {
         const response = await this.callUpdateDeviceInChirpstack(chirpstackDevice.devEui, chirpstackDevice, deviceKeys);
         return response;
       }
+
     } catch (error) {
-      this.logger.error(error.response?.data);
-      throw new BadRequestException(`Error validating device ${chirpstackDevice.devEui} with Chirpstack, error: ${error.response?.data}`);
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || 'Unknown error');
+      this.logger.error(`Error creating device ${chirpstackDevice.devEui} in Chirpstack: ${errorMsg}`, error.stack);
+      throw new BadRequestException(`Error creating device ${chirpstackDevice.devEui} with Chirpstack, error: ${errorMsg}`);
     }
-  } 
+  }
 
   /**
    * Find a device by DevEUI and tenant ID
@@ -188,6 +191,10 @@ export class DevicesService {
     return await this.deviceRepository.findByDevEuiAndTenantId(deveui, idTenant, manager);
   }
 
+  async findById(id: string, idTenant: string, manager?: EntityManager): Promise<Device> {
+    return await this.deviceRepository.findByIdAndTenantId(id, idTenant, manager);
+  }
+
   /**
    * Update a device
    * @param deveui - The device DevEUI
@@ -195,20 +202,12 @@ export class DevicesService {
    * @param updateDeviceDto - The device to update
    * @returns The updated device
    */
-  async update(deveui: string, idTenant: string, updateDeviceDto: UpdateDeviceDto): Promise<Device> {
-    const existingDevice = await this.deviceRepository.findByDevEuiAndTenantId(deveui, idTenant).catch(() => null);
+  async update(deveui: string, idTenant: string, updateDeviceDto: UpdateDeviceDto, manager?: EntityManager): Promise<Device> {
+    const existingDevice = await this.deviceRepository.findByDevEuiAndTenantId(deveui, idTenant, manager).catch(() => null);
     if (!existingDevice) {
       throw new BadRequestException(`Device with DevEUI ${deveui} not found`);
     }
-    const deviceChirpstack = await this.updateDeviceInChirpstack(deveui, updateDeviceDto, existingDevice);
-    if (!deviceChirpstack) {
-      throw new BadRequestException(`Error updating device in Chirpstack`);
-    }
-    const device = await this.deviceRepository.update(existingDevice.id, updateDeviceDto);
-    if (!device) {
-      throw new BadRequestException(`Error updating device ${deveui}`);
-    }
-    return device;
+    return await this.updateWithDevice(existingDevice, updateDeviceDto, manager)
   }
 
   /**
@@ -227,20 +226,22 @@ export class DevicesService {
         this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
         throw new BadRequestException(`Error updating device in Chirpstack`);
       }
-    this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
-    const deviceUpdated = await this.deviceRepository.update(device.id, updateDeviceDto, manager);
-    if (!deviceUpdated) {
-      this.logger.debug(`log_device 4: Error updating device ${device.deveui}`);
-      throw new BadRequestException(`Error updating device ${device.deveui}`);
-    }
-    this.logger.debug(`log_device 5: Device updated: ${deviceUpdated.id}`);
-    return deviceUpdated;
+      this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
+      const deviceUpdated = await this.deviceRepository.update(device.id, updateDeviceDto, manager);
+      if (!deviceUpdated) {
+        this.logger.debug(`log_device 4: Error updating device ${device.deveui}`);
+        throw new BadRequestException(`Error updating device ${device.deveui}`);
+      }
+      this.logger.debug(`log_device 5: Device updated: ${deviceUpdated.id}`);
+      return deviceUpdated;
+
     } catch (error) {
-      this.logger.error(`log_device 6: Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || 'Unknown error');
+      this.logger.error(`log_device 6: Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${errorMsg}`);
       this.logger.debug(`log_device 7: ------------------------------------------------------------`);
-      this.logger.debug(`log_device 7:${error}`); 
+      this.logger.debug(`log_device 7:${JSON.stringify(error)}`);
       this.logger.debug(`log_device 7: +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
-      throw new BadRequestException(`Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
+      throw new BadRequestException(`Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${errorMsg}`);
     }
   }
 
@@ -250,11 +251,11 @@ export class DevicesService {
    * @param updateDeviceDto - The device to update
    * @returns True if the device was updated, false otherwise
    */
-  async updateDeviceInChirpstack(deveui: string, updateDeviceDto: UpdateDeviceDto, device:Device): Promise<boolean> {
+  async updateDeviceInChirpstack(deveui: string, updateDeviceDto: UpdateDeviceDto, device: Device): Promise<boolean> {
     const deviceChirpstack: ChirpstackDeviceUpdateInterface = {}
     if (updateDeviceDto.csApplicationId) {
       deviceChirpstack.applicationId = updateDeviceDto.csApplicationId;
-    } else{
+    } else {
       deviceChirpstack.applicationId = device.csApplicationId;
     }
     if (updateDeviceDto.description) {
@@ -308,6 +309,8 @@ export class DevicesService {
    */
   async callUpdateDeviceInChirpstack(deveui: string, deviceChirpstack: ChirpstackDeviceUpdateInterface, deviceKeys: ChirpstackDeviceKeysUpdateInterface): Promise<boolean> {
     try {
+      this.logger.debug(`log_device 8: ${JSON.stringify(deviceChirpstack)}`);
+      this.logger.debug(`log_device 8: fin ------------------------------------------------------------`);
       const response = await this.httpService.axiosRef.put(
         `${this.chirpstackUrl}/api/devices/${deveui}`,
         { device: deviceChirpstack },
@@ -315,11 +318,12 @@ export class DevicesService {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+            'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`
           },
         }
       );
       if (response.status === 200) {
+        this.logger.debug(`log_device 9: OK ------------------------------------------------------------`);
         if (deviceKeys.appKey || deviceKeys.nwkKey) {
           try {
             const response = await this.httpService.axiosRef.post(
@@ -329,14 +333,14 @@ export class DevicesService {
                 headers: {
                   'accept': 'application/json',
                   'Content-Type': 'application/json',
-                  'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+                  'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`
                 },
-              } 
+              }
             );
           } catch (error) {
             this.logger.error('Response Chirpstack data:', error.response?.data);
             const response = await this.httpService.axiosRef.put(
-              `${this.chirpstackUrl}/api/devices/${deveui}/keys`, 
+              `${this.chirpstackUrl}/api/devices/${deveui}/keys`,
               {
                 deviceKeys: deviceKeys
               },
@@ -344,7 +348,7 @@ export class DevicesService {
                 headers: {
                   'accept': 'application/json',
                   'Content-Type': 'application/json',
-                  'Grpc-Metadata-Authorization':  `Bearer ${this.chirpstackToken}`
+                  'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`
                 },
               }
             );
@@ -359,7 +363,8 @@ export class DevicesService {
       }
       return false;
     } catch (error) {
-      throw new BadRequestException(`Error updating device ${deveui} with Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || 'Unknown error');
+      throw new BadRequestException(`Error updating device ${deveui} with Chirpstack, message: ${error.message}, error: ${errorMsg}`);
     }
   }
 
@@ -381,7 +386,7 @@ export class DevicesService {
         },
       }
     );
-    if (response.status === 200) {  
+    if (response.status === 200) {
       await this.deviceRepository.remove(id);
     }
     throw new BadRequestException(`Error removing device ${device.deveui} from Chirpstack`);
@@ -397,12 +402,12 @@ export class DevicesService {
       const response = await firstValueFrom(
         this.httpService.get(`${this.chirpstackUrl}/api/applications/${idApplication}`, {
           headers: {
-          'accept': 'application/json',
-          'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`,
-        },
-      }),
-    );
-    return response.data;
+            'accept': 'application/json',
+            'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`,
+          },
+        }),
+      );
+      return response.data;
     } catch (error) {
       if (error.response?.status === 401 || error.response?.status === 404) {
         throw new BadRequestException(`Application with ID ${idApplication} not found in Chirpstack, message: ${error.message}, error: ${error.response?.data}`);
@@ -429,31 +434,31 @@ export class DevicesService {
    */
   async importDevicesFromExcel(file: Express.Multer.File, idTenant: string, deviceProfileId: string): Promise<any[]> {
     try {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(file.path);
-    const worksheet = workbook.worksheets[0];
-    if (!worksheet) {
-      throw new BadRequestException('The Excel sheet does not exist or is empty'); 
-    }
-    let deviceProfile: DeviceProfile | null = null;
-    if (deviceProfileId) {
-      deviceProfile = await this.deviceProfileRepository.findOne(deviceProfileId, idTenant);
-      if (!deviceProfile) {
-        throw new BadRequestException(`Device profile with ID ${deviceProfileId} not found`);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(file.path);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        throw new BadRequestException('The Excel sheet does not exist or is empty');
       }
-    }
-    const datos = await this.processSheet(worksheet, idTenant, deviceProfile);
-    return datos;
+      let deviceProfile: DeviceProfile | null = null;
+      if (deviceProfileId) {
+        deviceProfile = await this.deviceProfileRepository.findOne(deviceProfileId, idTenant);
+        if (!deviceProfile) {
+          throw new BadRequestException(`Device profile with ID ${deviceProfileId} not found`);
+        }
+      }
+      const datos = await this.processSheet(worksheet, idTenant, deviceProfile);
+      return datos;
     } catch (error) {
       throw new InternalServerErrorException('Error processing the Excel file');
     } finally {
       fs.unlink(file.path)
-      .then(() =>
-        this.logger.debug(`File ${file.originalname} deleted from ${file.path}`),
-      )
-      .catch(err =>
-        this.logger.error(`Error deleting file ${file.path}: ${err.message}`),
-      );
+        .then(() =>
+          this.logger.debug(`File ${file.originalname} deleted from ${file.path}`),
+        )
+        .catch(err =>
+          this.logger.error(`Error deleting file ${file.path}: ${err.message}`),
+        );
     }
   }
 
@@ -475,8 +480,8 @@ export class DevicesService {
         const row = worksheet.getRow(rowNumber);
         const rowValues = Array.isArray(row.values)
           ? row.values.slice(1).map((v: any) =>
-              typeof v === 'object' && v?.result !== undefined ? v.result : v,
-            )
+            typeof v === 'object' && v?.result !== undefined ? v.result : v,
+          )
           : [];
         if (rowValues.length === 0) {
           results.errors.push(`Row ${rowNumber} is empty`);
@@ -532,7 +537,7 @@ export class DevicesService {
    */
   async processExcelRow(rowValues: any[], rowNumber: number, idTenant: string, deviceProfile: DeviceProfile): Promise<Device> {
     const createDeviceDto: CreateDeviceDto = {
-      idTenant: idTenant, 
+      idTenant: idTenant,
       idDeviceProfile: deviceProfile.id,
       deveui: rowValues[0],
       name: rowValues[1],
@@ -588,5 +593,5 @@ export class DevicesService {
       throw new BadRequestException(error.message);
     }
   }
-  
+
 } 

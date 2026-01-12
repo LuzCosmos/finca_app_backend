@@ -31,6 +31,12 @@ import { ColorRepository } from 'src/modules/farm/repositories/color.repository'
 import { CharacteristicRepository } from 'src/modules/farm/repositories/characteristic.repository';
 import { LotService } from 'src/modules/commerce/services/lot.service';
 import { Lot } from 'src/modules/commerce/entities/lot.entity';
+import { Device } from 'src/modules/production-center/entities/device.entity';
+import { Repository, ILike } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DevicesService } from 'src/modules/production-center/services/devices.service';
+import { CattleDeviceHistoryRepository } from 'src/modules/farm/repositories/cattle-device-history.repository';
+
 
 @Injectable()
 export class ReceptionsService {
@@ -48,10 +54,25 @@ export class ReceptionsService {
     private readonly configurationsService: ConfigurationsService,
     private readonly cattleWeightHistoryRepo: CattleWeightHistoryRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
+    private readonly cattleDeviceHistoryRepository: CattleDeviceHistoryRepository,
     private readonly colorRepo: ColorRepository,
     private readonly characteristicRepo: CharacteristicRepository,
     private readonly lotService: LotService,
+    private readonly deviceService: DevicesService,
+
+    @InjectRepository(Device)
+    private readonly deviceRepo: Repository<Device>,
   ) { }
+
+  async searchDevices(idTenant: string, query: string): Promise<Device[]> {
+    return this.deviceRepo.find({
+      take: 20,
+      where: [
+        { idTenant, name: ILike(`%${query}%`) },
+        { idTenant, deveui: ILike(`%${query}%`) }
+      ]
+    });
+  }
 
   async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<PurchaseReceptionResponseDto> {
     var reception = this.ds.transaction(async (manager) => {
@@ -125,6 +146,10 @@ export class ReceptionsService {
       var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
       var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
       await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
+      if (cattleDto.idDevice) {
+        await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, cattleDto.idDevice, manager, new Date());
+        await this.cattleRepo.unsetDevice(idTenant, cattleDto.idDevice, manager);
+      }
       var cattleData = {
         id: uuidv4(),
         idTenant,
@@ -178,6 +203,32 @@ export class ReceptionsService {
       }
       if (cattleDto.idLot) {
         await this.lotService.UpdateLotDataAfterReception(idTenant, cattleDto.idLot, manager);
+      }
+      if (cattleDto.idDevice) {
+        const device = await this.deviceService.findById(cattleDto.idDevice, idTenant, manager);
+        if (device) {
+          const tags = device.tags ?? {};
+          tags.idCattle = cattle.id;
+          tags.idDevice = device.id;
+          tags.idTenant = idTenant;
+          const deviceUpdateDto = {
+            tags: tags
+          };
+          await this.deviceService.updateWithDevice(device, deviceUpdateDto, manager);
+
+          await this.cattleDeviceHistoryRepository.assignDeviceToCattle(
+            device.id,
+            cattle.id,
+            idTenant,
+            idCurrentUser,
+            new Date(),
+            undefined,
+            manager,
+          );
+          cattle.device = device;
+        } else {
+          throw new NotFoundException(`Device ${cattleDto.idDevice} not found`);
+        }
       }
       var simpleEventIds = cattleDto.idSimpleEvents ?? [];
       var appliedEvents: Array<{

@@ -10,7 +10,7 @@ export class DeviceRepository {
   constructor(
     @InjectRepository(Device)
     private readonly repository: Repository<Device>,
-  ) {}
+  ) { }
 
   /**
    * Create a new device
@@ -50,6 +50,21 @@ export class DeviceRepository {
    * @param idTenant - The tenant ID
    * @returns The found device
    */
+  async findByIdAndTenantId(id: string, idTenant: string, manager?: EntityManager): Promise<Device> {
+    const repo = manager ? manager.getRepository(Device) : this.repository;
+    const device = await repo.findOne({ where: { id, idTenant } });
+    if (!device) {
+      throw new NotFoundException(`Device with ID ${id} not found`);
+    }
+    return device;
+  }
+
+  /**
+   * Find a device by its DevEUI and tenant ID
+   * @param deveui - The DevEUI of the device
+   * @param idTenant - The tenant ID
+   * @returns The found device
+   */
   async findByDevEuiAndTenantId(deveui: string, idTenant: string, manager?: EntityManager): Promise<Device> {
     const repo = manager ? manager.getRepository(Device) : this.repository;
     const device = await repo.findOne({ where: { deveui, idTenant } });
@@ -68,7 +83,7 @@ export class DeviceRepository {
   async update(id: string, updateDeviceDto: UpdateDeviceDto, manager?: EntityManager): Promise<Device | null> {
     const repo = manager ? manager.getRepository(Device) : this.repository;
     await repo.update(id, updateDeviceDto);
-    return await repo.findOne({ where: { id } }); 
+    return await repo.findOne({ where: { id } });
   }
 
   /**
