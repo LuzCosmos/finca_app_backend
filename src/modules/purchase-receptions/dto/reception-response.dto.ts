@@ -65,7 +65,7 @@ export class CattleReceptionResponseDto {
       sysNumber: entity.sysNumber,
       receivedWeight: entity.receivedWeight,
       idDevice: entity.idDevice ?? '',
-      deviceName: '',
+      deviceName: entity.device?.name ?? '-',
       eartag: entity.eartag ?? undefined,
       appliedEvents: appliedEvents.map(AnimalSimpleEventReceptionResponseDto.toResponseDto),
     };

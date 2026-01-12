@@ -249,7 +249,13 @@ export class CattleService {
         break;
 
       case SimpleEventType.TRACKER:
-        const device = await this.deviceService.findOne(ev.data.tracker_deveui, idTenant, manager);
+        let device;
+        if (ev.data.tracker_id) {
+          device = await this.deviceService.findById(ev.data.tracker_id, idTenant, manager);
+        } else {
+          device = await this.deviceService.findOne(ev.data.tracker_deveui, idTenant, manager);
+        }
+
         if (device) {
           if (cattle.idDevice !== device.id) {
             await this.cattleDeviceHistoryRepository.unassignDeviceByidCattle(idTenant, cattle.id, manager, ev.appliedAt ?? new Date());
@@ -276,7 +282,7 @@ export class CattleService {
             );
           }
         } else {
-          throw new NotFoundException(`Device ${ev.data.tracker_deveui} not found`);
+          throw new NotFoundException(`Device ${ev.data.tracker_deveui ?? ev.data.tracker_id} not found`);
         }
         break;
 
