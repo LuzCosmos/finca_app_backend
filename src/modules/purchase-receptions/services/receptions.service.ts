@@ -5,7 +5,7 @@ import { PurchaseReceptionResponseDto } from '../dto/reception-response.dto';
 import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 import { PurchaseReception } from '../entities/purchase-reception.entity';
 import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ConflictException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { MassiveEventRepository } from 'src/modules/massive-events/repositories/massive-event.repository';
 import { EntityManager } from 'typeorm';
@@ -146,6 +146,12 @@ export class ReceptionsService {
       var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
       var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
       await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
+      if (cattleDto.eartag) {
+        const existingCattleWithEartag = await this.cattleRepo.findByEartag(idTenant, cattleDto.eartag);
+        if (existingCattleWithEartag) {
+          throw new ConflictException(`Eartag ${cattleDto.eartag} already exists for another cattle`);
+        }
+      }
       if (cattleDto.idDevice) {
         await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, cattleDto.idDevice, manager, new Date());
         await this.cattleRepo.unsetDevice(idTenant, cattleDto.idDevice, manager);
