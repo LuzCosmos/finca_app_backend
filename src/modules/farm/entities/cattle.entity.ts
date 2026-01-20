@@ -12,7 +12,7 @@ import {
 } from 'typeorm';
 import { Device } from '../../production-center/entities/device.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
-import { Color } from './color.entity';
+import { CattleColor } from '../enums/cattle-color.enum';
 import { CattleCharacteristic } from './cattle-characteristic.entity';
 
 export enum CattleStatus {
@@ -76,12 +76,13 @@ export class Cattle {
   @Column({ name: 'color_feature', length: 25, nullable: true })
   colorFeature: string;
 
-  @Column({ name: 'id_color', type: 'uuid', nullable: true })
-  idColor: string | null;
-
-  @ManyToOne(() => Color, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'id_color' })
-  color?: Color;
+  @Column({
+    type: 'enum',
+    enum: CattleColor,
+    enumName: 'colors_enum',
+    default: CattleColor.WHITE,
+  })
+  color: CattleColor;
 
   @OneToMany(() => CattleCharacteristic, (cattleCharacteristic) => cattleCharacteristic.cattle)
   cattleCharacteristics: CattleCharacteristic[];

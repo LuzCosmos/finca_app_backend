@@ -27,8 +27,7 @@ import { CattleCharacteristicRepository } from '../../farm/repositories/cattle-c
 import { CattleCharacteristic } from 'src/modules/farm/entities/cattle-characteristic.entity';
 import { Characteristic } from 'src/modules/farm/entities/characteristic.entity';
 import { Color } from 'src/modules/farm/entities/color.entity';
-import { ColorRepository } from 'src/modules/farm/repositories/color.repository';
-import { CharacteristicRepository } from 'src/modules/farm/repositories/characteristic.repository';
+import { ColorCharacteristicsService } from '../../farm/services/color-characteristics.service';
 import { LotService } from 'src/modules/commerce/services/lot.service';
 import { Lot } from 'src/modules/commerce/entities/lot.entity';
 import { Device } from 'src/modules/production-center/entities/device.entity';
@@ -55,10 +54,9 @@ export class ReceptionsService {
     private readonly cattleWeightHistoryRepo: CattleWeightHistoryRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
     private readonly cattleDeviceHistoryRepository: CattleDeviceHistoryRepository,
-    private readonly colorRepo: ColorRepository,
-    private readonly characteristicRepo: CharacteristicRepository,
-    private readonly lotService: LotService,
     private readonly deviceService: DevicesService,
+    private readonly colorCharacteristicsService: ColorCharacteristicsService,
+    private readonly lotService: LotService,
 
     @InjectRepository(Device)
     private readonly deviceRepo: Repository<Device>,
@@ -129,12 +127,12 @@ export class ReceptionsService {
     return reception;
   }
 
-  async getColors(idTenant: string): Promise<Color[]> {
-    return this.colorRepo.listActive(idTenant);
+  async getColors(idTenant: string): Promise<any[]> {
+    return this.colorCharacteristicsService.getAllColors();
   }
 
-  async getCharacteristics(idTenant: string): Promise<Characteristic[]> {
-    return this.characteristicRepo.listActive(idTenant);
+  async getCharacteristics(idTenant: string): Promise<any[]> {
+    return this.colorCharacteristicsService.getAllCharacteristics();
   }
 
   async receiveCattle_Transaction(idTenant: string, idCurrentUser: string, cattleDto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
@@ -167,7 +165,7 @@ export class ReceptionsService {
         purchasePrice: cattleDto.purchasePrice,
         idLot: cattleDto.idLot ?? null,
         idBrand: cattleDto.idBrand ?? null,
-        idColor: cattleDto.idColor ?? null,
+        color: cattleDto.color,
         eartag: cattleDto.eartag ?? null,
         idDevice: cattleDto.idDevice ?? null,
         castrated: cattleDto.castrated,
@@ -203,9 +201,9 @@ export class ReceptionsService {
         recordedBy: idCurrentUser,
       }
       await this.cattleWeightHistoryRepo.createWithManager(manager, weightHistory);
-      var characteristicsIds = cattleDto.characteristicsIds ?? [];
-      if (characteristicsIds.length > 0) {
-        await this.cattleCharacteristicRepository.attachMany(cattle.id, idTenant, characteristicsIds, manager);
+      var characteristics = cattleDto.characteristics ?? [];
+      if (characteristics.length > 0) {
+        await this.cattleCharacteristicRepository.attachMany(cattle.id, idTenant, characteristics, manager);
       }
       if (cattleDto.idLot) {
         await this.lotService.UpdateLotDataAfterReception(idTenant, cattleDto.idLot, manager);

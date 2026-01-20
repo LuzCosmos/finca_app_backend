@@ -27,7 +27,7 @@ import { SimpleEventType } from '../../massive-events/enums/simple-event-type.en
 @ApiTags('Cattle')
 @ApiBearerAuth('access-token')
 @Controller('cattle')
-@RequireEntity('cattles')
+@RequireEntity('cattle')
 @RequireModule('FARM')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class CattleController {

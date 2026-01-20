@@ -252,30 +252,19 @@ export class ReceptionResponseDto {
   @ApiProperty({ type: PurchaseReceptionResponseDto, description: 'Purchase reception' })
   reception: PurchaseReceptionResponseDto;
 
-  @ApiProperty({ type: [ColorResponseDto], description: 'List of colors' })
-  colors: ColorResponseDto[];
+  @ApiProperty({ type: [String], description: 'List of colors' })
+  colors: string[];
 
-  @ApiProperty({ type: [CharacteristicResponseDto], description: 'List of characteristics' })
-  characteristics: CharacteristicResponseDto[];
+  @ApiProperty({ type: [String], description: 'List of characteristics' })
+  characteristics: string[];
 
 
-  static toResponseDto(receptionInfo: PurchaseReceptionResponseDto, colors: Color[], characteristics: Characteristic[]
+  static toResponseDto(receptionInfo: PurchaseReceptionResponseDto, colors: string[], characteristics: string[]
   ): ReceptionResponseDto {
-
-    var colorsResponse: ColorResponseDto[] = [];
-    for (const c of colors) {
-      colorsResponse.push(ColorResponseDto.toResponseDto(c));
-    }
-    var characteristicsResponse: CharacteristicResponseDto[] = [];
-    for (const c of characteristics) {
-      characteristicsResponse.push(CharacteristicResponseDto.toResponseDto(c));
-    }
-    console.log('colorsResponse', colorsResponse);
-    console.log('characteristicsResponse', characteristicsResponse);
     return {
       reception: receptionInfo,
-      colors: colorsResponse,
-      characteristics: characteristicsResponse,
+      colors: colors,
+      characteristics: characteristics,
 
     };
   }
@@ -283,23 +272,14 @@ export class ReceptionResponseDto {
   static toResponseDto_optional(entity: PurchaseReception, purchase: Purchase, providerName: string,
     lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
     appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
-    colors: Color[], characteristics: Characteristic[]
+    colors: string[], characteristics: string[]
   ): ReceptionResponseDto {
-
-    var colorsResponse: ColorResponseDto[] = [];
-    for (const c of colors) {
-      colorsResponse.push(ColorResponseDto.toResponseDto(c));
-    }
-    var characteristicsResponse: CharacteristicResponseDto[] = [];
-    for (const c of characteristics) {
-      characteristicsResponse.push(CharacteristicResponseDto.toResponseDto(c));
-    }
 
     var receptionInfo = PurchaseReceptionResponseDto.toResponseDto(entity, purchase, providerName, lots, lotCattle, cattle, appliedEvents, massiveEvent);
     return {
       reception: receptionInfo,
-      colors: colorsResponse,
-      characteristics: characteristicsResponse,
+      colors: colors,
+      characteristics: characteristics,
 
     };
   }

@@ -73,7 +73,11 @@ export class CattleRepository {
   }
 
   async findAll(idTenant: string): Promise<Cattle[]> {
-    return this.repository.find({ where: { idTenant } });
+    return this.repository.find({
+      where: { idTenant },
+      relations: ['cattleCharacteristics', 'device'],
+      order: { createdAt: 'DESC' }
+    });
   }
 
   async update(idTenant: string, id: string, cattleDto: UpdateCattleDto, manager?: EntityManager): Promise<Cattle | null> {

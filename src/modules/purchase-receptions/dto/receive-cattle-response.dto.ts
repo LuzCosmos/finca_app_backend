@@ -51,7 +51,7 @@ export class ReceiveCattleResponseDto {
             number: cattle.number,
             idLot: cattle.idLot ?? undefined,
             idBrand: cattle.idBrand ?? undefined,
-            idColor: cattle.idColor ?? undefined,
+            idColor: cattle.color ?? undefined,
             idDevice: cattle.idDevice ?? undefined,
             eartag: cattle.eartag ?? undefined,
             deviceName: cattle.device?.name ?? undefined,
