@@ -109,6 +109,40 @@ export class CreateCattleDto {
   @ApiProperty({ required: false })
   @IsNumber()
   @IsOptional()
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
   averageGr?: number;
 
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  color?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  characteristics?: string[]; // Array of Enum strings
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  hasHorn?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  castrated?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  eartag?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  auctionLot?: string;
+
+  @ApiProperty({ required: false })
+  @IsUUID()
+  @IsOptional()
+  idLot?: string;
 }

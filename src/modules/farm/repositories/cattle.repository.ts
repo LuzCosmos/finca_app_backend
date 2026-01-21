@@ -29,7 +29,7 @@ export class CattleRepository {
 
   async create(cattleDto: CreateCattleDto, manager?: EntityManager): Promise<Cattle> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
-    const entity = repo.create(cattleDto);
+    const entity = (repo.create(cattleDto as any) as unknown) as Cattle;
     return repo.save(entity);
   }
 
@@ -82,7 +82,7 @@ export class CattleRepository {
 
   async update(idTenant: string, id: string, cattleDto: UpdateCattleDto, manager?: EntityManager): Promise<Cattle | null> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
-    await repo.update({ idTenant, id }, cattleDto);
+    await repo.update({ idTenant, id }, cattleDto as any);
     return this.findOne(idTenant, id);
   }
 

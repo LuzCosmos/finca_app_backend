@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query } from '@nestjs/common';
 import { CattleService } from '../services/cattle.service';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
@@ -98,7 +98,7 @@ export class CattleController {
     return this.cattleService.findByIdOrFail(sessionUser.tenant_id, id);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @ApiOperation({ summary: 'Update a cattle' })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiResponse({ status: 204, description: 'Cattle updated' })
