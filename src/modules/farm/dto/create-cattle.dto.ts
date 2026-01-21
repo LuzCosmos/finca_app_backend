@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID, IsArray } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 export class CreateCattleDto {
 
@@ -121,7 +121,9 @@ export class CreateCattleDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  characteristics?: string[]; // Array of Enum strings
+  @IsArray()
+  @IsString({ each: true })
+  characteristics?: string[];
 
   @ApiProperty({ required: false })
   @IsOptional()

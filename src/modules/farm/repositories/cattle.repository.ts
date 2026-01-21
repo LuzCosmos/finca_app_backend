@@ -4,6 +4,7 @@ import { EntityManager, In, QueryFailedError, Repository, IsNull } from 'typeorm
 import { Cattle } from '../entities/cattle.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
+import { CattleCharacteristic } from '../entities/cattle-characteristic.entity';
 
 
 type PagedInput = {
@@ -82,6 +83,23 @@ export class CattleRepository {
 
   async update(idTenant: string, id: string, cattleDto: UpdateCattleDto, manager?: EntityManager): Promise<Cattle | null> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
+    const m = manager ?? this.repository.manager;
+
+    // Handle characteristics update manually if present
+    if (cattleDto.characteristics) {
+      await m.delete(CattleCharacteristic, { idCattle: id, idTenant: idTenant });
+
+      const charEntities = cattleDto.characteristics.map(charName => m.create(CattleCharacteristic, {
+        idTenant: idTenant as any,
+        idCattle: id,
+        characteristic: charName as any
+      }));
+      await m.save(CattleCharacteristic, charEntities);
+
+      // Remove characteristics from DTO to avoid issues with repo.update if strictly typed (though we use any)
+      delete cattleDto.characteristics;
+    }
+
     await repo.update({ idTenant, id }, cattleDto as any);
     return this.findOne(idTenant, id);
   }
