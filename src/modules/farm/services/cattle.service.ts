@@ -499,6 +499,7 @@ export class CattleService {
         const entity = new CattleCharacteristic();
         entity.idCattle = idCattle;
         entity.characteristic = char as any; // Cast to Enum
+        entity.idTenant = { id: idTenant } as any;
         return entity;
       });
       await manager.save(CattleCharacteristic, newChars);
