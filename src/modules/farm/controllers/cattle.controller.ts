@@ -50,6 +50,7 @@ export class CattleController {
           sysNumber: '1234567890',
           number: '1234567890',
           receivedAt: '2021-01-01',
+          color: 'colors_enum',
           receivedWeight: 100,
           purchasePrice: 100,
           purchaseWeight: 100
@@ -61,10 +62,9 @@ export class CattleController {
           deveui: 'string',
           sysNumber: 'string',
           number: 'string',
-          brand: 'string',
-          colorMain: 'string',
-          colorDescription: 'string',
-          colorFeature: 'string',
+          brand: 'uuid-brand',
+          color: 'colors_enum',
+          characteristics: ['string'],
           lot: 'string',
           receivedAt: 'string',
           receivedWeight: 0,
@@ -86,7 +86,7 @@ export class CattleController {
   @ApiResponse({ status: 409, description: 'Cattle number already exists' })
   @ApiResponse({ status: 500, description: 'Unexpected error during creation process' })
   create(@SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateCattleDto) {
-    return this.cattleService.create(sessionUser.tenant_id, dto);
+    return this.cattleService.create(sessionUser.tenant_id, dto, sessionUser.sub);
   }
 
   @Get(':id')
@@ -105,7 +105,7 @@ export class CattleController {
   @ApiResponse({ status: 404, description: 'Cattle not found' })
   @RequireAction('update')
   update(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto, @Body() dto: UpdateCattleDto) {
-    this.cattleService.update(sessionUser.tenant_id, id, dto);
+    this.cattleService.update(sessionUser.tenant_id, id, dto, sessionUser.sub);
   }
 
   @Delete(':id')

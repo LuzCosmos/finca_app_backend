@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Cattle } from '../entities/cattle.entity';
+import { Device } from 'src/modules/production-center/entities/device.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
 import { SyncAnimalSimpleEventDto, SyncAnimalSimpleEventResultDto } from 'src/modules/massive-events/dto/sync-animal-simple-event.dto';
@@ -46,21 +47,6 @@ export class CattleService {
     private readonly massiveEventService: MassiveEventService,
     private readonly simpleEventService: SimpleEventService,
   ) { }
-
-  /*async createCattle(idTenant: string, idCurrentUser: string, cattleData: any, manager: EntityManager) {
-    const cattle = await this.cattleRepository.findBySysNumberAndTenantId(idTenant, cattleData.number, manager);
-    if (!cattle) {
-      const cattle = await this.cattleRepository.saveWithManager(manager, {
-        id: crypto.randomUUID(),
-        idTenant,
-        sysNumber: cattleNumber,
-        createdAt: new Date(),
-        applicreatedAtedBy: idCurrentUser,
-      });
-    }
-
-
-  }*/
 
   /**
    * Apply multiple simple events to cattle by their number
@@ -359,66 +345,51 @@ export class CattleService {
     });
   }
 
-
-  /**
-   * Create or update a cattle with device tags
-   * @param idTenant - The tenant ID
-   * @param dto - The cattle data
-   * @returns The created or updated cattle
-   */
-  async createOrUpdateWithDeviceTags(idTenant: string, dto: CreateCattleDto, idcattle?: string): Promise<Cattle> {
-    if (!dto.deveui) {
-      throw new BadRequestException("El campo deveui es requerido para esta operación");
-    }
-    const device = await this.deviceService.findOne(dto.deveui, idTenant);
-    if (!device) {
-      throw new NotFoundException(`Device ${dto.deveui} not found`);
-    }
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    try {
-      const manager = queryRunner.manager;
-      dto.idDevice = device.id;
-      // Crear una copia del DTO sin el campo deveui
-      const { deveui, ...dtoWithoutDeveui } = dto;
-      let cattle: Cattle | null;
-      if (idcattle) {
-        cattle = await this.cattleRepository.update(idTenant, idcattle, dtoWithoutDeveui as UpdateCattleDto, manager);
-      } else {
-        cattle = await this.cattleRepository.create(dtoWithoutDeveui as CreateCattleDto, manager);
-      }
-      if (!cattle) throw new NotFoundException(`Cattle ${idcattle} not found`);
-      const cattleDeviceHistory = await this.cattleDeviceHistoryRepository.assignDeviceToCattle(dto.idDevice, cattle.id, idTenant, undefined, undefined, undefined, manager);
-      const deviceUpdateDto = {
-        applicationId: device.csApplicationId,
-        description: device.description,
-        name: device.name,
-        tags: { id_cattle: cattle.id, id_device: dto.idDevice }
-      };
-      const deviceTags = await this.deviceService.updateWithDevice(device, deviceUpdateDto, manager);
-      await queryRunner.commitTransaction();
-      return cattle;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw new BadRequestException("Error saving the cattle with the device");
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
   /**
    * Create a new cattle
    * @param idTenant - The tenant ID
    * @param data - The cattle data
+   * @param idCurrentUser - The current user ID
    * @returns The created cattle
    */
-  async create(idTenant: string, data: CreateCattleDto): Promise<Cattle> {
-    data.idTenant = idTenant;
-    if (!data.deveui) {
-      return this.cattleRepository.create(data);
-    }
-    return this.createOrUpdateWithDeviceTags(idTenant, data);
+  async create(idTenant: string, data: CreateCattleDto, idCurrentUser: string): Promise<Cattle> {
+    return this.dataSource.transaction(async (trxManager) => {
+      data.idTenant = idTenant;
+      var device: Device | null = null;
+      if (data.idDevice) {
+        await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, data.idDevice, trxManager, new Date());
+        await this.cattleRepository.unsetDevice(idTenant, data.idDevice, trxManager);
+        device = await this.deviceService.findById(data.idDevice, idTenant, trxManager);
+        if (!device) {
+          throw new NotFoundException(`Device ${data.idDevice} not found`);
+        }
+      }
+      const cattle = await this.cattleRepository.create(data, trxManager);
+      if (data.characteristics) {
+        await this.updateCharacteristics(cattle.id, data.characteristics, idTenant, trxManager);
+      }
+      if (device) {
+        const tags = device.tags ?? {};
+        tags.idCattle = cattle.id;
+        tags.idDevice = device.id;
+        tags.idTenant = idTenant;
+        const deviceUpdateDto = {
+          tags: tags
+        };
+        device = await this.deviceService.updateWithDevice(device, deviceUpdateDto, trxManager);
+        await this.cattleDeviceHistoryRepository.assignDeviceToCattle(
+          device.id,
+          cattle.id,
+          idTenant,
+          idCurrentUser,
+          new Date(),
+          undefined,
+          trxManager,
+        );
+        cattle.device = device;
+      }
+      return cattle;
+    });
   }
 
   /**
@@ -427,8 +398,8 @@ export class CattleService {
    * @param id - The cattle ID
    * @returns The found cattle
    */
-  async findByIdOrFail(idTenant: string, id: string): Promise<Cattle> {
-    const cattle = await this.cattleRepository.findOne(idTenant, id);
+  async findByIdOrFail(idTenant: string, id: string, manager?: EntityManager): Promise<Cattle> {
+    const cattle = await this.cattleRepository.findOne(idTenant, id, manager);
     if (!cattle) throw new NotFoundException(`Cattle ${id} not found`);
     return cattle;
   }
@@ -446,70 +417,68 @@ export class CattleService {
    * @param data - The cattle data
    * @returns The updated cattle
    */
-  async update(idTenant: string, id: string, data: UpdateCattleDto): Promise<Cattle> {
-    const { characteristics, ...updateData } = data;
-
-    // Handle device assignment if deveui is provided
-    if (updateData.deveui) {
-      const cattle = await this.createOrUpdateWithDeviceTags(idTenant, updateData as CreateCattleDto, id);
-      // If there are characteristics to update, we must do it separately as createOrUpdateWithDeviceTags might not handle it
+  async update(idTenant: string, id: string, data: UpdateCattleDto, idCurrentUser: string): Promise<Cattle> {
+    this.logger.log(data);
+    return this.dataSource.transaction(async (trxManager) => {
+      const { characteristics, ...updateData } = data;
+      this.logger.log(updateData);
       if (characteristics) {
-        await this.updateCharacteristics(id, characteristics, idTenant);
+        await this.updateCharacteristics(id, characteristics, idTenant, trxManager);
       }
-      return this.findByIdOrFail(idTenant, id);
-    }
+      if (updateData.idDevice) {
+        await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, updateData.idDevice, trxManager, new Date());
+        await this.cattleRepository.unsetDevice(idTenant, updateData.idDevice, trxManager);
+        const device = await this.deviceService.findById(updateData.idDevice, idTenant, trxManager);
+        if (device) {
+          const tags = device.tags ?? {};
+          tags.idCattle = id;
+          tags.idDevice = device.id;
+          tags.idTenant = idTenant;
+          const deviceUpdateDto = {
+            tags: tags
+          };
+          await this.deviceService.updateWithDevice(device, deviceUpdateDto, trxManager);
+          await this.cattleDeviceHistoryRepository.assignDeviceToCattle(
+            device.id,
+            id,
+            idTenant,
+            idCurrentUser,
+            new Date(),
+            undefined,
+            trxManager,
+          );
+        } else {
+          throw new NotFoundException(`Device ${updateData.idDevice} not found`);
+        }
+      }
 
-    // Regular update
-    await this.cattleRepository.update(idTenant, id, updateData);
+      await this.cattleRepository.update(idTenant, id, updateData, trxManager);
 
-    // Handle attributes/relations
-    if (characteristics) {
-      await this.updateCharacteristics(id, characteristics, idTenant);
-    }
-
-    // Handle direct device ID assignment if provided (and deveui wasn't)
-    if (updateData.idDevice) {
-      // Logic to assign device by ID could be complex (history, tags), 
-      // reusing createOrUpdateWithDeviceTags might be hard without deveui.
-      // For now, let's assume direct idDevice update is handled by repo update above,
-      // BUT we need to handle device history and old device unassignment if we want to be thorough. 
-      // Given complexity, let's stick to simple update for now, or use a specific method.
-      // For this task, we assume direct column update is temporary/sufficient from grid unless full device logic needed.
-      // However, user requirement 548 mentions reusing device validation.
-      // Let's ensure idDevice update triggers history? 
-      // For now, we'll rely on the repo update for the column, but it won't update device tags/history.
-      // Ideally we should look up the device and call assignDevice logic.
-      // Let's look at applySingleEventToCattle implementation for TRACKER.
-    }
-
-    return this.findByIdOrFail(idTenant, id);
+      return this.findByIdOrFail(idTenant, id, trxManager);
+    });
   }
 
-  private async updateCharacteristics(idCattle: string, characteristics: string[], idTenant: string) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    try {
-      const manager = queryRunner.manager;
-      // Delete existing
-      await manager.delete(CattleCharacteristic, { idCattle });
-
-      // Insert new
-      const newChars = characteristics.map(char => {
-        const entity = new CattleCharacteristic();
-        entity.idCattle = idCattle;
-        entity.characteristic = char as any; // Cast to Enum
-        entity.idTenant = { id: idTenant } as any;
-        return entity;
-      });
-      await manager.save(CattleCharacteristic, newChars);
-      await queryRunner.commitTransaction();
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
+  private async updateCharacteristics(idCattle: string, characteristics: string[], idTenant: string, manager?: EntityManager): Promise<void> {
+    if (manager) {
+      await this.updateCharacteristicsWithManager(idCattle, characteristics, idTenant, manager);
+      return;
     }
+    return this.dataSource.transaction(async (trxManager) => {
+      await this.updateCharacteristicsWithManager(idCattle, characteristics, idTenant, trxManager);
+    });
+  }
+
+  private async updateCharacteristicsWithManager(idCattle: string, characteristics: string[], idTenant: string, manager: EntityManager): Promise<void> {
+    await manager.delete(CattleCharacteristic, { idCattle });
+    if (!characteristics?.length) return;
+    const newChars = characteristics.map((char) => {
+      const entity = new CattleCharacteristic();
+      entity.idCattle = idCattle;
+      entity.characteristic = char as any;
+      entity.idTenant = { id: idTenant } as any;
+      return entity;
+    });
+    await manager.save(CattleCharacteristic, newChars);
   }
 
   async remove(idTenant: string, id: string): Promise<void> {
@@ -649,9 +618,6 @@ export class CattleService {
     dto.sysNumber = rowValues[0];
     dto.number = rowValues[1];
     if (rowValues[2]) { dto.brand = rowValues[2]; }
-    if (rowValues[3]) { dto.colorDescription = rowValues[3]; }
-    if (rowValues[4]) { dto.colorMain = rowValues[4]; }
-    if (rowValues[5]) { dto.colorFeature = rowValues[5]; }
     if (rowValues[6]) { dto.lot = rowValues[6]; }
     dto.receivedAt = rowValues[7];
     dto.receivedWeight = rowValues[9];

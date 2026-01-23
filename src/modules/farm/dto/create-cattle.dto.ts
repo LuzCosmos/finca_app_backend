@@ -31,23 +31,6 @@ export class CreateCattleDto {
   brand?: string;
 
   @ApiProperty({ required: false })
-  @IsString()
-  @MaxLength(25)
-  @IsOptional()
-  colorMain?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @MaxLength(100)
-  @IsOptional()
-  colorDescription: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  colorFeature?: string;
-
-  @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
   @MaxLength(10)

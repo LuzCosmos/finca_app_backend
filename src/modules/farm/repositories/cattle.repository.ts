@@ -42,8 +42,9 @@ export class CattleRepository {
     return manager.save(Cattle, cattle);
   }
 
-  async findOne(idTenant: string, id: string): Promise<Cattle | null> {
-    return this.repository.findOne({ where: { idTenant, id } });
+  async findOne(idTenant: string, id: string, manager?: EntityManager): Promise<Cattle | null> {
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    return repo.findOne({ where: { idTenant, id } });
   }
 
   async findOneWithManager(manager: EntityManager, idTenant: string, id: string): Promise<Cattle | null> {
@@ -77,29 +78,23 @@ export class CattleRepository {
     return this.repository.find({
       where: { idTenant },
       relations: ['cattleCharacteristics', 'device'],
-      order: { createdAt: 'DESC' }
+      order: { number: 'ASC' }
     });
   }
 
   async update(idTenant: string, id: string, cattleDto: UpdateCattleDto, manager?: EntityManager): Promise<Cattle | null> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
     const m = manager ?? this.repository.manager;
-
-    // Handle characteristics update manually if present
     if (cattleDto.characteristics) {
       await m.delete(CattleCharacteristic, { idCattle: id, idTenant: idTenant });
-
       const charEntities = cattleDto.characteristics.map(charName => m.create(CattleCharacteristic, {
         idTenant: idTenant as any,
         idCattle: id,
         characteristic: charName as any
       }));
       await m.save(CattleCharacteristic, charEntities);
-
-      // Remove characteristics from DTO to avoid issues with repo.update if strictly typed (though we use any)
       delete cattleDto.characteristics;
     }
-
     await repo.update({ idTenant, id }, cattleDto as any);
     return this.findOne(idTenant, id);
   }

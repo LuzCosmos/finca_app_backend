@@ -68,7 +68,7 @@ export class ReceptionController {
           purchasePrice: 1900000,
           idLot: 'uuid-lot-456', // Optional
           idBrand: 'uuid-brand-789', // Optional
-          idColor: 'uuid-color-101', // Optional
+          color: 'color_enum', // Optional
           characteristicsIds: ['uuid-char-1', 'uuid-char-2'], // Optional
           eartag: 'ET-12345', // Optional
           idDevice: 'uuid-device-999', // Optional

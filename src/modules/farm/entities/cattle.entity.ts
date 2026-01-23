@@ -67,15 +67,6 @@ export class Cattle {
   @Column({ name: 'id_brand', type: 'uuid', nullable: true })
   idBrand: string | null;
 
-  @Column({ name: 'color_description', length: 100, nullable: true })
-  colorDescription: string;
-
-  @Column({ name: 'color_main', length: 25, nullable: true })
-  colorMain: string;
-
-  @Column({ name: 'color_feature', length: 25, nullable: true })
-  colorFeature: string;
-
   @Column({
     type: 'enum',
     enum: CattleColor,
@@ -139,6 +130,9 @@ export class Cattle {
   /** Último peso registrado */
   @Column({ name: 'last_weight', type: 'numeric', precision: 6, scale: 2, nullable: true })
   lastWeight: number;
+
+  @Column({ name: 'has_horn', type: 'boolean', default: false })
+  hasHorn: boolean;
 
   @Column({
     type: 'enum',

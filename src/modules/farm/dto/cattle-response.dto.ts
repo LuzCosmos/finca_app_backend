@@ -21,13 +21,7 @@ export class CattleResponseDto {
   brand?: string;
 
   @Expose()
-  colorDescription?: string;
-
-  @Expose()
-  colorMain?: string;
-
-  @Expose()
-  colorFeature?: string;
+  characteristics?: string[];
 
   @Expose()
   lot?: string;
