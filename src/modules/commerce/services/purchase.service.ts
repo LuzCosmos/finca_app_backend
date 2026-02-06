@@ -168,7 +168,7 @@ export class PurchaseService {
       totalWeight: Number(r.totalWeight ?? 0),
       receivedCattle: Number(r.receivedCattle ?? 0),
       receivedWeight: Number(r.receivedWeight ?? 0),
-      canReceive: Number(r.receivedCattle ?? 0) < Number(r.totalCattle ?? 0),
+      status: r.status,
     }));
 
     return { page, limit, total, items };
