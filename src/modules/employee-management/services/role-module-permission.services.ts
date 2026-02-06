@@ -40,6 +40,19 @@ export class RoleModulePermissionService {
   }
 
   /**
+   * Create multiple role module permissions
+   * @param tenantId - The ID of the tenant
+   * @param permissionDtos - The DTOs of the permissions to create
+   * @returns The role module permissions created
+   */
+  async createPermissions(tenantId: string, permissionDtos: CreatePermissionDto[], manager?: EntityManager): Promise<RoleModulePermission[]> {
+    // Note: We are skipping individual existence checks for performance in bulk operations.
+    // The database unique constraint should handle duplicates if necessary, or we check beforehand if critical.
+    // Assuming this is used during tenant creation where permissions are fresh.
+    return this.roleModulePermissionRepository.createRoleModulePermissions(tenantId, permissionDtos, manager);
+  }
+
+  /**
    * Update a role module permission
    * @param roleId - The ID of the role
    * @param tenantId - The ID of the tenant

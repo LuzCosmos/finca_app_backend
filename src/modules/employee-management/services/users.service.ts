@@ -197,13 +197,6 @@ export class UsersService {
   }
 
   /**
-   * Get all available roles for the tenant
-   */
-  async getRoles(sessionUser: SessionUserDto) {
-    return this.rolesService.findAll(sessionUser);
-  }
-
-  /**
    * Find a user by its username and password and company_username
    * @param username - The username of the user
    * @param password - The password of the user

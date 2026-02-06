@@ -62,6 +62,14 @@ export class ReceiveCattleRequestDto {
   @IsArray()
   @IsUUID('4', { each: true })
   idSimpleEvents?: string[];
+
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @IsOptional()
+  @IsNumber()
+  age?: number;
 }
 
 export class UpdateLotCattleRequestDto {

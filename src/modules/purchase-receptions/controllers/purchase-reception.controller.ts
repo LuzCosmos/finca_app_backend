@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, Query, ConflictException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -9,8 +9,12 @@ import { ReceptionsService } from '../services/receptions.service';
 import { ReceptionResponseDto } from '../dto/reception-response.dto';
 import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
 import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
-import { Cattle } from 'src/modules/farm/entities/cattle.entity';
+import { Cattle, CattleStatus } from 'src/modules/farm/entities/cattle.entity';
 import { Device } from 'src/modules/production-center/entities/device.entity';
+import { CattleService } from 'src/modules/farm/services/cattle.service';
+import { SimpleEvent } from 'src/modules/massive-events/entities/simple-event.entity';
+import { SimpleEventService } from 'src/modules/massive-events/services/simple-event.service';
+import { UpdateSimpleEventDto } from 'src/modules/massive-events/dto/update-simple-events.dto';
 
 @ApiTags('Purchase reception')
 @ApiBearerAuth('access-token')
@@ -21,7 +25,39 @@ import { Device } from 'src/modules/production-center/entities/device.entity';
 export class ReceptionController {
 
   constructor(
-    private readonly receptionsService: ReceptionsService) { }
+    private readonly receptionsService: ReceptionsService,
+    private readonly cattleService: CattleService,
+    private readonly simpleEventService: SimpleEventService
+  ) { }
+
+  @Get('number-exists')
+  @RequireAction('read')
+  async numberExists(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Query('number') number: string,
+  ): Promise<{ exists: boolean }> {
+    if (!number?.trim()) {
+      throw new BadRequestException('number is required');
+    }
+    const cattle = await this.cattleService.findByNumber(sessionUser.tenant_id, number.trim());
+    const exists =
+      !!cattle &&
+      (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST);
+    return { exists };
+  }
+
+  @Get('eartag-exists')
+  @RequireAction('read')
+  async eartagExists(@SessionUser() sessionUser: SessionUserDto, @Query('eartag') eartag: string): Promise<{ exists: boolean }> {
+    if (!eartag?.trim()) {
+      throw new BadRequestException('eartag is required');
+    }
+    var cattle = await this.cattleService.findByEartag(sessionUser.tenant_id, eartag.trim())
+    const exists =
+      !!cattle &&
+      (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST);
+    return { exists };
+  }
 
   @Get(':idPurchase')
   @ApiOperation({ summary: 'Find or create a reception by purchase id' })
@@ -69,11 +105,13 @@ export class ReceptionController {
           idLot: 'uuid-lot-456', // Optional
           idBrand: 'uuid-brand-789', // Optional
           color: 'color_enum', // Optional
-          characteristicsIds: ['uuid-char-1', 'uuid-char-2'], // Optional
+          characteristicsIds: ['char_enum_1', 'char_enum_2'], // Optional
           eartag: 'ET-12345', // Optional
           idDevice: 'uuid-device-999', // Optional
           castrated: true, // Optional
           hasHorn: true, // Optional
+          age: 'number',
+          gender: 'gender_enum',
           comments: 'Initial reception check completed.', // Optional
           idProvider: 'uuid-provider-123', // Optional
           idSimpleEvents: ['uuid-simple-event-1', 'uuid-simple-event-2'] // Optional
@@ -110,5 +148,36 @@ export class ReceptionController {
     return this.receptionsService.assignLotCattle(
       sessionUser.tenant_id,
       dto);
+  }
+
+
+  @Get('next-number/:number')
+  @ApiOperation({ summary: 'Get the next number for a reception' })
+  @HttpCode(HttpStatus.OK)
+  @ApiResponse({ status: 200, description: 'Next number found successfully', type: Number })
+  @RequireAction('read')
+  async nextNumber(@SessionUser() sessionUser: SessionUserDto, @Param('number') number: string): Promise<string> {
+    return this.receptionsService.nextNumber(sessionUser.tenant_id, number);
+  }
+
+  @Put('update-simple-event/:id')
+  @ApiOperation({ summary: 'Update Reception simple event' })
+  @HttpCode(HttpStatus.OK)
+  @ApiResponse({ status: 200, description: 'Simple event updated successfully', type: SimpleEvent })
+  @ApiResponse({ status: 400, description: 'Invalid request body' })
+  @RequireAction('update')
+  @ApiBody({
+    type: UpdateSimpleEventDto,
+    examples: {
+      'UpdateSimpleEventDto': {
+        value: {
+          data: { brandId: 'uuid-brand', brandName: 'Brand Name' },
+          isActive: true,
+        }
+      }
+    }
+  })
+  async updateSimpleEvent(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string, @Body() dto: UpdateSimpleEventDto): Promise<SimpleEvent> {
+    return this.simpleEventService.updateSimpleEvent(sessionUser.tenant_id, id, dto);
   }
 }

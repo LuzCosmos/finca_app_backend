@@ -153,6 +153,10 @@ export class PurchaseReceptionResponseDto {
   @IsOptional() @IsUUID()
   massEventId?: string;
 
+  @ApiPropertyOptional({ format: 'number', description: 'posible next cattle number for reception' })
+  @IsOptional()
+  nextCattleNumber?: string;
+
   @ApiPropertyOptional({
     description: 'Fecha/hora efectiva de la compra.',
     type: String, format: 'date-time'
@@ -183,19 +187,30 @@ export class PurchaseReceptionResponseDto {
   @ApiProperty({ type: [ReceptionMassiveEventResponseDto], description: 'List of massive events involved in this reception' })
   massiveEvent: ReceptionMassiveEventResponseDto;
 
+  @ApiProperty({ example: 12, description: 'Number of cattle received in the lot' })
+  receivedCattleCount: number;
+
+  @ApiProperty({ example: 840.5, description: 'Total weight (kg) of cattle received in the lot' })
+  receivedTotalWeight: number;
 
   static toResponseDto(entity: PurchaseReception, purchase: Purchase, providerName: string,
     lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
     appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
   ): PurchaseReceptionResponseDto {
+    var receivedCattleCount = 0;
+    var receivedTotalWeight = 0;
 
     var responseLots: LotReceptionResponseDto[] = [];
     for (const l of lots) {
       responseLots.push(LotReceptionResponseDto.toResponseDto(l, lotCattle[l.id], appliedEvents));
+      receivedCattleCount += l.receivedCattleCount;
+      receivedTotalWeight += l.receivedTotalWeight;
     }
     var responseCattle: CattleReceptionResponseDto[] = [];
     for (const c of cattle) {
       responseCattle.push(CattleReceptionResponseDto.toResponseDto(c, appliedEvents[c.id]));
+      receivedCattleCount += 1;
+      receivedTotalWeight += c.receivedWeight;
     }
 
     return {
@@ -205,9 +220,12 @@ export class PurchaseReceptionResponseDto {
       purchaseDate: new Date(purchase.purchaseDate).toISOString(),
       receivedAt: new Date(entity.receivedAt).toISOString(),
       purchaseProviderName: providerName,
+      nextCattleNumber: entity.nextCattleNumber,
       lots: responseLots,
       cattle: responseCattle,
       massiveEvent: ReceptionMassiveEventResponseDto.toResponseDto(massiveEvent),
+      receivedCattleCount: receivedCattleCount,
+      receivedTotalWeight: receivedTotalWeight,
     };
   }
 }

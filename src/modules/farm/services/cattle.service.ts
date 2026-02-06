@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import { Cattle } from '../entities/cattle.entity';
+import { Cattle, CattleStatus } from '../entities/cattle.entity';
 import { Device } from 'src/modules/production-center/entities/device.entity';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
@@ -12,6 +12,7 @@ import { CattleDeviceHistoryRepository } from '../repositories/cattle-device-his
 import { CattleWeightHistoryRepository } from '../repositories/cattle-weight-history.repository';
 import { CattleEartagHistoryRepository } from '../repositories/cattle-eartag-history.repository';
 import { CattleMedicationHistoryRepository } from '../repositories/cattle-medication-history.repository';
+import { CattleListQueryDto } from '../dto/cattle-list.query.dto';
 import { MassiveEventService } from 'src/modules/massive-events/services/massive-event.service';
 import { SimpleEventService } from 'src/modules/massive-events/services/simple-event.service';
 import { AnimalSimpleEventRepository } from 'src/modules/massive-events/repositories/animal-simple-event.repository';
@@ -19,13 +20,14 @@ import { DevicesService } from '../../production-center/services/devices.service
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import { SimpleEventType } from 'src/modules/massive-events/enums/simple-event-type.enum';
-import { AnimalSimpleEvent } from 'src/modules/massive-events/entities/animal-simple-event.entity';
-import { Type } from 'class-transformer';
 import { ColorRepository } from '../repositories/color.repository';
 import { CharacteristicRepository } from '../repositories/characteristic.repository';
 import { CattleCharacteristicRepository } from '../repositories/cattle-characteristic.repository';
 import { CattleCharacteristic } from '../entities/cattle-characteristic.entity';
-import { WeightContext } from '../entities/cattle-weight-history.entity';
+import { CattleWeightHistory, WeightContext } from '../entities/cattle-weight-history.entity';
+import { CreateCattleMedicationHistoryDto } from '../dto/create-cattle-medication-history.dto';
+import { CattleMedicationHistory } from '../entities/cattle-medication-history.entity';
+import { LotService } from 'src/modules/commerce/services/lot.service';
 
 @Injectable()
 export class CattleService {
@@ -41,6 +43,7 @@ export class CattleService {
     private readonly colorRepository: ColorRepository,
     private readonly characteristicRepository: CharacteristicRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
+    private readonly lotService: LotService,
     private readonly deviceService: DevicesService,
     private readonly animalSimpleEventRepository: AnimalSimpleEventRepository,
     private readonly dataSource: DataSource,
@@ -208,6 +211,7 @@ export class CattleService {
     switch (ev.type) {
       case SimpleEventType.WEIGHT:
         cattle.lastWeight = ev.data.weight;
+        cattle.updatedAt = new Date();
         const event = await this.cattleWeightHistoryRepository.createWithManager(manager, {
           idTenant: idTenant,
           idCattle: cattle.id,
@@ -225,6 +229,7 @@ export class CattleService {
           throw new ConflictException(`Eartag ${ev.data.eartagNumber} already exists for another cattle`);
         }
         cattle.eartag = ev.data.eartagNumber;
+        cattle.updatedAt = new Date();
         await this.cattleEartagHistoryRepository.createWithManager(manager, {
           idTenant: idTenant,
           idCattle: cattle.id,
@@ -258,6 +263,7 @@ export class CattleService {
             };
             await this.deviceService.updateWithDevice(device, deviceUpdateDto, manager);
             cattle.idDevice = device.id;
+            cattle.updatedAt = new Date();
             await this.cattleDeviceHistoryRepository.assignDeviceToCattle(
               device.id,
               cattle.id,
@@ -275,6 +281,7 @@ export class CattleService {
 
       case SimpleEventType.BRAND:
         cattle.idBrand = ev.data.idBrand;
+        cattle.updatedAt = new Date();
         break;
 
       case SimpleEventType.CASTRATION:
@@ -364,6 +371,9 @@ export class CattleService {
           throw new NotFoundException(`Device ${data.idDevice} not found`);
         }
       }
+      if (data.age !== undefined && data.age !== null) {
+        (data as any).age = data.age.toString();
+      }
       const cattle = await this.cattleRepository.create(data, trxManager);
       if (data.characteristics) {
         await this.updateCharacteristics(cattle.id, data.characteristics, idTenant, trxManager);
@@ -417,10 +427,11 @@ export class CattleService {
    * @param data - The cattle data
    * @returns The updated cattle
    */
-  async update(idTenant: string, id: string, data: UpdateCattleDto, idCurrentUser: string): Promise<Cattle> {
+  async update(idTenant: string, id: string, data: UpdateCattleDto, idCurrentUser: string): Promise<any> {
     this.logger.log(data);
     return this.dataSource.transaction(async (trxManager) => {
-      const { characteristics, ...updateData } = data;
+      const { characteristics, ...updateD } = data;
+      const updateData = { updatedAt: new Date(), ...updateD };
       this.logger.log(updateData);
       if (characteristics) {
         await this.updateCharacteristics(id, characteristics, idTenant, trxManager);
@@ -452,9 +463,85 @@ export class CattleService {
         }
       }
 
+      if (updateData.number) {
+        let cattle = await this.cattleRepository.findByNumberAndTenantId(idTenant, updateData.number, trxManager);
+        if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST) && cattle.id != id) {
+          throw new ConflictException('Cattle with number ' + updateData.number + ' already exists');
+        }
+      }
+      if (updateData.eartag) {
+        let cattle = await this.cattleRepository.findByEartag(idTenant, updateData.eartag, trxManager);
+        if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST) && cattle.id != id) {
+          throw new ConflictException(`Eartag ${updateData.eartag} already exists for another cattle`);
+        }
+      }
       await this.cattleRepository.update(idTenant, id, updateData, trxManager);
-
-      return this.findByIdOrFail(idTenant, id, trxManager);
+      /*if (updateData.purchaseWeight) {
+        const cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.PURCHASE);
+        if (cwhs.length > 0) {
+          cwhs[0].weight = updateData.purchaseWeight;
+          await this.cattleWeightHistoryRepository.update(cwhs[0], trxManager);
+        } else {
+          const cwh = new CattleWeightHistory();
+          cwh.idTenant = idTenant;
+          cwh.idCattle = id;
+          cwh.weight = updateData.purchaseWeight;
+          cwh.date = new Date();
+          cwh.context = WeightContext.PURCHASE;
+          await this.cattleWeightHistoryRepository.create(cwh, trxManager);
+        }
+      }*/
+      if (updateData.lastWeight) {
+        const cwh = new CattleWeightHistory();
+        cwh.idTenant = idTenant;
+        cwh.idCattle = id;
+        cwh.weight = updateData.lastWeight;
+        cwh.date = new Date();
+        cwh.context = WeightContext.MANUAL;
+        await this.cattleWeightHistoryRepository.create(cwh, trxManager);
+      }
+      if (updateData.receivedWeight) {
+        var cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.RECEIVED);
+        if (cwhs.length > 0) {
+          cwhs[0].weight = updateData.receivedWeight;
+          await this.cattleWeightHistoryRepository.update(cwhs[0], trxManager);
+        } else {
+          const cwh = new CattleWeightHistory();
+          cwh.idTenant = idTenant;
+          cwh.idCattle = id;
+          cwh.weight = updateData.receivedWeight;
+          cwh.date = new Date();
+          cwh.context = WeightContext.RECEIVED;
+          await this.cattleWeightHistoryRepository.create(cwh, trxManager);
+        }
+      }
+      if (updateData.saleWeight) {
+        var cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.SALE);
+        if (cwhs.length > 0) {
+          cwhs[0].weight = updateData.saleWeight;
+          await this.cattleWeightHistoryRepository.update(cwhs[0], trxManager);
+        } else {
+          const cwh = new CattleWeightHistory();
+          cwh.idTenant = idTenant;
+          cwh.idCattle = id;
+          cwh.weight = updateData.saleWeight;
+          cwh.date = new Date();
+          cwh.context = WeightContext.SALE;
+          await this.cattleWeightHistoryRepository.create(cwh, trxManager);
+        }
+      }
+      // Get the updated cattle
+      const updatedCattle = await this.findByIdOrFail(idTenant, id, trxManager);
+      // Fetch histories to return the complete object
+      const [weightHistory, medicationHistory] = await Promise.all([
+        this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager),
+        this.cattleMedicationHistoryRepository.findByCattle(idTenant, id, trxManager),
+      ]);
+      return {
+        ...updatedCattle,
+        weightHistory,
+        medicationHistory,
+      };
     });
   }
 
@@ -469,8 +556,42 @@ export class CattleService {
   }
 
   private async updateCharacteristicsWithManager(idCattle: string, characteristics: string[], idTenant: string, manager: EntityManager): Promise<void> {
+    if (!characteristics?.length) {
+      await manager.delete(CattleCharacteristic, { idCattle });
+      return;
+    }
+
+    // Validation Logic
+    const counts = {
+      HEAD: 0,
+      BELLY: 0,
+      LEGS: 0,
+      FEET: 0,
+      HALF_HEAD: 0,
+      SPOTS: 0,
+      PATTERN: 0,
+    };
+
+    for (const char of characteristics) {
+      if (char.includes('HALF_HEAD')) counts.HALF_HEAD++;
+      else if (char.includes('HEAD')) counts.HEAD++;
+      else if (char.includes('BELLY')) counts.BELLY++;
+      else if (char.includes('LEGS')) counts.LEGS++;
+      else if (char.includes('FEET')) counts.FEET++;
+      else if (char.includes('SPOTS')) counts.SPOTS++;
+      else if (char.includes('PATTERN')) counts.PATTERN++;
+    }
+
+    if (counts.HEAD > 1) throw new BadRequestException('Cannot have more than 1 Head characteristic');
+    if (counts.BELLY > 1) throw new BadRequestException('Cannot have more than 1 Belly characteristic');
+    if (counts.LEGS > 1) throw new BadRequestException('Cannot have more than 1 Legs characteristic');
+    if (counts.FEET > 1) throw new BadRequestException('Cannot have more than 1 Feet characteristic');
+    if (counts.SPOTS > 1) throw new BadRequestException('Cannot have more than 1 Spots characteristic');
+    if (counts.PATTERN > 1) throw new BadRequestException('Cannot have more than 1 Pattern characteristic');
+    if (counts.HALF_HEAD > 2) throw new BadRequestException('Cannot have more than 2 Half Head characteristics');
+
     await manager.delete(CattleCharacteristic, { idCattle });
-    if (!characteristics?.length) return;
+
     const newChars = characteristics.map((char) => {
       const entity = new CattleCharacteristic();
       entity.idCattle = idCattle;
@@ -485,8 +606,36 @@ export class CattleService {
     await this.cattleRepository.delete(idTenant, id);
   }
 
+  async findByEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
+    return await this.cattleRepository.findByEartag(idTenant, eartag, manager);
+  }
+  async findByNumber(idTenant: string, number: string, manager?: EntityManager): Promise<Cattle | null> {
+    return await this.cattleRepository.findByNumberAndTenantId(idTenant, number, manager);
+  }
+
   list(idTenant: string): Promise<Cattle[]> {
     return this.cattleRepository.findAll(idTenant);
+  }
+
+  async listPaged(idTenant: string, q: CattleListQueryDto) {
+    const page = Math.max(1, q.page ?? 1);
+    const limit = Math.max(1, q.limit ?? 10);
+    const { total, rows } = await this.cattleRepository.listPaged(idTenant, q, page, limit);
+    // Procesamos todos los rows en paralelo
+    const items = await Promise.all(rows.map(async (cattle) => {
+      // Ejecutamos las dos consultas de historial en paralelo para este cattle
+      const [weightHistory, medicationHistory] = await Promise.all([
+        this.cattleWeightHistoryRepository.findByCattle(idTenant, cattle.id),
+        this.cattleMedicationHistoryRepository.findByCattle(idTenant, cattle.id),
+      ]);
+      // Retornamos un objeto nuevo combinando los datos del cattle con los historiales
+      return {
+        ...cattle,
+        weightHistory,
+        medicationHistory,
+      };
+    }));
+    return { page, limit, total, items };
   }
 
   async import(file: Express.Multer.File, idTenant: string): Promise<any[]> {
@@ -684,7 +833,6 @@ export class CattleService {
       }
       throw new BadRequestException(message);
     }
-
     return cattle;
   }
 
@@ -708,9 +856,35 @@ export class CattleService {
       date: new Date(dto.measuredDate || new Date()),
       recordedBy: userId,
       idTenant,
+      context: WeightContext.MANUAL,
     };
 
     return this.cattleWeightHistoryRepository.create(weightHistory as any);
+  }
+
+  /**
+   * Add medication record to history
+   * @param idTenant - The tenant ID
+   * @param idCattle - The cattle ID
+   * @param dto - The medication data
+   * @param userId - The user ID who recorded
+   * @returns The created history record
+   */
+  async addMedicationHistory(idTenant: string, idCattle: string, dto: CreateCattleMedicationHistoryDto, userId?: string) {
+    const cattle = await this.cattleRepository.findOne(idTenant, idCattle);
+    if (!cattle) {
+      throw new NotFoundException('Cattle not found');
+    }
+    const medicationHistory = new CattleMedicationHistory();
+    medicationHistory.idTenant = idTenant;
+    medicationHistory.idCattle = idCattle;
+    medicationHistory.medicationName = dto.medicationName;
+    medicationHistory.dosage = dto.dosage;
+    medicationHistory.route = dto.route;
+    medicationHistory.lot = dto.lot;
+    medicationHistory.recordedBy = userId;
+    medicationHistory.appliedAt = dto.appliedAt ? new Date(dto.appliedAt) : new Date();
+    return this.cattleMedicationHistoryRepository.create(medicationHistory);
   }
 
   /**
@@ -774,102 +948,6 @@ export class CattleService {
       updatedAfter,
     });
   }
-
-  /**
-   * Recibir UNA res dentro de una recepción:
-   * - Verifica recepción y deriva purchaseId + massEventId.
-   * - Reserva número seguro (salta colisiones activas).
-   * - Asigna color (por id o por nombre creando si no existe).
-   * - Asocia características (N:M).
-   * - Aplica simple events a la res (vinculados al massive_event de la recepción).
-   * - Asigna lote opcional y recalcula métricas del lote (si aplica).
-   * Todo en UNA transacción.
-   */
-  /*async receiveOneFromReception(params: {
-    tenantId: string;
-    userId: string;
-    receptionId: string;
-    dto: ReceiveCattleDto;
-  }): Promise<ReceiveCattleResponseDto> {
-    const { tenantId, userId, receptionId, dto } = params;
-
-    return this.dataSource.transaction(async (m) => {
-      // 1) Cargar la recepción y derivar batch/purchase/evento masivo
-      const prRepo = m.getRepository(PurchaseReception);
-      const rec = await prRepo.findOne({
-        where: { id: receptionId },
-        relations: ['batch', 'batch.purchase', 'batch.massiveEvent', 'batch.purchase.idTenant'],
-      });
-      if (!rec) throw new NotFoundException('Recepción no encontrada');
-      if ((rec.batch.purchase as any).idTenant?.id !== tenantId) {
-        throw new ForbiddenException('Acceso a recepción de otro tenant');
-      }
-      if (rec.status !== ReceptionDocStatus.DRAFT && rec.status !== ReceptionDocStatus.CONFIRMED) {
-        throw new BadRequestException('La recepción no admite intake en su estado actual');
-      }
-
-      const purchaseId = (rec.batch.purchase as any).id as string;
-      const massEventId = (rec.batch.massiveEvent as any).id as string;
-
-      // 2) Resolver COLOR (id > nombre > ninguno)
-      let colorId: string | undefined = dto.colorId;
-      if (!colorId && dto.colorName?.trim()) {
-        const color = await this.colorRepository.getOrCreateByNameCI(tenantId, dto.colorName.trim(), m);
-        colorId = color.id;
-      }
-
-      // 3) Crear CATTLE con número seguro (salta duplicados activos)
-      const { entity: cattle, numberAssigned } = await this.cattleRepository.createActiveWithAutoNumber({
-        tenantId,
-        baseNumber: dto.number,
-        payload: {
-          idPurchase: { id: purchaseId } as any,
-          idLot: dto.lotId ? ({ id: dto.lotId } as any) : null,
-          receivedAt: new Date(),                    // o parsear dto si lo agregas
-          receivedWeight: dto.weightKg,
-          purchaseWeight: dto.weightKg,              // mismo valor a la entrada
-          castrated: dto.castrated ?? false,
-          eartag: dto.eartag ?? null,
-          comments: dto.comments ?? null,
-          color: colorId ? ({ id: colorId } as any) : null, // FK id_color
-        } as any,
-      }, m);
-
-      // 4) Características (N:M)
-      if (dto.characteristicsIds?.length) {
-        // Valida que las características pertenezcan al tenant
-        const found = await this.characteristicRepository.findManyByTenantAndIds(tenantId, dto.characteristicsIds, m);
-        const foundIds = new Set(found.map((x) => x.id));
-        const invalid = dto.characteristicsIds.filter((id) => !foundIds.has(id));
-        if (invalid.length) {
-          throw new BadRequestException(`Características inválidas o de otro tenant: ${invalid.join(', ')}`);
-        }
-        await this.cattleCharacteristicRepository.attachMany(cattle.id, tenantId, dto.characteristicsIds, m);
-      }
-
-      // 5) Simple events (si vienen)
-      if (dto.simpleEventIds?.length) {
-        const rows = dto.simpleEventIds.map((idSimple) => ({
-          idTenant: { id: tenantId } as any,
-          idMassiveEvent: { id: massEventId } as any,
-          idSimpleEvent: { id: idSimple } as any,
-          idAnimal: { id: cattle.id } as any,
-          appliedBy: { id: userId } as any,
-          data: null,
-        }));
-        await this.animalSimpleEventRepository.insertMany(rows, m); // crea un helper insertMany en tu repo
-      }
-
-      // 6) Asignación de lote opcional y métrica (si la pasaste ya lo pusimos en payload;
-      //    si quisieras soporte de PATCH posterior, usa cattleRepository.assignLot)
-
-      // 7) Siguiente sugerido
-      const nextSuggestion = (BigInt(numberAssigned) + 1n).toString();
-
-      return { cattleId: cattle.id, numberAssigned, nextSuggestion };
-    });
-  }*/
-
 }
 
 // Export types for controller

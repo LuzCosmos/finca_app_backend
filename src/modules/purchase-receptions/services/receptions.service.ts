@@ -72,6 +72,10 @@ export class ReceptionsService {
     });
   }
 
+  async getSimpleReception(idTenant: string, idPurchase: string, manager: EntityManager): Promise<PurchaseReception | null> {
+    return await this.prRepo.findByPurchase(idTenant, idPurchase, manager);
+  }
+
   async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<PurchaseReceptionResponseDto> {
     var reception = this.ds.transaction(async (manager) => {
       console.log('idTenant', idTenant);
@@ -139,13 +143,13 @@ export class ReceptionsService {
     return this.ds.transaction(async manager => {
       let cattle = await this.cattleRepo.findByNumberAndTenantId(idTenant, cattleDto.number, manager);
       if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST)) {
-        throw new NotFoundException('Cattle already exists');
+        throw new ConflictException('Cattle with number ' + cattleDto.number + ' already exists');
       }
       var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
       var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
       await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
       if (cattleDto.eartag) {
-        const existingCattleWithEartag = await this.cattleRepo.findByEartag(idTenant, cattleDto.eartag);
+        const existingCattleWithEartag = await this.cattleRepo.findByEartag(idTenant, cattleDto.eartag, manager);
         if (existingCattleWithEartag) {
           throw new ConflictException(`Eartag ${cattleDto.eartag} already exists for another cattle`);
         }
@@ -176,8 +180,10 @@ export class ReceptionsService {
         status: CattleStatus.ACTIVE,
         idProvider: cattleDto.idProvider ?? null,
         idPurchase: cattleDto.idPurchase,
+        gender: cattleDto.gender,
+        age: cattleDto.age,
+        hasHorn: cattleDto.hasHorn
       }
-
       if (cattleDto.idLot) {
         let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
         if (!lot) {
@@ -197,7 +203,7 @@ export class ReceptionsService {
         idCattle: cattle.id,
         weight: cattleDto.receivedWeight,
         date: new Date(),
-        context: WeightContext.PURCHASE,
+        context: WeightContext.RECEIVED,
         recordedBy: idCurrentUser,
       }
       await this.cattleWeightHistoryRepo.createWithManager(manager, weightHistory);
@@ -207,6 +213,15 @@ export class ReceptionsService {
       }
       if (cattleDto.idLot) {
         await this.lotService.UpdateLotDataAfterReception(idTenant, cattleDto.idLot, manager);
+      }
+      var reception: PurchaseReception | null = null;
+      if (cattleDto.idPurchase) {
+        reception = await this.getSimpleReception(idTenant, cattleDto.idPurchase, manager);
+        if (reception != null) {
+          var nextnumber = await this.cattleRepo.getSuggestNextNumber(idTenant, cattleDto.number, manager);
+          reception.nextCattleNumber = nextnumber;
+          await manager.save(reception);
+        }
       }
       if (cattleDto.idDevice) {
         const device = await this.deviceService.findById(cattleDto.idDevice, idTenant, manager);
@@ -219,7 +234,6 @@ export class ReceptionsService {
             tags: tags
           };
           await this.deviceService.updateWithDevice(device, deviceUpdateDto, manager);
-
           await this.cattleDeviceHistoryRepository.assignDeviceToCattle(
             device.id,
             cattle.id,
@@ -301,6 +315,12 @@ export class ReceptionsService {
         await this.lotService.UpdateLotDataAfterReception(idTenant, oldLot.id, manager);
       }
       return cattle;
+    });
+  }
+
+  async nextNumber(idTenant: string, number: string): Promise<string> {
+    return this.ds.transaction(async manager => {
+      return await this.cattleRepo.getSuggestNextNumber(idTenant, number, manager);
     });
   }
 }

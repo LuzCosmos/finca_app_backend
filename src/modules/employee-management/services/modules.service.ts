@@ -3,22 +3,25 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ModuleEntity } from '../entities/module.entity';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { EntityManager } from 'typeorm';
 
 @Injectable()
 export class ModulesService {
   constructor(
     @InjectRepository(ModuleEntity)
     private readonly moduleRepository: Repository<ModuleEntity>,
-  ) {}
+  ) { }
 
   @ApiOperation({ summary: 'Obtener todos los módulos' })
-  async findAll(): Promise<ModuleEntity[]> {
-    return this.moduleRepository.find();
+  async findAll(manager?: EntityManager): Promise<ModuleEntity[]> {
+    const moduleRepo = manager ? manager.getRepository(ModuleEntity) : this.moduleRepository;
+    return moduleRepo.find();
   }
 
   @ApiOperation({ summary: 'Buscar un módulo por nombre' })
-  async findByName(name: string): Promise<ModuleEntity> {
-    const module = await this.moduleRepository.findOne({
+  async findByName(name: string, manager?: EntityManager): Promise<ModuleEntity> {
+    const moduleRepo = manager ? manager.getRepository(ModuleEntity) : this.moduleRepository;
+    const module = await moduleRepo.findOne({
       where: { name }
     });
 
@@ -30,8 +33,9 @@ export class ModulesService {
   }
 
   @ApiOperation({ summary: 'Buscar un módulo por ID' })
-  async findById(id: string): Promise<ModuleEntity> {
-    const module = await this.moduleRepository.findOne({
+  async findById(id: string, manager?: EntityManager): Promise<ModuleEntity> {
+    const moduleRepo = manager ? manager.getRepository(ModuleEntity) : this.moduleRepository;
+    const module = await moduleRepo.findOne({
       where: { id }
     });
 

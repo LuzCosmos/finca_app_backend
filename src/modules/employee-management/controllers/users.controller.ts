@@ -11,6 +11,7 @@ import { plainToInstance } from 'class-transformer';
 import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
+import { RoleService } from '../services/roles.service';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -19,7 +20,10 @@ import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 @RequireModule('EMP_MGMT')
 @RequireEntity('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly rolesService: RoleService
+  ) { }
 
   @Post()
   @RequireAction('create')
@@ -41,7 +45,7 @@ export class UsersController {
   @RequireAction('read')
   @ApiOperation({ summary: 'Obtener roles disponibles' })
   async getRoles(@SessionUser() sessionUser: SessionUserDto) {
-    return this.usersService.getRoles(sessionUser);
+    return this.rolesService.findAll(sessionUser.tenant_id);
   }
 
   @Get(':id')

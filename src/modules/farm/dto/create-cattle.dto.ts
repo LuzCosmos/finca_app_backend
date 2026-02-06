@@ -1,5 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID, IsArray, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { CattleGender } from '../enums/cattle-gender.enum';
+import { CattleStatus } from '../entities/cattle.entity';
 export class CreateCattleDto {
 
   idTenant: string;
@@ -130,4 +132,23 @@ export class CreateCattleDto {
   @IsUUID()
   @IsOptional()
   idLot?: string;
+
+  @ApiProperty({ required: false, enum: CattleGender })
+  @IsEnum(CattleGender)
+  @IsOptional()
+  gender?: CattleGender;
+
+  @ApiProperty({ required: false, enum: CattleStatus })
+  @IsEnum(CattleStatus)
+  @IsOptional()
+  status?: CattleStatus;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  age?: number;
+
+  @ApiProperty({ required: true })
+  @IsNumber()
+  lastWeight?: number;
 }

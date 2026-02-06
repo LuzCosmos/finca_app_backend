@@ -14,6 +14,7 @@ import { Device } from '../../production-center/entities/device.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
 import { CattleColor } from '../enums/cattle-color.enum';
 import { CattleCharacteristic } from './cattle-characteristic.entity';
+import { CattleGender } from '../enums/cattle-gender.enum';
 
 export enum CattleStatus {
   ACTIVE = 'ACTIVE',
@@ -131,7 +132,7 @@ export class Cattle {
   @Column({ name: 'last_weight', type: 'numeric', precision: 6, scale: 2, nullable: true })
   lastWeight: number;
 
-  @Column({ name: 'has_horn', type: 'boolean', default: false })
+  @Column({ name: 'has_horns', type: 'boolean', default: false })
   hasHorn: boolean;
 
   @Column({
@@ -141,6 +142,16 @@ export class Cattle {
     default: CattleStatus.ACTIVE,
   })
   status: CattleStatus;
+
+  @Column({
+    type: 'enum',
+    enum: CattleGender,
+    enumName: 'gender_enum',
+  })
+  gender: CattleGender;
+
+  @Column({ name: 'age', nullable: true })
+  age: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

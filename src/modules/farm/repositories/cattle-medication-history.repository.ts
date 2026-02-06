@@ -8,7 +8,7 @@ export class CattleMedicationHistoryRepository {
   constructor(
     @InjectRepository(CattleMedicationHistory)
     private readonly repo: Repository<CattleMedicationHistory>,
-  ) {}
+  ) { }
 
   async create(entity: CattleMedicationHistory): Promise<CattleMedicationHistory> {
     return await this.repo.save(entity);
@@ -24,8 +24,13 @@ export class CattleMedicationHistoryRepository {
   async findByCattle(
     idTenant: string,
     idCattle: string,
+    manager?: EntityManager,
   ): Promise<CattleMedicationHistory[]> {
-    return await this.repo.find({
+    var repo = this.repo;
+    if (manager) {
+      repo = manager.getRepository(CattleMedicationHistory);
+    }
+    return await repo.find({
       where: { idTenant, idCattle },
       order: { appliedAt: 'DESC' },
     });
