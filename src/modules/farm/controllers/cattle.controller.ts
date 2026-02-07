@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query } from '@nestjs/common';
 import { CattleService } from '../services/cattle.service';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
+import { CreateCattleMedicationHistoryDto } from '../dto/create-cattle-medication-history.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -11,6 +12,8 @@ import { CattleResponseDto } from '../dto/cattle-response.dto';
 import { CattleBasicResponseDto } from '../dto/cattle-basic-response.dto';
 import { CattleBasicPageDto } from '../dto/cattle-basic-page.dto';
 import { CattleBasicQueryDto } from '../dto/cattle-basic-query.dto';
+import { CattleListQueryDto } from '../dto/cattle-list.query.dto';
+import { PagedResponseDto } from 'src/shared/dto/paged-response.dto';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -27,7 +30,7 @@ import { SimpleEventType } from '../../massive-events/enums/simple-event-type.en
 @ApiTags('Cattle')
 @ApiBearerAuth('access-token')
 @Controller('cattle')
-@RequireEntity('cattles')
+@RequireEntity('cattle')
 @RequireModule('FARM')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class CattleController {
@@ -50,6 +53,7 @@ export class CattleController {
           sysNumber: '1234567890',
           number: '1234567890',
           receivedAt: '2021-01-01',
+          color: 'colors_enum',
           receivedWeight: 100,
           purchasePrice: 100,
           purchaseWeight: 100
@@ -61,10 +65,9 @@ export class CattleController {
           deveui: 'string',
           sysNumber: 'string',
           number: 'string',
-          brand: 'string',
-          colorMain: 'string',
-          colorDescription: 'string',
-          colorFeature: 'string',
+          brand: 'uuid-brand',
+          color: 'colors_enum',
+          characteristics: ['string'],
           lot: 'string',
           receivedAt: 'string',
           receivedWeight: 0,
@@ -86,7 +89,7 @@ export class CattleController {
   @ApiResponse({ status: 409, description: 'Cattle number already exists' })
   @ApiResponse({ status: 500, description: 'Unexpected error during creation process' })
   create(@SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateCattleDto) {
-    return this.cattleService.create(sessionUser.tenant_id, dto);
+    return this.cattleService.create(sessionUser.tenant_id, dto, sessionUser.sub);
   }
 
   @Get(':id')
@@ -98,14 +101,24 @@ export class CattleController {
     return this.cattleService.findByIdOrFail(sessionUser.tenant_id, id);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @ApiOperation({ summary: 'Update a cattle' })
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiResponse({ status: 204, description: 'Cattle updated' })
+  @HttpCode(HttpStatus.OK)
+  @ApiResponse({ status: 200, description: 'Cattle updated' })
   @ApiResponse({ status: 404, description: 'Cattle not found' })
   @RequireAction('update')
   update(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto, @Body() dto: UpdateCattleDto) {
-    this.cattleService.update(sessionUser.tenant_id, id, dto);
+    return this.cattleService.update(sessionUser.tenant_id, id, dto, sessionUser.sub);
+  }
+
+  @Post(':id/medication')
+  @ApiOperation({ summary: 'Add medication history to a cattle' })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiResponse({ status: 201, description: 'Medication history added' })
+  @ApiResponse({ status: 404, description: 'Cattle not found' })
+  @RequireAction('update')
+  addMedication(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateCattleMedicationHistoryDto) {
+    return this.cattleService.addMedicationHistory(sessionUser.tenant_id, id, dto, sessionUser.sub);
   }
 
   @Delete(':id')
@@ -120,10 +133,11 @@ export class CattleController {
 
   @Get()
   @ApiOperation({ summary: 'List all cattle' })
-  @ApiResponse({ status: 200, description: 'List of cattle', type: [CattleResponseDto] })
+  @ApiResponse({ status: 200, description: 'List of cattle', type: PagedResponseDto })
   @RequireAction('read')
-  list(@SessionUser() sessionUser: SessionUserDto) {
-    return this.cattleService.list(sessionUser.tenant_id);
+  async list(@SessionUser() sessionUser: SessionUserDto, @Query() query: CattleListQueryDto) {
+    const { items, total, page, limit } = await this.cattleService.listPaged(sessionUser.tenant_id, query);
+    return PagedResponseDto.of(page, limit, total, items);
   }
 
   @Get('basic-info')

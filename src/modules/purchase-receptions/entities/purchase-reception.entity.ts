@@ -18,6 +18,9 @@ export class PurchaseReception {
   @Column('timestamp', { name: 'received_at', default: () => 'now()' })
   receivedAt!: Date;
 
+  @Column({ name: 'next_cattle_number', length: 50 })
+  nextCattleNumber: string;
+
   /*@Column('text', { nullable: true })
   note?: string;*/
   @CreateDateColumn({ name: 'created_at' }) createdAt!: Date;

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { ApplicationPermissionsModule } from '../../common/application-permissions/application-permissions.module';
@@ -38,7 +38,7 @@ import { SalesService } from './services/sales.service';
     ]),
     ConfigModule,
     ApplicationPermissionsModule,
-    FarmModule,
+    forwardRef(() => FarmModule),
     ProductionCenterModule,
   ],
   controllers: [LotController, ProviderController, PurchaseController, SalesController],
@@ -51,6 +51,6 @@ import { SalesService } from './services/sales.service';
     LotService,
     SalesService,
   ],
-  exports: [ProviderRepository, PurchaseRepository, LotRepository, LotService],
+  exports: [ProviderRepository, PurchaseRepository, LotRepository, LotService, PurchaseService],
 })
 export class CommerceModule { }

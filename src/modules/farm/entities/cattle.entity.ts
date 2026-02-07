@@ -12,8 +12,9 @@ import {
 } from 'typeorm';
 import { Device } from '../../production-center/entities/device.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
-import { Color } from './color.entity';
+import { CattleColor } from '../enums/cattle-color.enum';
 import { CattleCharacteristic } from './cattle-characteristic.entity';
+import { CattleGender } from '../enums/cattle-gender.enum';
 
 export enum CattleStatus {
   ACTIVE = 'ACTIVE',
@@ -67,21 +68,13 @@ export class Cattle {
   @Column({ name: 'id_brand', type: 'uuid', nullable: true })
   idBrand: string | null;
 
-  @Column({ name: 'color_description', length: 100, nullable: true })
-  colorDescription: string;
-
-  @Column({ name: 'color_main', length: 25, nullable: true })
-  colorMain: string;
-
-  @Column({ name: 'color_feature', length: 25, nullable: true })
-  colorFeature: string;
-
-  @Column({ name: 'id_color', type: 'uuid', nullable: true })
-  idColor: string | null;
-
-  @ManyToOne(() => Color, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'id_color' })
-  color?: Color;
+  @Column({
+    type: 'enum',
+    enum: CattleColor,
+    enumName: 'colors_enum',
+    default: CattleColor.WHITE,
+  })
+  color: CattleColor;
 
   @OneToMany(() => CattleCharacteristic, (cattleCharacteristic) => cattleCharacteristic.cattle)
   cattleCharacteristics: CattleCharacteristic[];
@@ -139,6 +132,9 @@ export class Cattle {
   @Column({ name: 'last_weight', type: 'numeric', precision: 6, scale: 2, nullable: true })
   lastWeight: number;
 
+  @Column({ name: 'has_horns', type: 'boolean', default: false })
+  hasHorn: boolean;
+
   @Column({
     type: 'enum',
     enum: CattleStatus,
@@ -146,6 +142,16 @@ export class Cattle {
     default: CattleStatus.ACTIVE,
   })
   status: CattleStatus;
+
+  @Column({
+    type: 'enum',
+    enum: CattleGender,
+    enumName: 'gender_enum',
+  })
+  gender: CattleGender;
+
+  @Column({ name: 'age', nullable: true })
+  age: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

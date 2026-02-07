@@ -24,6 +24,13 @@ export class Purchase {
   @Column({ name: 'total_weight', type: 'numeric', precision: 10, scale: 2, default: 0 })
   totalWeight: number;
 
+  @Column({
+    type: 'enum',
+    enum: ['OPEN', 'RECEIVED'],
+    default: 'OPEN',
+  })
+  status: string;
+
   @Column({ name: 'id_provider', type: 'uuid', nullable: true })
   idProvider: string;
 

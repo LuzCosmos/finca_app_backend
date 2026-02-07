@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post
 import { PurchaseService } from '../services/purchase.service';
 import { CreatePurchaseDto } from '../dto/create-purchase.dto';
 import { UpdatePurchaseDto } from '../dto/update-purchase.dto';
+import { UpdatePurchaseStatusDto } from '../dto/update-purchase-status.dto';
 import { SessionUser } from '../../../common/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -50,18 +51,6 @@ export class PurchaseController {
     const purchase = await this.purchaseService.updatePurchase(id, dto, user.tenant_id, user.sub);
     return PurchaseResponseDto.toPurchaseResponse(purchase);
   }
-  /*
-    @Get()
-    @RequireAction('read')
-    @ApiOperation({ summary: 'Get all purchases for tenant' })
-    @ApiResponse({ status: 200, type: [PurchaseResponseDto] })
-    async findAll(
-      @SessionUser() user: SessionUserDto,
-    ): Promise<PurchaseResponseDto[]> {
-      const purchases = await this.purchaseService.findAll(user.tenant_id);
-      return purchases.map(purchase => PurchaseResponseDto.toPurchaseResponse(purchase));
-    }*/
-
 
   @Get()
   @RequireAction('read')

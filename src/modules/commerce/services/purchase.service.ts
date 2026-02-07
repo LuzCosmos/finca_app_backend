@@ -68,6 +68,16 @@ export class PurchaseService {
     }
   }
 
+  async updateStatus(id: string, status: string, idTenant: string, updatedBy: string): Promise<Purchase> {
+    const existing = await this.purchaseRepository.findById(id, idTenant);
+    if (!existing) {
+      throw new NotFoundException('Purchase not found');
+    }
+    existing.status = status;
+    existing.idUpdatedBy = updatedBy;
+    return this.purchaseRepository.save(existing);
+  }
+
   async updatePurchase(id: string, data: UpdatePurchaseDto, idTenant: string, updatedBy: string): Promise<Purchase> {
     const existing = await this.purchaseRepository.findById(id, idTenant);
     if (!existing) {
@@ -168,7 +178,7 @@ export class PurchaseService {
       totalWeight: Number(r.totalWeight ?? 0),
       receivedCattle: Number(r.receivedCattle ?? 0),
       receivedWeight: Number(r.receivedWeight ?? 0),
-      canReceive: Number(r.receivedCattle ?? 0) < Number(r.totalCattle ?? 0),
+      status: r.status,
     }));
 
     return { page, limit, total, items };

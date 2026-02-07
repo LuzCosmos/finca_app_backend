@@ -17,7 +17,7 @@ export const dataSourceOptions: DataSourceOptions = {
   schema: configService.get('DB_SCHEMA'),
   entities: [join(__dirname, '..', '**', '*.entity.{ts,js}')],
   migrations: [join(__dirname, 'migrations/*.{ts,js}')],
-  migrationsRun: false,
+  migrationsRun: true,
   synchronize: false,
 };
 

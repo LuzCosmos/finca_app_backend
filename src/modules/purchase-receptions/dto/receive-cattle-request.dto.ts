@@ -34,14 +34,13 @@ export class ReceiveCattleRequestDto {
   @IsUUID()
   idBrand?: string;
 
-  @IsOptional()
-  @IsUUID()
-  idColor?: string;
+  @IsString()
+  color: string;
 
   @IsOptional()
   @IsArray()
-  @IsUUID('4', { each: true })
-  characteristicsIds?: string[];
+  @IsString({ each: true })
+  characteristics?: string[];
 
   @IsOptional()
   @IsString()
@@ -63,6 +62,14 @@ export class ReceiveCattleRequestDto {
   @IsArray()
   @IsUUID('4', { each: true })
   idSimpleEvents?: string[];
+
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @IsOptional()
+  @IsNumber()
+  age?: number;
 }
 
 export class UpdateLotCattleRequestDto {

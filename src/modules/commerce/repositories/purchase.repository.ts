@@ -86,6 +86,7 @@ export class PurchaseRepository {
       'p.id AS id',
       'p.purchase_date AS "purchaseDate"',
       'prov.name AS "providerName"',
+      'p.status AS "status"',
       'COALESCE(lot_agg.total_cattle, 0) AS "totalCattle"',
       'COALESCE(lot_agg.total_weight, 0) AS "totalWeight"',
       'COALESCE(lot_agg.received_cattle_lot, 0) AS "receivedCattleLot"',
@@ -93,15 +94,9 @@ export class PurchaseRepository {
       '(COALESCE(lot_agg.received_cattle_lot, 0) + COALESCE(c_agg.received_cattle_no_lot, 0)) AS "receivedCattle"',
     ]);
 
-    // status ahora es WHERE normal (no HAVING)
-    if (status === 'open') {
-      qb.andWhere(
-        '(COALESCE(lot_agg.received_cattle_lot, 0) + COALESCE(c_agg.received_cattle_no_lot, 0)) < COALESCE(lot_agg.total_cattle, 0)',
-      );
-    } else if (status === 'received') {
-      qb.andWhere(
-        '(COALESCE(lot_agg.received_cattle_lot, 0) + COALESCE(c_agg.received_cattle_no_lot, 0)) >= COALESCE(lot_agg.total_cattle, 0)',
-      );
+    if (status && status !== 'all') {
+      const dbStatus = status.toUpperCase();
+      qb.andWhere('p.status = :dbStatus', { dbStatus });
     }
 
     // Total (rápido, sin traer todo)

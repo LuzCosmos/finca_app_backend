@@ -1,27 +1,21 @@
 import { IsString, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateCattleMedicationHistoryDto {
-  @IsUUID()
-  idCattle: string;
-
-  @IsUUID()
+  @IsString()
   medicationName: string;
 
-  @IsOptional()
   @IsString()
-  dosage?: string;
+  dosage: string;
 
-  @IsOptional()
   @IsString()
-  route?: string;
+  route: string;
 
   @IsOptional()
   @IsString()
   lot?: string;
 
-  @IsOptional()
   @IsString()
-  recordedBy?: string;
+  appliedAt: string;
 
   @IsOptional()
   @IsString()

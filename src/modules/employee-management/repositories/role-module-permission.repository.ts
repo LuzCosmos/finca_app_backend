@@ -89,6 +89,31 @@ export class RoleModulePermissionRepository extends Repository<RoleModulePermiss
   }
 
   /**
+   * Create multiple role module permissions
+   * @param tenantId - The ID of the tenant
+   * @param createPermissionDtos - The DTOs of the permissions to create
+   * @returns The role module permissions created
+   */
+  async createRoleModulePermissions(tenantId: string, createPermissionDtos: CreatePermissionDto[], manager?: EntityManager): Promise<RoleModulePermission[]> {
+    const repository = manager?.getRepository(RoleModulePermission) || this;
+    try {
+      const permissions = createPermissionDtos.map(dto => repository.create({
+        tenant_id: tenantId,
+        id_role: dto.roleId,
+        id_module: dto.moduleId,
+        can_create: dto.can_create,
+        can_read: dto.can_read,
+        can_update: dto.can_update,
+        can_delete: dto.can_delete,
+        can_list: dto.can_list
+      }));
+      return repository.save(permissions);
+    } catch (error) {
+      throw new InternalServerErrorException('Error in data base', { cause: error.message });
+    }
+  }
+
+  /**
    * Update a role module permission
    * @param permission - The role module permission to update
    * @param updatePermissionDto - The DTO of the permission to update

@@ -28,11 +28,11 @@ export class RoleService {
 
   /**
    * Find all roles by tenantId
-   * @param requestUser - The session user
+   * @param idTenant - The ID of the tenant
    * @returns The roles found
    */
-  async findAll(requestUser: SessionUserDto): Promise<RoleReadDto[]> {
-    const roles = await this.roleRepository.findAllByTenantID(requestUser.tenant_id);
+  async findAll(idTenant: string, manager?: EntityManager): Promise<RoleReadDto[]> {
+    const roles = await this.roleRepository.findAllByTenantID(idTenant, manager);
     // Transform and return the results in DTO format
     if (roles.length > 0) {
       const rolesDto = roles.map(role => RoleReadDto.transformToDto(role));

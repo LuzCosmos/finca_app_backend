@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { CattleGender } from '../../farm/enums/cattle-gender.enum';
 
 export class CreateLotDto {
   @ApiProperty()
@@ -34,10 +35,5 @@ export class CreateLotDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  age: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  sex: string;
+  gender: CattleGender;
 }
