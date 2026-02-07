@@ -334,4 +334,18 @@ export class CattleRepository {
     const m = manager ?? this.repository;
     await m.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`${tenantId}:cattle_number`]);
   }
+
+  async search(idTenant: string, query: string, manager?: EntityManager): Promise<Cattle[]> {
+    const repo = manager?.getRepository(Cattle) ?? this.repository;
+    const qb = repo.createQueryBuilder('c')
+      .leftJoinAndSelect('c.device', 'd')
+      .where('c.idTenant = :idTenant', { idTenant })
+      .andWhere(
+        '(c.number ILIKE :query OR c.eartag ILIKE :query OR d.name ILIKE :query OR d.deveui ILIKE :query)',
+        { query: `%${query}%` }
+      )
+      .limit(20);
+
+    return qb.getMany();
+  }
 }

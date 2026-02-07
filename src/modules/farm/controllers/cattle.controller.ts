@@ -92,6 +92,14 @@ export class CattleController {
     return this.cattleService.create(sessionUser.tenant_id, dto, sessionUser.sub);
   }
 
+  @Get('search')
+  @ApiOperation({ summary: 'Search cattle by number, eartag, or device' })
+  @ApiResponse({ status: 200, description: 'List of matching cattle', type: [CattleResponseDto] })
+  @RequireAction('read')
+  search(@SessionUser() sessionUser: SessionUserDto, @Query('q') query: string) {
+    return this.cattleService.search(sessionUser.tenant_id, query);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a cattle by ID' })
   @ApiResponse({ status: 200, description: 'Cattle found', type: CattleResponseDto })

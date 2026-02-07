@@ -617,6 +617,11 @@ export class CattleService {
     return this.cattleRepository.findAll(idTenant);
   }
 
+  async search(idTenant: string, query: string): Promise<Cattle[]> {
+    if (!query || query.trim().length === 0) return [];
+    return this.cattleRepository.search(idTenant, query);
+  }
+
   async listPaged(idTenant: string, q: CattleListQueryDto) {
     const page = Math.max(1, q.page ?? 1);
     const limit = Math.max(1, q.limit ?? 10);
