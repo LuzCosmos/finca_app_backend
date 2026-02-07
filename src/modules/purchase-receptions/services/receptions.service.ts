@@ -24,9 +24,6 @@ import { CattleWeightHistory, WeightContext } from '../../farm/entities/cattle-w
 import { CattleWeightHistoryRepository } from '../../farm/repositories/cattle-weight-history.repository';
 import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
 import { CattleCharacteristicRepository } from '../../farm/repositories/cattle-characteristic.repository';
-import { CattleCharacteristic } from 'src/modules/farm/entities/cattle-characteristic.entity';
-import { Characteristic } from 'src/modules/farm/entities/characteristic.entity';
-import { Color } from 'src/modules/farm/entities/color.entity';
 import { ColorCharacteristicsService } from '../../farm/services/color-characteristics.service';
 import { LotService } from 'src/modules/commerce/services/lot.service';
 import { Lot } from 'src/modules/commerce/entities/lot.entity';
@@ -125,7 +122,6 @@ export class ReceptionsService {
         var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(idTenant, c.id, manager);
         appliedEvents[c.id] = animalSimpleEvents;
       }
-
       return PurchaseReceptionResponseDto.toResponseDto(reception, purchase!, provider!.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
     });
     return reception;
@@ -158,6 +154,20 @@ export class ReceptionsService {
         await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, cattleDto.idDevice, manager, new Date());
         await this.cattleRepo.unsetDevice(idTenant, cattleDto.idDevice, manager);
       }
+      var cattleLotNumber;
+      if (cattleDto.idLot) {
+        let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
+        if (!lot) {
+          throw new NotFoundException('Lot not found ' + cattleDto.idLot);
+        }
+        cattleLotNumber = lot!.lotNumber
+        if (!cattleDto.purchaseWeight) {
+          cattleDto.purchaseWeight = lot.averageWeight;
+        }
+        if (!cattleDto.purchasePrice) {
+          cattleDto.purchasePrice = lot.averageWeight * lot.pricePerKg;
+        }
+      }
       var cattleData = {
         id: uuidv4(),
         idTenant,
@@ -168,6 +178,7 @@ export class ReceptionsService {
         purchaseWeight: cattleDto.purchaseWeight,
         purchasePrice: cattleDto.purchasePrice,
         idLot: cattleDto.idLot ?? null,
+        lot: cattleLotNumber ?? null,
         idBrand: cattleDto.idBrand ?? null,
         color: cattleDto.color,
         eartag: cattleDto.eartag ?? null,
@@ -184,18 +195,7 @@ export class ReceptionsService {
         age: cattleDto.age,
         hasHorn: cattleDto.hasHorn
       }
-      if (cattleDto.idLot) {
-        let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
-        if (!lot) {
-          throw new NotFoundException('Lot not found ' + cattleDto.idLot);
-        }
-        if (!cattleData.purchaseWeight) {
-          cattleData.purchaseWeight = lot.averageWeight;
-        }
-        if (!cattleData.purchasePrice) {
-          cattleData.purchasePrice = lot.averageWeight * lot.pricePerKg;
-        }
-      }
+
       cattle = await this.cattleRepo.saveWithManager(manager, cattleData as unknown as Cattle);
       var weightHistory: CattleWeightHistory = {
         id: uuidv4(),
@@ -307,6 +307,7 @@ export class ReceptionsService {
         throw new NotFoundException('Lot not found');
       }
       cattle.idLot = dto.idLot;
+      cattle.lot = lot.lotNumber;
       cattle.purchaseWeight = lot.averageWeight ?? 0;
       cattle.purchasePrice = (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
       cattle = await this.cattleRepo.saveWithManager(manager, cattle);

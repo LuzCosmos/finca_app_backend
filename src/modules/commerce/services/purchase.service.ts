@@ -68,6 +68,16 @@ export class PurchaseService {
     }
   }
 
+  async updateStatus(id: string, status: string, idTenant: string, updatedBy: string): Promise<Purchase> {
+    const existing = await this.purchaseRepository.findById(id, idTenant);
+    if (!existing) {
+      throw new NotFoundException('Purchase not found');
+    }
+    existing.status = status;
+    existing.idUpdatedBy = updatedBy;
+    return this.purchaseRepository.save(existing);
+  }
+
   async updatePurchase(id: string, data: UpdatePurchaseDto, idTenant: string, updatedBy: string): Promise<Purchase> {
     const existing = await this.purchaseRepository.findById(id, idTenant);
     if (!existing) {

@@ -15,6 +15,9 @@ import { CattleService } from 'src/modules/farm/services/cattle.service';
 import { SimpleEvent } from 'src/modules/massive-events/entities/simple-event.entity';
 import { SimpleEventService } from 'src/modules/massive-events/services/simple-event.service';
 import { UpdateSimpleEventDto } from 'src/modules/massive-events/dto/update-simple-events.dto';
+import { PurchaseResponseDto } from 'src/modules/commerce/dto/purchase-response.dto';
+import { UpdatePurchaseStatusDto } from 'src/modules/commerce/dto/update-purchase-status.dto';
+import { PurchaseService } from 'src/modules/commerce/services/purchase.service';
 
 @ApiTags('Purchase reception')
 @ApiBearerAuth('access-token')
@@ -27,7 +30,8 @@ export class ReceptionController {
   constructor(
     private readonly receptionsService: ReceptionsService,
     private readonly cattleService: CattleService,
-    private readonly simpleEventService: SimpleEventService
+    private readonly simpleEventService: SimpleEventService,
+    private readonly purchaseService: PurchaseService
   ) { }
 
   @Get('number-exists')
@@ -158,6 +162,19 @@ export class ReceptionController {
   @RequireAction('read')
   async nextNumber(@SessionUser() sessionUser: SessionUserDto, @Param('number') number: string): Promise<string> {
     return this.receptionsService.nextNumber(sessionUser.tenant_id, number);
+  }
+
+  @Patch('purchase-status/:id')
+  @RequireAction('update')
+  @ApiOperation({ summary: 'Update purchase status' })
+  @ApiResponse({ status: 200, type: PurchaseResponseDto })
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdatePurchaseStatusDto,
+    @SessionUser() user: SessionUserDto,
+  ): Promise<PurchaseResponseDto> {
+    const purchase = await this.purchaseService.updateStatus(id, dto.status, user.tenant_id, user.sub);
+    return PurchaseResponseDto.toPurchaseResponse(purchase);
   }
 
   @Put('update-simple-event/:id')

@@ -124,11 +124,6 @@ export class CreateCattleDto {
   eartag?: string;
 
   @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  auctionLot?: string;
-
-  @ApiProperty({ required: false })
   @IsUUID()
   @IsOptional()
   idLot?: string;

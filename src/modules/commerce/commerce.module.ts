@@ -51,6 +51,6 @@ import { SalesService } from './services/sales.service';
     LotService,
     SalesService,
   ],
-  exports: [ProviderRepository, PurchaseRepository, LotRepository, LotService],
+  exports: [ProviderRepository, PurchaseRepository, LotRepository, LotService, PurchaseService],
 })
 export class CommerceModule { }

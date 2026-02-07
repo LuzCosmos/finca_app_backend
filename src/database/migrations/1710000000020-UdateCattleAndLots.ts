@@ -26,6 +26,8 @@ export class UpdateCattleAndLots1710000000020 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "purchase_receptions" ADD COLUMN "next_cattle_number" VARCHAR(50);`)
         await queryRunner.query(`ALTER TYPE "weight_context_enum" ADD VALUE 'RECEIVED';`);
         await queryRunner.query(`UPDATE "cattle_weight_history" SET "context" = 'RECEIVED' WHERE "context" = 'PURCHASE';`);
+        // Update cattle.lot with lots.lot_number
+        await queryRunner.query(`UPDATE "cattle" SET "lot" = "lots"."lot_number" FROM "lots" WHERE "cattle"."id_lot" = "lots"."id";`);
         await queryRunner.query(`
             DO $$
             BEGIN
