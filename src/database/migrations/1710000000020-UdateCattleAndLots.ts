@@ -24,7 +24,6 @@ export class UpdateCattleAndLots1710000000020 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "cattle" ADD COLUMN "gender" "gender_enum" NOT NULL DEFAULT 'MALE';`);
         await queryRunner.query(`ALTER TABLE "cattle" ADD COLUMN "age" numeric(4,2);`);
         await queryRunner.query(`ALTER TABLE "purchase_receptions" ADD COLUMN "next_cattle_number" VARCHAR(50);`)
-        await queryRunner.query(`ALTER TYPE "weight_context_enum" ADD VALUE 'RECEIVED';`);
 
         // Update cattle.lot with lots.lot_number
         await queryRunner.query(`UPDATE "cattle" SET "lot" = "lots"."lot_number" FROM "lots" WHERE "cattle"."id_lot" = "lots"."id";`);
@@ -40,6 +39,9 @@ export class UpdateCattleAndLots1710000000020 implements MigrationInterface {
             END IF;
             END $$;
         `);
+        await queryRunner.commitTransaction();
+        await queryRunner.query(`ALTER TYPE "weight_context_enum" ADD VALUE 'RECEIVED';`);
+        await queryRunner.startTransaction();
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
@@ -52,8 +54,6 @@ export class UpdateCattleAndLots1710000000020 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "lots" ADD COLUMN "age" varchar(50);`);
         await queryRunner.query(`DROP TYPE IF EXISTS "gender_enum";`);
         await queryRunner.query(`ALTER TABLE "purchase_receptions" DROP COLUMN "next_cattle_number";`);
-
-        await queryRunner.query(`ALTER TYPE "weight_context_enum" DROP VALUE 'RECEIVED';`);
         await queryRunner.query(`
             DO $$
             BEGIN
@@ -68,6 +68,9 @@ export class UpdateCattleAndLots1710000000020 implements MigrationInterface {
                 END IF;
             END $$;
         `);
+        await queryRunner.commitTransaction();
+        await queryRunner.query(`ALTER TYPE "weight_context_enum" DROP VALUE 'RECEIVED';`);
+        await queryRunner.startTransaction();
     }
 
 }
