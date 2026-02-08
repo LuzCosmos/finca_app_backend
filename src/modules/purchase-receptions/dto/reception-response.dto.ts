@@ -153,6 +153,10 @@ export class PurchaseReceptionResponseDto {
   @IsOptional() @IsUUID()
   massEventId?: string;
 
+  @ApiPropertyOptional({ format: 'number', description: 'posible next cattle number for reception' })
+  @IsOptional()
+  nextCattleNumber?: string;
+
   @ApiPropertyOptional({
     description: 'Fecha/hora efectiva de la compra.',
     type: String, format: 'date-time'
@@ -183,19 +187,30 @@ export class PurchaseReceptionResponseDto {
   @ApiProperty({ type: [ReceptionMassiveEventResponseDto], description: 'List of massive events involved in this reception' })
   massiveEvent: ReceptionMassiveEventResponseDto;
 
+  @ApiProperty({ example: 12, description: 'Number of cattle received in the lot' })
+  receivedCattleCount: number;
+
+  @ApiProperty({ example: 840.5, description: 'Total weight (kg) of cattle received in the lot' })
+  receivedTotalWeight: number;
 
   static toResponseDto(entity: PurchaseReception, purchase: Purchase, providerName: string,
     lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
     appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
   ): PurchaseReceptionResponseDto {
+    var receivedCattleCount = 0;
+    var receivedTotalWeight = 0;
 
     var responseLots: LotReceptionResponseDto[] = [];
     for (const l of lots) {
       responseLots.push(LotReceptionResponseDto.toResponseDto(l, lotCattle[l.id], appliedEvents));
+      receivedCattleCount += l.receivedCattleCount;
+      receivedTotalWeight += l.receivedTotalWeight;
     }
     var responseCattle: CattleReceptionResponseDto[] = [];
     for (const c of cattle) {
       responseCattle.push(CattleReceptionResponseDto.toResponseDto(c, appliedEvents[c.id]));
+      receivedCattleCount += 1;
+      receivedTotalWeight += c.receivedWeight;
     }
 
     return {
@@ -205,9 +220,12 @@ export class PurchaseReceptionResponseDto {
       purchaseDate: new Date(purchase.purchaseDate).toISOString(),
       receivedAt: new Date(entity.receivedAt).toISOString(),
       purchaseProviderName: providerName,
+      nextCattleNumber: entity.nextCattleNumber,
       lots: responseLots,
       cattle: responseCattle,
       massiveEvent: ReceptionMassiveEventResponseDto.toResponseDto(massiveEvent),
+      receivedCattleCount: receivedCattleCount,
+      receivedTotalWeight: receivedTotalWeight,
     };
   }
 }
@@ -252,30 +270,19 @@ export class ReceptionResponseDto {
   @ApiProperty({ type: PurchaseReceptionResponseDto, description: 'Purchase reception' })
   reception: PurchaseReceptionResponseDto;
 
-  @ApiProperty({ type: [ColorResponseDto], description: 'List of colors' })
-  colors: ColorResponseDto[];
+  @ApiProperty({ type: [String], description: 'List of colors' })
+  colors: string[];
 
-  @ApiProperty({ type: [CharacteristicResponseDto], description: 'List of characteristics' })
-  characteristics: CharacteristicResponseDto[];
+  @ApiProperty({ type: [String], description: 'List of characteristics' })
+  characteristics: string[];
 
 
-  static toResponseDto(receptionInfo: PurchaseReceptionResponseDto, colors: Color[], characteristics: Characteristic[]
+  static toResponseDto(receptionInfo: PurchaseReceptionResponseDto, colors: string[], characteristics: string[]
   ): ReceptionResponseDto {
-
-    var colorsResponse: ColorResponseDto[] = [];
-    for (const c of colors) {
-      colorsResponse.push(ColorResponseDto.toResponseDto(c));
-    }
-    var characteristicsResponse: CharacteristicResponseDto[] = [];
-    for (const c of characteristics) {
-      characteristicsResponse.push(CharacteristicResponseDto.toResponseDto(c));
-    }
-    console.log('colorsResponse', colorsResponse);
-    console.log('characteristicsResponse', characteristicsResponse);
     return {
       reception: receptionInfo,
-      colors: colorsResponse,
-      characteristics: characteristicsResponse,
+      colors: colors,
+      characteristics: characteristics,
 
     };
   }
@@ -283,23 +290,14 @@ export class ReceptionResponseDto {
   static toResponseDto_optional(entity: PurchaseReception, purchase: Purchase, providerName: string,
     lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
     appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
-    colors: Color[], characteristics: Characteristic[]
+    colors: string[], characteristics: string[]
   ): ReceptionResponseDto {
-
-    var colorsResponse: ColorResponseDto[] = [];
-    for (const c of colors) {
-      colorsResponse.push(ColorResponseDto.toResponseDto(c));
-    }
-    var characteristicsResponse: CharacteristicResponseDto[] = [];
-    for (const c of characteristics) {
-      characteristicsResponse.push(CharacteristicResponseDto.toResponseDto(c));
-    }
 
     var receptionInfo = PurchaseReceptionResponseDto.toResponseDto(entity, purchase, providerName, lots, lotCattle, cattle, appliedEvents, massiveEvent);
     return {
       reception: receptionInfo,
-      colors: colorsResponse,
-      characteristics: characteristicsResponse,
+      colors: colors,
+      characteristics: characteristics,
 
     };
   }

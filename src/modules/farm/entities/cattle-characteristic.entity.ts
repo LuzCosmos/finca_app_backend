@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, Unique, Column } from 'typeorm';
 import { Tenant } from '../../employee-management/entities/tenant.entity';
 import { Cattle } from './cattle.entity';
-import { Characteristic } from '../../farm/entities/characteristic.entity';
+import { CattleCharacteristicEnum } from '../enums/cattle-characteristic.enum';
 
 @Entity({ name: 'cattle_characteristics' })
 @Unique('ux_cattle_characteristics_unique', ['cattle', 'characteristic'])
@@ -16,16 +16,16 @@ export class CattleCharacteristic {
   @Column({ name: 'id_cattle', type: 'uuid', nullable: false })
   idCattle: string;
 
-  @Column({ name: 'id_characteristic', type: 'uuid', nullable: false })
-  idCharacteristic: string;
-
   @ManyToOne(() => Cattle, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_cattle' })
   cattle: Cattle;
 
-  @ManyToOne(() => Characteristic, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'id_characteristic' })
-  characteristic: Characteristic;
+  @Column({
+    type: 'enum',
+    enum: CattleCharacteristicEnum,
+    enumName: 'characteristics_enum',
+  })
+  characteristic: CattleCharacteristicEnum;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

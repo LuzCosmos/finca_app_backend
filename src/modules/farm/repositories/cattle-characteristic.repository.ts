@@ -12,8 +12,8 @@ export class CattleCharacteristicRepository extends Repository<CattleCharacteris
     const m = manager ?? this.manager;
     if (!characteristicIds?.length) return;
 
-    const rows = characteristicIds.map((idCharacteristic) =>
-      m.create(CattleCharacteristic, { idTenant: { id: tenantId } as any, cattle: { id: cattleId } as any, characteristic: { id: idCharacteristic } as any }),
+    const rows = characteristicIds.map((char) =>
+      m.create(CattleCharacteristic, { idTenant: { id: tenantId } as any, cattle: { id: cattleId } as any, characteristic: char as any }),
     );
     await m
       .createQueryBuilder()
@@ -32,7 +32,7 @@ export class CattleCharacteristicRepository extends Repository<CattleCharacteris
       .delete()
       .from(CattleCharacteristic)
       .where('id_cattle = :cattleId', { cattleId })
-      .andWhere('id_characteristic = ANY(:ids)', { ids: characteristicIds })
+      .andWhere('characteristic = ANY(:ids)', { ids: characteristicIds })
       .execute();
   }
 

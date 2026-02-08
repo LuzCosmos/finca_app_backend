@@ -9,6 +9,7 @@ export enum WeightContext {
   PURCHASE = 'PURCHASE',
   EVENT = 'EVENT',
   MANUAL = 'MANUAL',
+  RECEIVED = 'RECEIVED',
 }
 
 @Entity('cattle_weight_history')

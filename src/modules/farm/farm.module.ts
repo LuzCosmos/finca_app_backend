@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { CommerceModule } from '../commerce/commerce.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Cattle } from './entities/cattle.entity';
 import { CattleRepository } from './repositories/cattle.repository';
@@ -36,6 +37,7 @@ import { ColorCharacteristicsController } from './controllers/color-characterist
 @Module({
   imports: [
     forwardRef(() => MassiveEventsModule),
+    forwardRef(() => CommerceModule),
     TypeOrmModule.forFeature([
       Cattle,
       CattleCharacteristic,

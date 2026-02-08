@@ -80,6 +80,7 @@ export class ApplicationPermissionsService {
   * @returns True if the user has permission, otherwise false.
   */
   async canAccessModuleEntity(module_code: string, entity: string, action: string, permissions: Record<string, Record<string, string>>): Promise<boolean> {
+    this.logger.debug(`Checking permission for ${module_code} ${entity} ${action}`);
     if (permissions[module_code] == undefined) {
       return false;
     }
@@ -105,6 +106,7 @@ export class ApplicationPermissionsService {
     if (!roleModulePermissions) {
       return permissions;
     }
+    this.logger.debug(`Role module permissions: ${JSON.stringify(roleModulePermissions)}`);
     for (const permission of roleModulePermissions) {
       var role_permission = [
         permission.can_create,

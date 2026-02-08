@@ -24,11 +24,7 @@ import { CattleWeightHistory, WeightContext } from '../../farm/entities/cattle-w
 import { CattleWeightHistoryRepository } from '../../farm/repositories/cattle-weight-history.repository';
 import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
 import { CattleCharacteristicRepository } from '../../farm/repositories/cattle-characteristic.repository';
-import { CattleCharacteristic } from 'src/modules/farm/entities/cattle-characteristic.entity';
-import { Characteristic } from 'src/modules/farm/entities/characteristic.entity';
-import { Color } from 'src/modules/farm/entities/color.entity';
-import { ColorRepository } from 'src/modules/farm/repositories/color.repository';
-import { CharacteristicRepository } from 'src/modules/farm/repositories/characteristic.repository';
+import { ColorCharacteristicsService } from '../../farm/services/color-characteristics.service';
 import { LotService } from 'src/modules/commerce/services/lot.service';
 import { Lot } from 'src/modules/commerce/entities/lot.entity';
 import { Device } from 'src/modules/production-center/entities/device.entity';
@@ -55,10 +51,9 @@ export class ReceptionsService {
     private readonly cattleWeightHistoryRepo: CattleWeightHistoryRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
     private readonly cattleDeviceHistoryRepository: CattleDeviceHistoryRepository,
-    private readonly colorRepo: ColorRepository,
-    private readonly characteristicRepo: CharacteristicRepository,
-    private readonly lotService: LotService,
     private readonly deviceService: DevicesService,
+    private readonly colorCharacteristicsService: ColorCharacteristicsService,
+    private readonly lotService: LotService,
 
     @InjectRepository(Device)
     private readonly deviceRepo: Repository<Device>,
@@ -72,6 +67,10 @@ export class ReceptionsService {
         { idTenant, deveui: ILike(`%${query}%`) }
       ]
     });
+  }
+
+  async getSimpleReception(idTenant: string, idPurchase: string, manager: EntityManager): Promise<PurchaseReception | null> {
+    return await this.prRepo.findByPurchase(idTenant, idPurchase, manager);
   }
 
   async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<PurchaseReceptionResponseDto> {
@@ -123,31 +122,30 @@ export class ReceptionsService {
         var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(idTenant, c.id, manager);
         appliedEvents[c.id] = animalSimpleEvents;
       }
-
       return PurchaseReceptionResponseDto.toResponseDto(reception, purchase!, provider!.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
     });
     return reception;
   }
 
-  async getColors(idTenant: string): Promise<Color[]> {
-    return this.colorRepo.listActive(idTenant);
+  async getColors(idTenant: string): Promise<any[]> {
+    return this.colorCharacteristicsService.getAllColors();
   }
 
-  async getCharacteristics(idTenant: string): Promise<Characteristic[]> {
-    return this.characteristicRepo.listActive(idTenant);
+  async getCharacteristics(idTenant: string): Promise<any[]> {
+    return this.colorCharacteristicsService.getAllCharacteristics();
   }
 
   async receiveCattle_Transaction(idTenant: string, idCurrentUser: string, cattleDto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
     return this.ds.transaction(async manager => {
       let cattle = await this.cattleRepo.findByNumberAndTenantId(idTenant, cattleDto.number, manager);
       if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST)) {
-        throw new NotFoundException('Cattle already exists');
+        throw new ConflictException('Cattle with number ' + cattleDto.number + ' already exists');
       }
       var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
       var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
       await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
       if (cattleDto.eartag) {
-        const existingCattleWithEartag = await this.cattleRepo.findByEartag(idTenant, cattleDto.eartag);
+        const existingCattleWithEartag = await this.cattleRepo.findByEartag(idTenant, cattleDto.eartag, manager);
         if (existingCattleWithEartag) {
           throw new ConflictException(`Eartag ${cattleDto.eartag} already exists for another cattle`);
         }
@@ -155,6 +153,20 @@ export class ReceptionsService {
       if (cattleDto.idDevice) {
         await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, cattleDto.idDevice, manager, new Date());
         await this.cattleRepo.unsetDevice(idTenant, cattleDto.idDevice, manager);
+      }
+      var cattleLotNumber;
+      if (cattleDto.idLot) {
+        let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
+        if (!lot) {
+          throw new NotFoundException('Lot not found ' + cattleDto.idLot);
+        }
+        cattleLotNumber = lot!.lotNumber
+        if (!cattleDto.purchaseWeight) {
+          cattleDto.purchaseWeight = lot.averageWeight;
+        }
+        if (!cattleDto.purchasePrice) {
+          cattleDto.purchasePrice = lot.averageWeight * lot.pricePerKg;
+        }
       }
       var cattleData = {
         id: uuidv4(),
@@ -166,8 +178,9 @@ export class ReceptionsService {
         purchaseWeight: cattleDto.purchaseWeight,
         purchasePrice: cattleDto.purchasePrice,
         idLot: cattleDto.idLot ?? null,
+        lot: cattleLotNumber ?? null,
         idBrand: cattleDto.idBrand ?? null,
-        idColor: cattleDto.idColor ?? null,
+        color: cattleDto.color,
         eartag: cattleDto.eartag ?? null,
         idDevice: cattleDto.idDevice ?? null,
         castrated: cattleDto.castrated,
@@ -178,20 +191,11 @@ export class ReceptionsService {
         status: CattleStatus.ACTIVE,
         idProvider: cattleDto.idProvider ?? null,
         idPurchase: cattleDto.idPurchase,
+        gender: cattleDto.gender,
+        age: cattleDto.age,
+        hasHorn: cattleDto.hasHorn
       }
 
-      if (cattleDto.idLot) {
-        let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
-        if (!lot) {
-          throw new NotFoundException('Lot not found ' + cattleDto.idLot);
-        }
-        if (!cattleData.purchaseWeight) {
-          cattleData.purchaseWeight = lot.averageWeight;
-        }
-        if (!cattleData.purchasePrice) {
-          cattleData.purchasePrice = lot.averageWeight * lot.pricePerKg;
-        }
-      }
       cattle = await this.cattleRepo.saveWithManager(manager, cattleData as unknown as Cattle);
       var weightHistory: CattleWeightHistory = {
         id: uuidv4(),
@@ -199,16 +203,25 @@ export class ReceptionsService {
         idCattle: cattle.id,
         weight: cattleDto.receivedWeight,
         date: new Date(),
-        context: WeightContext.PURCHASE,
+        context: WeightContext.RECEIVED,
         recordedBy: idCurrentUser,
       }
       await this.cattleWeightHistoryRepo.createWithManager(manager, weightHistory);
-      var characteristicsIds = cattleDto.characteristicsIds ?? [];
-      if (characteristicsIds.length > 0) {
-        await this.cattleCharacteristicRepository.attachMany(cattle.id, idTenant, characteristicsIds, manager);
+      var characteristics = cattleDto.characteristics ?? [];
+      if (characteristics.length > 0) {
+        await this.cattleCharacteristicRepository.attachMany(cattle.id, idTenant, characteristics, manager);
       }
       if (cattleDto.idLot) {
         await this.lotService.UpdateLotDataAfterReception(idTenant, cattleDto.idLot, manager);
+      }
+      var reception: PurchaseReception | null = null;
+      if (cattleDto.idPurchase) {
+        reception = await this.getSimpleReception(idTenant, cattleDto.idPurchase, manager);
+        if (reception != null) {
+          var nextnumber = await this.cattleRepo.getSuggestNextNumber(idTenant, cattleDto.number, manager);
+          reception.nextCattleNumber = nextnumber;
+          await manager.save(reception);
+        }
       }
       if (cattleDto.idDevice) {
         const device = await this.deviceService.findById(cattleDto.idDevice, idTenant, manager);
@@ -221,7 +234,6 @@ export class ReceptionsService {
             tags: tags
           };
           await this.deviceService.updateWithDevice(device, deviceUpdateDto, manager);
-
           await this.cattleDeviceHistoryRepository.assignDeviceToCattle(
             device.id,
             cattle.id,
@@ -295,6 +307,7 @@ export class ReceptionsService {
         throw new NotFoundException('Lot not found');
       }
       cattle.idLot = dto.idLot;
+      cattle.lot = lot.lotNumber;
       cattle.purchaseWeight = lot.averageWeight ?? 0;
       cattle.purchasePrice = (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
       cattle = await this.cattleRepo.saveWithManager(manager, cattle);
@@ -303,6 +316,12 @@ export class ReceptionsService {
         await this.lotService.UpdateLotDataAfterReception(idTenant, oldLot.id, manager);
       }
       return cattle;
+    });
+  }
+
+  async nextNumber(idTenant: string, number: string): Promise<string> {
+    return this.ds.transaction(async manager => {
+      return await this.cattleRepo.getSuggestNextNumber(idTenant, number, manager);
     });
   }
 }
