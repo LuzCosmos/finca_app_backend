@@ -8,7 +8,7 @@ export class CattleDeviceHistoryRepository {
   constructor(
     @InjectRepository(CattleDeviceHistory)
     private readonly repo: Repository<CattleDeviceHistory>,
-  ) {}
+  ) { }
 
   /**
    * Create a new device history
@@ -121,18 +121,15 @@ export class CattleDeviceHistoryRepository {
     manager?: EntityManager,
   ) {
     const repo = manager?.getRepository(CattleDeviceHistory) ?? this.repo;
-  
     const activeAssignment = await repo.findOne({
       where: { idDevice, idTenant, unassignedAt: IsNull() },
     });
-  
     if (activeAssignment) {
       if (activeAssignment.idCattle === idCattle) {
         return activeAssignment;
       }
       throw new BadRequestException('Este device ya está asignado a otro cattle.');
     }
-  
     const newAssignment = repo.create({
       idCattle,
       idDevice,

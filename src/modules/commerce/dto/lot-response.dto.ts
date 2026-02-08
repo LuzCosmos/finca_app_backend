@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Lot } from '../entities/lot.entity';
+import { CattleGender } from '../../farm/enums/cattle-gender.enum';
 
 export class LotResponseDto {
   @ApiProperty({ example: '111454e1-9bba-4447-a00e-567334cc51d4', description: 'Unique identifier of the lot' })
@@ -26,11 +27,8 @@ export class LotResponseDto {
   @ApiProperty({ example: 5460000, description: 'Total monetary value of the lot' })
   totalValue: number;
 
-  @ApiProperty({ example: '2 3/4', description: 'Age of the cattle in the lot' })
-  age: string;
-
   @ApiProperty({ example: 'Male', description: 'Sex of the cattle in the lot' })
-  sex: string;
+  gender: CattleGender;
 
   static toLotResponse(lot: Lot): LotResponseDto {
     return {
@@ -42,8 +40,7 @@ export class LotResponseDto {
       totalWeight: lot.totalWeight,
       pricePerKg: lot.pricePerKg,
       totalValue: lot.totalValue,
-      age: lot.age,
-      sex: lot.sex
+      gender: lot.gender
     };
   }
 }

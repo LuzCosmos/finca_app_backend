@@ -5,7 +5,7 @@ import { GetSalesQueryDto, SaleSortField } from '../dto/get-sales-query.dto';
 import { UpdateSaleDto } from '../dto/update-sale.dto';
 import { Sale } from '../entities/sale.entity';
 import { SaleDetail } from '../entities/sale-detail.entity';
-import { Cattle } from '../../farm/entities/cattle.entity';
+import { Cattle, CattleStatus } from '../../farm/entities/cattle.entity';
 import { CattleDeviceHistoryRepository } from '../../farm/repositories/cattle-device-history.repository';
 import { DevicesService } from '../../production-center/services/devices.service';
 import { CattleRepository } from '../../farm/repositories/cattle.repository';
@@ -39,7 +39,6 @@ export class SalesService {
                 updatedAt: new Date(), // Explicitly set updated_at if needed
             });
             const savedSale = await manager.save(Sale, sale);
-
             // 2. Process Details
             for (const detailDto of dto.details) {
                 // Create Sale Detail
@@ -54,67 +53,50 @@ export class SalesService {
                     idTenant: dto.idTenant,
                 });
                 await manager.save(SaleDetail, detail);
-
                 // 3. Side Effects on Cattle
                 if (detailDto.isApproved) {
                     // Update status to SOLD
                     // We also update sale-related fields in Cattle as per requirements/legacy columns
                     await manager.update(Cattle, { id: detailDto.cattleId, idTenant: dto.idTenant }, {
-                        status: 'SOLD',
+                        status: CattleStatus.SOLD,
                         saleWeight: detailDto.measuredWeight,
                         salePrice: detailDto.calculatedPrice,
                         salePricePerKg: dto.valuePerKgConfig,
                         idProvider: dto.buyerId, // Buyer
                     } as any); // Type cast due to legacy columns might be flexible or strict
                 }
-
                 // 4. IoT Tracker Logic
                 if (detailDto.trackerRemoved) {
-                    const cattle = await this.cattleRepository.findOne(dto.idTenant!, detailDto.cattleId);
-                    // Note: using repo helper or just manager.findOne
-                    // Ideally use manager to be in transaction, but repo.findOne usually is read-only unless lock used.
-                    // Let's use manager.findOne
                     const cattleInTx = await manager.findOne(Cattle, { where: { id: detailDto.cattleId, idTenant: dto.idTenant } });
-
                     if (cattleInTx && cattleInTx.idDevice) {
                         const deviceId = cattleInTx.idDevice;
-                        const device = await this.deviceService.findOne(deviceId, dto.idTenant!); // deviceService might need refactoring to accept manager... 
-
+                        const device = await this.deviceService.findById(deviceId, dto.idTenant!, manager); // deviceService might need refactoring to accept manager... 
                         // Actually, in the CattleService `TRACKER` event logic shown earlier, it seemed to be re-assigning?
                         // Ah, the snippet for `TRACKER` event was handling "Tracker detected" -> Ensure assignment.
-
                         // Here we want "Tracker Removed" -> Return to inventory.
                         // Logic:
                         // 1. Unassign in history.
                         // 2. Unset idDevice in Cattle.
                         // 3. Clear tags in Device (remove idCattle).
-
                         // 1. Unassign History
-                        await this.cattleDeviceHistoryRepository.unassignDeviceByidCattle(dto.idTenant!, cattleInTx.id, manager, dto.transactionDate);
-
+                        await this.cattleDeviceHistoryRepository.unassignDeviceByidCattle(dto.idTenant!, cattleInTx.id, manager, dto.transactionDate)
                         // 2. Unset Cattle
-                        // cattleInTx.idDevice = null;
                         await manager.update(Cattle, { id: cattleInTx.id }, { idDevice: null });
-
                         // 3. Update Device Tags
-                        const deviceEntity = await manager.findOne('Device', { where: { id: deviceId } }) as any; // Using string or import Device
-                        if (deviceEntity) {
+                        if (device) {
                             // Update device via DeviceService to sync with Chirpstack
-                            // We need to fetch it first.
                             // Update logic:
-                            const tags = deviceEntity.tags || {};
+                            const tags = device.tags || {};
                             delete tags.idCattle;
                             delete tags.id_cattle;
                             // Also check 'id_device' in tags?
-
                             const deviceUpdateDto = {
-                                name: deviceEntity.name,
+                                name: device.name,
                                 // other fields...
                                 tags: tags
                             };
-
                             // Use DeviceService to sync
-                            await this.deviceService.updateWithDevice(deviceEntity, deviceUpdateDto as any, manager);
+                            await this.deviceService.updateWithDevice(device, deviceUpdateDto as any, manager);
                         }
                     }
                 }

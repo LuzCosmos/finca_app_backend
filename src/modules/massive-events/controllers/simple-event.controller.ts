@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Put, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { SimpleEventService } from '../services/simple-event.service';
 import { CreateSimpleEventDto } from '../dto/create-simple-event.dto';
 import { SyncSimpleEventsRequestDto, SyncSimpleEventsResponseDto } from '../dto/sync-simple-events.dto';
@@ -10,6 +10,7 @@ import { ApplicationPermissionsGuard } from 'src/common/application-permissions/
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { SimpleEventResponseDto } from '../dto/simple-event-response.dto';
+import { UpdateSimpleEventDto } from '../dto/update-simple-events.dto';
 
 @ApiTags('Simple Events')
 @ApiBearerAuth('access-token')
@@ -21,13 +22,13 @@ export class SimpleEventController {
   constructor(
     private readonly simpleEventService: SimpleEventService,
     private readonly simpleEventCattleRepository: AnimalSimpleEventRepository,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new simple event and attach to a massive event' })
   @HttpCode(HttpStatus.CREATED)
-  @ApiResponse({ status: 201, description: 'Simple event created successfully',type:SimpleEventResponseDto})
-  @ApiResponse({ status: 404, description: 'Massive event not found'})
+  @ApiResponse({ status: 201, description: 'Simple event created successfully', type: SimpleEventResponseDto })
+  @ApiResponse({ status: 404, description: 'Massive event not found' })
   @RequireAction('create')
   @ApiBody({
     type: CreateSimpleEventDto,
@@ -162,7 +163,7 @@ export class SimpleEventController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a simple event by ID' })
   @ApiResponse({ status: 200, description: 'Simple event found' })
-  @ApiResponse({ status: 404, description: 'Simple event not found'})
+  @ApiResponse({ status: 404, description: 'Simple event not found' })
   @RequireAction('read')
   findById(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string) {
     return this.simpleEventService.findByIdOrFail(sessionUser.tenant_id, id);
@@ -180,6 +181,15 @@ export class SimpleEventController {
       appliedAt: link.appliedAt,
       appliedBy: link.appliedBy,
     }));
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update a simple event' })
+  @ApiResponse({ status: 200, description: 'Simple event updated successfully' })
+  @ApiResponse({ status: 404, description: 'Simple event not found' })
+  @RequireAction('update')
+  update(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string, @Body() dto: UpdateSimpleEventDto) {
+    return this.simpleEventService.updateSimpleEvent(sessionUser.tenant_id, id, dto);
   }
 
 }

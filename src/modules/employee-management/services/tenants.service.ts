@@ -11,6 +11,7 @@ import { RoleModulePermissionService } from './role-module-permission.services';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
+import { FarmModule } from 'src/modules/farm/farm.module';
 
 @Injectable()
 export class TenantsService {
@@ -61,19 +62,82 @@ export class TenantsService {
         },
         manager);
       // Obtener todos los módulos disponibles
-      const allModules = await this.modulesService.findAll();
-      // Asignar permisos completos para todos los módulos al rol de admin
-      for (const module of allModules) {
-        const sys_admin_role = await this.rolesService.findByCode('SYS_ADMIN', manager);
-        let permission = new CreatePermissionDto();
-        permission.moduleId = module.id;
-        permission.roleId = sys_admin_role.id;
-        permission.can_create = true;
-        permission.can_read = true;
-        permission.can_update = true;
-        permission.can_delete = true;
-        permission.can_list = true;
-        await this.RoleModulePermissionService.createPermission(tenant.id, permission, manager);
+      const allModules = await this.modulesService.findAll(manager);
+      const roles = await this.rolesService.findAll(tenant.id, manager);
+      const permissionsToCreate: CreatePermissionDto[] = [];
+
+      for (const role of roles) {
+        for (const module of allModules) {
+          switch (role.code) {
+            case 'SYS_ADMIN':
+              const sysAdminPermission = new CreatePermissionDto();
+              sysAdminPermission.moduleId = module.id;
+              sysAdminPermission.roleId = role.id;
+              sysAdminPermission.can_create = true;
+              sysAdminPermission.can_read = true;
+              sysAdminPermission.can_update = true;
+              sysAdminPermission.can_delete = true;
+              sysAdminPermission.can_list = true;
+              permissionsToCreate.push(sysAdminPermission);
+              break;
+            case 'MANAGER':
+              if (module.code == 'EMP_MGMT' || module.code == 'COMMERCE') {
+                const managerPermission = new CreatePermissionDto();
+                managerPermission.moduleId = module.id;
+                managerPermission.roleId = role.id;
+                managerPermission.can_create = true;
+                managerPermission.can_read = true;
+                managerPermission.can_update = true;
+                managerPermission.can_delete = true;
+                managerPermission.can_list = true;
+                permissionsToCreate.push(managerPermission);
+              }
+              break;
+            case 'ACCOUNTANT':
+              if (module.code == 'COMMERCE') {
+                const accountantPermission = new CreatePermissionDto();
+                accountantPermission.moduleId = module.id;
+                accountantPermission.roleId = role.id;
+                accountantPermission.can_create = true;
+                accountantPermission.can_read = true;
+                accountantPermission.can_update = true;
+                accountantPermission.can_delete = true;
+                accountantPermission.can_list = true;
+                permissionsToCreate.push(accountantPermission);
+              }
+              break;
+            case 'FARM_WORKER':
+              if (module.code == 'MASSIVE_EVENTS' || module.code == 'FARM' || module.code == 'RECEPTION' || module.code == 'PROD_CENTER') {
+                const workerPermission = new CreatePermissionDto();
+                workerPermission.moduleId = module.id;
+                workerPermission.roleId = role.id;
+                workerPermission.can_create = true;
+                workerPermission.can_read = true;
+                workerPermission.can_update = true;
+                workerPermission.can_delete = true;
+                workerPermission.can_list = true;
+                permissionsToCreate.push(workerPermission);
+              }
+              if (module.code == 'COMMERCE') {
+                const workerCommercePermission = new CreatePermissionDto();
+                workerCommercePermission.moduleId = module.id;
+                workerCommercePermission.roleId = role.id;
+                workerCommercePermission.can_create = false;
+                workerCommercePermission.can_read = true;
+                workerCommercePermission.can_update = false;
+                workerCommercePermission.can_delete = false;
+                workerCommercePermission.can_list = true;
+                permissionsToCreate.push(workerCommercePermission);
+              }
+              break;
+            default:
+              break;
+          }
+        }
+      }
+
+      if (permissionsToCreate.length > 0) {
+        await this.RoleModulePermissionService.createPermissions(tenant.id, permissionsToCreate, manager);
       }
       await this.configurationsService.createTenantDefaults(tenant.id, manager);
       return tenant;

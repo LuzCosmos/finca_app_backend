@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum} from 'class-validator';
+import { IsEnum } from 'class-validator';
 import { SimpleEventType } from '../enums/simple-event-type.enum';
 
 export class SyncSimpleEventDto {
@@ -18,6 +18,9 @@ export class SyncSimpleEventDto {
 
   @ApiProperty({ example: '{"medicationName":"m1","dosage":10,"lot":"123"}', required: false })
   dataJson?: string;
+
+  @ApiProperty({ example: true, required: false })
+  isActive?: boolean;
 
   @ApiProperty({ example: '2025-07-24T12:00:00Z', required: false })
   createdAt?: string;

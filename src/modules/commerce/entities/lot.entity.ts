@@ -4,6 +4,7 @@ import {
 } from 'typeorm';
 import { Purchase } from './purchase.entity';
 import { Cattle } from '../../farm/entities/cattle.entity';
+import { CattleGender } from '../../farm/enums/cattle-gender.enum';
 
 @Entity('lots')
 export class Lot {
@@ -30,7 +31,7 @@ export class Lot {
 
   @Column({ name: 'total_weight', type: 'numeric', precision: 10, scale: 2, nullable: true })
   totalWeight: number;
-  
+
   @Column({ name: 'received_total_weight', type: 'numeric', precision: 10, scale: 2, nullable: true })
   receivedTotalWeight: number;
 
@@ -40,11 +41,13 @@ export class Lot {
   @Column({ name: 'total_value', type: 'numeric', precision: 12, scale: 2, nullable: true })
   totalValue: number;
 
-  @Column({ name: 'age', length: 50, nullable: true })
-  age: string;
-
-  @Column({ name: 'sex', length: 20, nullable: true })
-  sex: string;
+  @Column({
+    type: 'enum',
+    enum: CattleGender,
+    enumName: 'gender_enum',
+    default: CattleGender.MALE,
+  })
+  gender: CattleGender;
 
   @Column({ name: 'id_purchase', type: 'uuid', nullable: true })
   idPurchase: string;

@@ -1,5 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID, IsArray, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { CattleGender } from '../enums/cattle-gender.enum';
+import { CattleStatus } from '../entities/cattle.entity';
 export class CreateCattleDto {
 
   idTenant: string;
@@ -29,23 +31,6 @@ export class CreateCattleDto {
   @MaxLength(50)
   @IsOptional()
   brand?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @MaxLength(25)
-  @IsOptional()
-  colorMain?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @MaxLength(100)
-  @IsOptional()
-  colorDescription: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  colorFeature?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -109,6 +94,56 @@ export class CreateCattleDto {
   @ApiProperty({ required: false })
   @IsNumber()
   @IsOptional()
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
   averageGr?: number;
 
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  color?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  characteristics?: string[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  hasHorn?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  castrated?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  eartag?: string;
+
+  @ApiProperty({ required: false })
+  @IsUUID()
+  @IsOptional()
+  idLot?: string;
+
+  @ApiProperty({ required: false, enum: CattleGender })
+  @IsEnum(CattleGender)
+  @IsOptional()
+  gender?: CattleGender;
+
+  @ApiProperty({ required: false, enum: CattleStatus })
+  @IsEnum(CattleStatus)
+  @IsOptional()
+  status?: CattleStatus;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  age?: number;
+
+  @ApiProperty({ required: true })
+  @IsNumber()
+  lastWeight?: number;
 }

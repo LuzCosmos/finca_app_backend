@@ -22,8 +22,8 @@ export class ReceiveCattleResponseDto {
     @ApiProperty({ example: 'uuid', description: 'idBrand' })
     idBrand?: string;
 
-    @ApiProperty({ example: 'uuid', description: 'idColor' })
-    idColor?: string;
+    @ApiProperty({ example: 'color_enum', description: 'color' })
+    color?: string;
 
     @ApiProperty({ example: 'uuid', description: 'idDevice' })
     idDevice?: string;
@@ -51,7 +51,7 @@ export class ReceiveCattleResponseDto {
             number: cattle.number,
             idLot: cattle.idLot ?? undefined,
             idBrand: cattle.idBrand ?? undefined,
-            idColor: cattle.idColor ?? undefined,
+            color: cattle.color ?? undefined,
             idDevice: cattle.idDevice ?? undefined,
             eartag: cattle.eartag ?? undefined,
             deviceName: cattle.device?.name ?? undefined,

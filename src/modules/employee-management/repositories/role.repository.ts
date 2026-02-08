@@ -1,4 +1,4 @@
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { Repository } from 'typeorm/repository/Repository';
 import { Role } from '../entities/role.entity';
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
@@ -18,16 +18,17 @@ export class RoleRepository extends Repository<Role> {
    * @param tenantId - The ID of the tenant
    * @returns The roles found
    */
-  async findAllByTenantID(tenantId: string): Promise<Role[]> {
+  async findAllByTenantID(tenantId: string, manager?: EntityManager): Promise<Role[]> {
+    const repo = manager?.getRepository(Role) ?? this.dataSource.getRepository(Role);
     try {
-      const query = this.createQueryBuilder('role')
-      .leftJoinAndSelect('role.permissions', 'permissions', 'permissions.tenant_id = :tenantId', { tenantId })
-      .leftJoinAndSelect('permissions.module', 'module')
-      .where('(permissions.tenant_id = :tenantId OR permissions.id IS NULL)', { tenantId: tenantId });
+      const query = repo.createQueryBuilder('role')
+        .leftJoinAndSelect('role.permissions', 'permissions', 'permissions.tenant_id = :tenantId', { tenantId })
+        .leftJoinAndSelect('permissions.module', 'module')
+        .where('(permissions.tenant_id = :tenantId OR permissions.id IS NULL)', { tenantId: tenantId });
       const roles = await query.getMany();
       this.logger.debug('Roles encontrados:', roles.length);
       return roles
-   
+
     } catch (error) {
       this.logger.error('Error searching roles by tenantId:', error);
       throw new InternalServerErrorException('Error searching roles');
@@ -55,7 +56,7 @@ export class RoleRepository extends Repository<Role> {
    * Find a role by its code
    * @param code - The code of the role
    * @returns The role found
-   */ 
+   */
   async findByCode(code: string): Promise<Role | null> {
     try {
       return await this.findOne({

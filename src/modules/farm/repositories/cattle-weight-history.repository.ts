@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
-import { CattleWeightHistory } from '../entities/cattle-weight-history.entity';
+import { CattleWeightHistory, WeightContext } from '../entities/cattle-weight-history.entity';
 
 @Injectable()
 export class CattleWeightHistoryRepository {
@@ -11,8 +11,12 @@ export class CattleWeightHistoryRepository {
     private readonly repo: Repository<CattleWeightHistory>,
   ) { }
 
-  async create(entity: CattleWeightHistory): Promise<CattleWeightHistory> {
-    return await this.repo.save(entity);
+  async create(entity: CattleWeightHistory, manager?: EntityManager): Promise<CattleWeightHistory> {
+    var repo = this.repo;
+    if (manager) {
+      repo = manager.getRepository(CattleWeightHistory);
+    }
+    return await repo.save(entity);
   }
 
   async createWithManager(
@@ -27,11 +31,24 @@ export class CattleWeightHistoryRepository {
   async findByCattle(
     idTenant: string,
     idCattle: string,
+    manager?: EntityManager,
+    context?: WeightContext,
   ): Promise<CattleWeightHistory[]> {
-    return await this.repo.find({
-      where: { idTenant, idCattle },
-      order: { date: 'DESC' },
-    });
+    var repo = this.repo;
+    if (manager) {
+      repo = manager.getRepository(CattleWeightHistory);
+    }
+    if (!context) {
+      return await repo.find({
+        where: { idTenant, idCattle },
+        order: { date: 'ASC' },
+      });
+    } else {
+      return await repo.find({
+        where: { idTenant, idCattle, context },
+        order: { date: 'ASC' },
+      });
+    }
   }
 
   async findOneById(
@@ -41,8 +58,12 @@ export class CattleWeightHistoryRepository {
     return await this.repo.findOne({ where: { idTenant, id } });
   }
 
-  async update(entity: CattleWeightHistory): Promise<CattleWeightHistory> {
-    return await this.repo.save(entity);
+  async update(entity: CattleWeightHistory, manager?: EntityManager): Promise<CattleWeightHistory> {
+    var repo = this.repo;
+    if (manager) {
+      repo = manager.getRepository(CattleWeightHistory);
+    }
+    return await repo.save(entity);
   }
 
   async updateWithManager(

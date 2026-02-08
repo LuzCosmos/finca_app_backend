@@ -22,8 +22,8 @@ import { plainToInstance } from 'class-transformer';
 @RequireModule('EMP_MGMT')
 export class RolesController {
   private readonly logger = new Logger(RolesController.name);
-  
-  constructor(private readonly roleService: RoleService, private readonly roleModulePermissionService: RoleModulePermissionService) {}
+
+  constructor(private readonly roleService: RoleService, private readonly roleModulePermissionService: RoleModulePermissionService) { }
 
   @Get()
   @RequireAction('list')
@@ -36,7 +36,7 @@ export class RolesController {
   })
   @ApiResponse({ status: 403, description: 'No tienes permisos para ver roles' })
   async findAll(@SessionUser() requestUser: SessionUserDto): Promise<RoleReadDto[]> {
-    return this.roleService.findAll(requestUser);
+    return this.roleService.findAll(requestUser.tenant_id);
   }
 
   @Get(':id')
@@ -65,9 +65,9 @@ export class RolesController {
     required: true
   })
   @HttpCode(HttpStatus.CREATED)
-  @ApiResponse({status: 201, description: 'Permiso creado exitosamente', type: CreatePermissionResponseDto})
-  createPermission( @SessionUser() requestUser: SessionUserDto, @Body() createPermissionDto:CreatePermissionDto): Promise<RoleModulePermission>  {
-    return this.roleModulePermissionService.createPermission( requestUser.tenant_id,createPermissionDto );
+  @ApiResponse({ status: 201, description: 'Permiso creado exitosamente', type: CreatePermissionResponseDto })
+  createPermission(@SessionUser() requestUser: SessionUserDto, @Body() createPermissionDto: CreatePermissionDto): Promise<RoleModulePermission> {
+    return this.roleModulePermissionService.createPermission(requestUser.tenant_id, createPermissionDto);
   }
 
   @Put(':roleId/permissions/:moduleId')
@@ -119,8 +119,8 @@ export class RolesController {
   @RequireAction('delete')
   @RequireEntity('permissions')
   @ApiOperation({ summary: 'Eliminar permiso de un rol' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Permiso eliminado exitosamente',
     schema: {
       type: 'object',
@@ -163,7 +163,7 @@ export class RolesController {
     type: [RoleModulePermission]
   })
   listPermissions(@SessionUser() sessionUser: SessionUserDto, @Param('roleId') roleId: string): Promise<RoleReadPermissionDto[]> {
-    const permissions  = this.roleModulePermissionService.listPermissions(roleId, sessionUser.tenant_id);
+    const permissions = this.roleModulePermissionService.listPermissions(roleId, sessionUser.tenant_id);
     return permissions
   }
 } 

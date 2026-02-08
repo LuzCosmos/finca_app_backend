@@ -9,6 +9,7 @@ import { SimpleEventType } from '../enums/simple-event-type.enum';
 import { v4 as uuidv4 } from 'uuid';
 import { MassiveEventService } from './massive-event.service';
 import { MassiveEvent } from '../entities/massive-events.entity';
+import { UpdateSimpleEventDto } from '../dto/update-simple-events.dto';
 
 @Injectable()
 export class SimpleEventService {
@@ -47,14 +48,13 @@ export class SimpleEventService {
     return this.simpleEventRepo.save(simpleEvent);
   }
 
-
   /**
    * Save a SimpleEvent
    * @param manager - The entity manager
    * @param payload - The payload containing the SimpleEvent data
    * @returns The saved SimpleEvent
    */
-  private async saveSimpleEvent(
+  private async saveNewSimpleEvent(
     manager: EntityManager,
     payload: { id: string; idMassiveEvent: string; idTenant: string; type: SimpleEventType; dataJson?: string; createdAt?: string }
   ): Promise<SimpleEvent> {
@@ -83,9 +83,8 @@ export class SimpleEventService {
    */
   async createSimpleEvent(idTenant: string, dto: CreateSimpleEventDto) {
     await this.massiveEventSevice.findByIdOrFail(idTenant, dto.idMassiveEvent);
-
     return this.dataSource.transaction(manager =>
-      this.saveSimpleEvent(manager, {
+      this.saveNewSimpleEvent(manager, {
         id: uuidv4(),
         idMassiveEvent: dto.idMassiveEvent,
         idTenant,
@@ -112,7 +111,7 @@ export class SimpleEventService {
           results.push({ id: dto.id, status: 'failed', serverId: '', message: 'MassiveEvent not found' });
           continue;
         }
-        const saved = await this.saveSimpleEvent(manager, {
+        const saved = await this.saveNewSimpleEvent(manager, {
           id: dto.id,
           idMassiveEvent: massiveEvent.id,
           idTenant,
@@ -133,7 +132,7 @@ export class SimpleEventService {
    * @returns The SimpleEvent
    */
   async findByIdOrFail(idTenant: string, id: string, manager?: EntityManager) {
-    const simpleEvent = this.simpleEventRepo.findById(idTenant, id, manager);
+    const simpleEvent = await this.simpleEventRepo.findById(idTenant, id, manager);
     if (!simpleEvent) throw new NotFoundException(`SimpleEvent ${id} not found`);
     return simpleEvent;
   }
@@ -165,29 +164,44 @@ export class SimpleEventService {
     return this.simpleEventRepo.deleteByMassiveEvent(manager, idMassiveEvent);
   }
 
-  validateDataFields(type: string, dataJson: any) {
+  validateDataFields(type: string, dataInput: any) {
     if (type == 'medication') {
-      if (dataJson == null || dataJson.trim() === '') {
-        throw new BadRequestException('dataJson is required for type medication');
+      let data: any;
+      if (typeof dataInput === 'string') {
+        if (dataInput.trim() === '') {
+          throw new BadRequestException('dataJson is required for type medication');
+        }
+        data = JSON.parse(dataInput);
+      } else if (dataInput && typeof dataInput === 'object') {
+        data = dataInput;
       } else {
-        var data = JSON.parse(dataJson);
-        const requiredKeys = ['medicationName', 'dosage', 'lot'];
-        // Check keys presence
-        const dataKeys = Object.keys(data);
-        const hasAllKeys = requiredKeys.every((k) => dataKeys.includes(k));
-        if (!hasAllKeys) {
-          throw new BadRequestException('dataJson is invalid for type medication');
-        }
-        // Check non-empty string values
-        var isValid = requiredKeys.every(
-          (key) =>
-            typeof data[key] === 'string' && data[key].trim().length > 0
-        );
-        if (!isValid) {
-          throw new BadRequestException('dataJson is invalid for type medication');
-        }
+        throw new BadRequestException('data is required for type medication');
+      }
+
+      const requiredKeys = ['medicationName', 'dosage', 'lot'];
+      // Check keys presence
+      const dataKeys = Object.keys(data);
+      const hasAllKeys = requiredKeys.every((k) => dataKeys.includes(k));
+      if (!hasAllKeys) {
+        throw new BadRequestException('dataJson is invalid for type medication');
+      }
+      // Check non-empty string values
+      var isValid = requiredKeys.every(
+        (key) =>
+          typeof data[key] === 'string' && data[key].trim().length > 0
+      );
+      if (!isValid) {
+        throw new BadRequestException('dataJson is invalid for type medication');
       }
     }
+  }
+
+  async updateSimpleEvent(idTenant: string, id: string, dto: UpdateSimpleEventDto) {
+    return this.dataSource.transaction(async manager => {
+      const simpleEvent = await this.findByIdOrFail(idTenant, id, manager);
+      this.validateDataFields(simpleEvent.type, dto.data);
+      return this.simpleEventRepo.updateSimpleEvent(id, dto, manager);
+    });
   }
 
   findByIds(idTenant: string, ids: string[], manager?: EntityManager) {

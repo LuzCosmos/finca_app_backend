@@ -3,6 +3,8 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { SimpleEvent } from '../entities/simple-event.entity';
 import { AnimalSimpleEvent } from '../entities/animal-simple-event.entity';
 import { In } from 'typeorm';
+import { SimpleEventType } from '../enums/simple-event-type.enum';
+import { UpdateSimpleEventDto } from '../dto/update-simple-events.dto';
 
 @Injectable()
 export class SimpleEventRepository {
@@ -85,6 +87,14 @@ export class SimpleEventRepository {
   findByIds(idTenant: string, ids: string[], manager?: EntityManager) {
     const repo = manager?.getRepository(SimpleEvent) ?? this.repository;
     return repo.find({ where: { idTenant, id: In(ids) } });
+  }
+
+  updateSimpleEvent(id: string, dto: UpdateSimpleEventDto, manager: EntityManager): Promise<SimpleEvent> {
+    return manager.save(SimpleEvent, {
+      id,
+      data: dto.data,
+      isActive: dto.isActive,
+    });
   }
 
 }

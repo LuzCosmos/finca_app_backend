@@ -17,8 +17,11 @@ export class SimpleEvent {
   @JoinColumn({ name: 'id_massive_event' })
   massiveEvent: MassiveEvent;
 
-  @Column({name: 'type', type: 'enum', enum: SimpleEventType, enumName: 'simple_event_type_enum' })
+  @Column({ name: 'type', type: 'enum', enum: SimpleEventType, enumName: 'simple_event_type_enum' })
   type: SimpleEventType; // medication, weight, castration, brand, tracker, eartag
+
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
 
   @Column({ type: 'jsonb', nullable: true })
   data?: any;
