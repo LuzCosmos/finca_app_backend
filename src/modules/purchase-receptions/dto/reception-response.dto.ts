@@ -193,18 +193,28 @@ export class PurchaseReceptionResponseDto {
   @ApiProperty({ example: 840.5, description: 'Total weight (kg) of cattle received in the lot' })
   receivedTotalWeight: number;
 
+  @ApiProperty({ example: 12, description: 'Number of cattle purchased in the lot' })
+  purchaseCattleCount: number;
+
+  @ApiProperty({ example: 840.5, description: 'Total weight (kg) of cattle purchased in the lot' })
+  purchaseTotalWeight: number;
+
   static toResponseDto(entity: PurchaseReception, purchase: Purchase, providerName: string,
     lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
     appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
   ): PurchaseReceptionResponseDto {
     var receivedCattleCount = 0;
     var receivedTotalWeight = 0;
+    var purchaseCattleCount = 0;
+    var purchaseTotalWeight = 0;
 
     var responseLots: LotReceptionResponseDto[] = [];
     for (const l of lots) {
       responseLots.push(LotReceptionResponseDto.toResponseDto(l, lotCattle[l.id], appliedEvents));
       receivedCattleCount += l.receivedCattleCount;
       receivedTotalWeight += l.receivedTotalWeight;
+      purchaseCattleCount += l.purchasedCattleCount;
+      purchaseTotalWeight += l.totalWeight;
     }
     var responseCattle: CattleReceptionResponseDto[] = [];
     for (const c of cattle) {
@@ -226,6 +236,8 @@ export class PurchaseReceptionResponseDto {
       massiveEvent: ReceptionMassiveEventResponseDto.toResponseDto(massiveEvent),
       receivedCattleCount: receivedCattleCount,
       receivedTotalWeight: receivedTotalWeight,
+      purchaseCattleCount: purchaseCattleCount,
+      purchaseTotalWeight: purchaseTotalWeight,
     };
   }
 }
