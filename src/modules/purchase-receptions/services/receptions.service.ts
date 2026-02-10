@@ -75,9 +75,6 @@ export class ReceptionsService {
 
   async findOrCreateReceptionByIdPurchase(idTenant: string, idPurchase: string, userId: string): Promise<PurchaseReceptionResponseDto> {
     var reception = this.ds.transaction(async (manager) => {
-      console.log('idTenant', idTenant);
-      console.log('idPurchase', idPurchase);
-      console.log('userId', userId);
       var purchase = await this.purchaseRepo.findById(idPurchase, idTenant, manager);
       if (!purchase) {
         throw new NotFoundException('Purchase not found');

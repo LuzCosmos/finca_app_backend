@@ -1,6 +1,6 @@
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUUID, IsOptional, IsDateString, IsEnum, IsString, MaxLength } from 'class-validator';
+import { IsUUID, IsOptional, IsDateString, IsEnum, IsString, MaxLength, isString } from 'class-validator';
 import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
 import { Cattle } from '../../farm/entities/cattle.entity';
 import { Lot } from '../../commerce/entities/lot.entity';
@@ -10,6 +10,7 @@ import { MassiveEvent } from '../../massive-events/entities/massive-events.entit
 import { SimpleEventResponseDto } from 'src/modules/massive-events/dto/simple-event-response.dto';
 import { Color } from '../../farm/entities/color.entity';
 import { Characteristic } from '../../farm/entities/characteristic.entity';
+import { PurchaseStatus } from 'src/modules/commerce/enums/purchase-status.enum';
 
 export class AnimalSimpleEventReceptionResponseDto {
 
@@ -145,6 +146,10 @@ export class PurchaseReceptionResponseDto {
   @IsUUID()
   purchaseId!: string;
 
+  @ApiProperty({ example: 'OPEN', description: 'Status of the purchase' })
+  @IsString()
+  purchaseStatus: string;
+
   @ApiProperty({ format: 'uuid', description: 'ID del proveedor (provider) a la cual se asocia la recepción' })
   @IsUUID()
   providerId!: string;
@@ -238,6 +243,7 @@ export class PurchaseReceptionResponseDto {
       receivedTotalWeight: receivedTotalWeight,
       purchaseCattleCount: purchaseCattleCount,
       purchaseTotalWeight: purchaseTotalWeight,
+      purchaseStatus: purchase.status,
     };
   }
 }
