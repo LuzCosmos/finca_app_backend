@@ -619,7 +619,8 @@ export class CattleService {
 
   async search(idTenant: string, query: string): Promise<Cattle[]> {
     if (!query || query.trim().length === 0) return [];
-    return this.cattleRepository.search(idTenant, query);
+    const statuses = [CattleStatus.ACTIVE];
+    return this.cattleRepository.search(idTenant, query, statuses);
   }
 
   async listPaged(idTenant: string, q: CattleListQueryDto) {
