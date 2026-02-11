@@ -80,6 +80,7 @@ export class CattleService {
         if (!cattle) {
           continue;
         }
+        this.validateStatusForApplyEvents(cattle.status);
         const massiveEvent = await this.massiveEventService.findWithSimpleEventsByIdOrFail(idTenant, ev.idMassiveEvent, manager);
         if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
         //if (massiveEvent.simpleEvents.find(se => se.id === ev.idSimpleEvent)) throw new HttpException('Simple event already applied', HttpStatus.UNPROCESSABLE_ENTITY); //422
@@ -156,6 +157,7 @@ export class CattleService {
     if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
     const cattleEntity = cattle ?? await this.cattleRepository.findOneForUpdateByNumber(idTenant, cattleNumber, manager);
     if (!cattleEntity) throw new NotFoundException(`Cattle ${cattleNumber} not found`);
+    this.validateStatusForApplyEvents(cattleEntity.status);
     const createdEvents: ApplySimpleEventsResponseDto[] = [];
     for (const ev of events) {
       if (ev.type === SimpleEventType.CASTRATION && cattleEntity.castrated) {
@@ -208,6 +210,7 @@ export class CattleService {
       idSimpleEvent: string;
     }
   ): Promise<void> {
+    this.validateStatusForApplyEvents(cattle.status);
     switch (ev.type) {
       case SimpleEventType.WEIGHT:
         cattle.lastWeight = ev.data.weight;
@@ -326,6 +329,16 @@ export class CattleService {
           });
           continue;
         }
+        try {
+          this.validateStatusForApplyEvents(cattle.status);
+        } catch (error) {
+          results.push({
+            id: payload.id,
+            status: 'failed',
+            message: `Cattle ${payload.cattleNumber} status is not valid for apply events`,
+          });
+          continue;
+        }
         await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattle, {
           type: payload.type as any,
           data: payload.dataJson ? JSON.parse(payload.dataJson) : {},
@@ -430,6 +443,12 @@ export class CattleService {
   async update(idTenant: string, id: string, data: UpdateCattleDto, idCurrentUser: string): Promise<any> {
     this.logger.log(data);
     return this.dataSource.transaction(async (trxManager) => {
+      const oldCattle = await this.findByIdOrFail(idTenant, id, trxManager);
+      if (!((data.status == CattleStatus.ACTIVE && oldCattle.status == CattleStatus.LOST)
+        || (data.status == CattleStatus.DEAD && oldCattle.status == CattleStatus.LOST)
+        || (data.status == CattleStatus.ACTIVE && oldCattle.status == CattleStatus.DEAD))) {
+        this.validateStatusForApplyEvents(oldCattle.status);
+      }
       const { characteristics, ...updateD } = data;
       const updateData = { updatedAt: new Date(), ...updateD };
       this.logger.log(updateData);
@@ -644,6 +663,154 @@ export class CattleService {
     return { page, limit, total, items };
   }
 
+  /**
+   * Validate cattle by number for sale - only allows ACTIVE status
+   * @param number - Cattle number
+   * @param idTenant - Tenant ID
+   * @returns Cattle if valid and ACTIVE
+   * @throws BadRequestException if not found or not ACTIVE
+   */
+  async validateCattleByNumber(number: string, idTenant: string) {
+    const cattle = await this.cattleRepository.findByNumberAndTenantId(idTenant, number);
+    if (!cattle) {
+      throw new BadRequestException(`Cattle with number ${number} not found for this tenant`);
+    }
+    if (cattle.status !== 'ACTIVE') {
+      let message = `Cattle ${number} cannot be added to sale. `;
+      if (cattle.status === 'SOLD') {
+        message += 'This cattle has already been sold.';
+      } else if (cattle.status === 'DEAD') {
+        message += 'This cattle is marked as dead.';
+      } else if (cattle.status === 'LOST') {
+        message += 'This cattle is marked as lost.';
+      } else {
+        message += `Status: ${cattle.status}`;
+      }
+      throw new BadRequestException(message);
+    }
+    return cattle;
+  }
+
+  /**
+   * Record weight measurement in history
+   * @param cattleId - Cattle ID
+   * @param dto - Weight record data
+   * @param idTenant - Tenant ID
+   * @param userId - User ID who recorded
+   */
+  async recordWeightHistory(cattleId: string, dto: any, idTenant: string, userId?: string) {
+    const cattle = await this.cattleRepository.findOne(idTenant, cattleId);
+    if (!cattle) {
+      throw new NotFoundException('Cattle not found');
+    }
+    this.validateStatusForApplyEvents(cattle.status);
+    // Create weight history using repository (no need for full entity)
+    const weightHistory = {
+      idCattle: cattleId,
+      weight: dto.weight,
+      date: new Date(dto.measuredDate || new Date()),
+      recordedBy: userId,
+      idTenant,
+      context: WeightContext.MANUAL,
+    };
+
+    return this.cattleWeightHistoryRepository.create(weightHistory as any);
+  }
+
+  /**
+   * Add medication record to history
+   * @param idTenant - The tenant ID
+   * @param idCattle - The cattle ID
+   * @param dto - The medication data
+   * @param userId - The user ID who recorded
+   * @returns The created history record
+   */
+  async addMedicationHistory(idTenant: string, idCattle: string, dto: CreateCattleMedicationHistoryDto, userId?: string) {
+    const cattle = await this.cattleRepository.findOne(idTenant, idCattle);
+    if (!cattle) {
+      throw new NotFoundException('Cattle not found');
+    }
+    this.validateStatusForApplyEvents(cattle.status);
+    const medicationHistory = new CattleMedicationHistory();
+    medicationHistory.idTenant = idTenant;
+    medicationHistory.idCattle = idCattle;
+    medicationHistory.medicationName = dto.medicationName;
+    medicationHistory.dosage = dto.dosage;
+    medicationHistory.route = dto.route;
+    medicationHistory.lot = dto.lot;
+    medicationHistory.recordedBy = userId;
+    medicationHistory.appliedAt = dto.appliedAt ? new Date(dto.appliedAt) : new Date();
+    return this.cattleMedicationHistoryRepository.create(medicationHistory);
+  }
+
+  /**
+   * Update cattle current weight
+   * @param cattleId - Cattle ID
+   * @param weight - New weight
+   * @param idTenant - Tenant ID
+   */
+  async updateCattleWeight(cattleId: string, weight: number, idTenant: string) {
+    const cattle = await this.cattleRepository.findOne(idTenant, cattleId);
+    if (!cattle) {
+      throw new NotFoundException('Cattle not found');
+    }
+    this.validateStatusForApplyEvents(cattle.status);
+    await this.cattleRepository.update(idTenant, cattleId, { lastWeight: weight } as any);
+    return { success: true, message: 'Weight updated successfully' };
+  }
+
+  /**
+   * Bulk update cattle status
+   * @param cattleIds - Array of cattle IDs
+   * @param status - New status
+   * @param idTenant - Tenant ID
+   */
+  async bulkUpdateStatus(cattleIds: string[], status: string, idTenant: string): Promise<BulkStatusUpdateResult> {
+    const results: StatusResult[] = [];
+
+    for (const id of cattleIds) {
+      try {
+        const cattle = await this.cattleRepository.findOne(idTenant, id);
+        if (cattle) {
+          await this.cattleRepository.update(idTenant, id, { status } as any);
+          results.push({ id, success: true });
+        } else {
+          results.push({ id, success: false, error: 'Cattle not found' });
+        }
+      } catch (error) {
+        results.push({ id, success: false, error: error.message });
+      }
+    }
+
+    return {
+      totalProcessed: cattleIds.length,
+      successful: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      results,
+    };
+  }
+
+  async getBasicInfo(idTenant: string): Promise<Cattle[]> {
+    return this.cattleRepository.getBasicInfo(idTenant);
+  }
+
+  async getBasicInfoPaged(idTenant: string, query: CattleBasicQueryDto) {
+    const { limit, cursor, updated_after } = query;
+    const updatedAfter = updated_after ? new Date(updated_after) : undefined;
+    return this.cattleRepository.getBasicInfoPaged({
+      idTenant,
+      limit,
+      cursor,
+      updatedAfter,
+    });
+  }
+
+  validateStatusForApplyEvents(status: string) {
+    if (status !== CattleStatus.ACTIVE) {
+      throw new BadRequestException('cattleIsNotActive');
+    }
+  }
+
   async import(file: Express.Multer.File, idTenant: string): Promise<any[]> {
     try {
       if (!file || !file.path) {
@@ -808,151 +975,6 @@ export class CattleService {
       this.logger.debug(`Row ${rowNumber}, system number ${rowValues[0]} has error creating cattle. ${error.message}`);
       throw new BadRequestException(`system number ${rowValues[0]} has error creating cattle.`);
     }
-  }
-
-  // New methods for Create Sale workflow
-
-  /**
-   * Validate cattle by number for sale - only allows ACTIVE status
-   * @param number - Cattle number
-   * @param idTenant - Tenant ID
-   * @returns Cattle if valid and ACTIVE
-   * @throws BadRequestException if not found or not ACTIVE
-   */
-  async validateCattleByNumber(number: string, idTenant: string) {
-    const cattle = await this.cattleRepository.findByNumberAndTenantId(idTenant, number);
-
-    if (!cattle) {
-      throw new BadRequestException(`Cattle with number ${number} not found for this tenant`);
-    }
-
-    if (cattle.status !== 'ACTIVE') {
-      let message = `Cattle ${number} cannot be added to sale. `;
-      if (cattle.status === 'SOLD') {
-        message += 'This cattle has already been sold.';
-      } else if (cattle.status === 'DEAD') {
-        message += 'This cattle is marked as dead.';
-      } else if (cattle.status === 'LOST') {
-        message += 'This cattle is marked as lost.';
-      } else {
-        message += `Status: ${cattle.status}`;
-      }
-      throw new BadRequestException(message);
-    }
-    return cattle;
-  }
-
-  /**
-   * Record weight measurement in history
-   * @param cattleId - Cattle ID
-   * @param dto - Weight record data
-   * @param idTenant - Tenant ID
-   * @param userId - User ID who recorded
-   */
-  async recordWeightHistory(cattleId: string, dto: any, idTenant: string, userId?: string) {
-    const cattle = await this.cattleRepository.findOne(idTenant, cattleId);
-    if (!cattle) {
-      throw new NotFoundException('Cattle not found');
-    }
-
-    // Create weight history using repository (no need for full entity)
-    const weightHistory = {
-      idCattle: cattleId,
-      weight: dto.weight,
-      date: new Date(dto.measuredDate || new Date()),
-      recordedBy: userId,
-      idTenant,
-      context: WeightContext.MANUAL,
-    };
-
-    return this.cattleWeightHistoryRepository.create(weightHistory as any);
-  }
-
-  /**
-   * Add medication record to history
-   * @param idTenant - The tenant ID
-   * @param idCattle - The cattle ID
-   * @param dto - The medication data
-   * @param userId - The user ID who recorded
-   * @returns The created history record
-   */
-  async addMedicationHistory(idTenant: string, idCattle: string, dto: CreateCattleMedicationHistoryDto, userId?: string) {
-    const cattle = await this.cattleRepository.findOne(idTenant, idCattle);
-    if (!cattle) {
-      throw new NotFoundException('Cattle not found');
-    }
-    const medicationHistory = new CattleMedicationHistory();
-    medicationHistory.idTenant = idTenant;
-    medicationHistory.idCattle = idCattle;
-    medicationHistory.medicationName = dto.medicationName;
-    medicationHistory.dosage = dto.dosage;
-    medicationHistory.route = dto.route;
-    medicationHistory.lot = dto.lot;
-    medicationHistory.recordedBy = userId;
-    medicationHistory.appliedAt = dto.appliedAt ? new Date(dto.appliedAt) : new Date();
-    return this.cattleMedicationHistoryRepository.create(medicationHistory);
-  }
-
-  /**
-   * Update cattle current weight
-   * @param cattleId - Cattle ID
-   * @param weight - New weight
-   * @param idTenant - Tenant ID
-   */
-  async updateCattleWeight(cattleId: string, weight: number, idTenant: string) {
-    const cattle = await this.cattleRepository.findOne(idTenant, cattleId);
-    if (!cattle) {
-      throw new NotFoundException('Cattle not found');
-    }
-
-    await this.cattleRepository.update(idTenant, cattleId, { lastWeight: weight } as any);
-    return { success: true, message: 'Weight updated successfully' };
-  }
-
-  /**
-   * Bulk update cattle status
-   * @param cattleIds - Array of cattle IDs
-   * @param status - New status
-   * @param idTenant - Tenant ID
-   */
-  async bulkUpdateStatus(cattleIds: string[], status: string, idTenant: string): Promise<BulkStatusUpdateResult> {
-    const results: StatusResult[] = [];
-
-    for (const id of cattleIds) {
-      try {
-        const cattle = await this.cattleRepository.findOne(idTenant, id);
-        if (cattle) {
-          await this.cattleRepository.update(idTenant, id, { status } as any);
-          results.push({ id, success: true });
-        } else {
-          results.push({ id, success: false, error: 'Cattle not found' });
-        }
-      } catch (error) {
-        results.push({ id, success: false, error: error.message });
-      }
-    }
-
-    return {
-      totalProcessed: cattleIds.length,
-      successful: results.filter(r => r.success).length,
-      failed: results.filter(r => !r.success).length,
-      results,
-    };
-  }
-
-  async getBasicInfo(idTenant: string): Promise<Cattle[]> {
-    return this.cattleRepository.getBasicInfo(idTenant);
-  }
-
-  async getBasicInfoPaged(idTenant: string, query: CattleBasicQueryDto) {
-    const { limit, cursor, updated_after } = query;
-    const updatedAfter = updated_after ? new Date(updated_after) : undefined;
-    return this.cattleRepository.getBasicInfoPaged({
-      idTenant,
-      limit,
-      cursor,
-      updatedAfter,
-    });
   }
 }
 
