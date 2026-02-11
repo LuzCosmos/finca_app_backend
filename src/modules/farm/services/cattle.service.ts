@@ -443,6 +443,12 @@ export class CattleService {
   async update(idTenant: string, id: string, data: UpdateCattleDto, idCurrentUser: string): Promise<any> {
     this.logger.log(data);
     return this.dataSource.transaction(async (trxManager) => {
+      const oldCattle = await this.findByIdOrFail(idTenant, id, trxManager);
+      if (!((data.status == CattleStatus.ACTIVE && oldCattle.status == CattleStatus.LOST)
+        || (data.status == CattleStatus.DEAD && oldCattle.status == CattleStatus.LOST)
+        || (data.status == CattleStatus.ACTIVE && oldCattle.status == CattleStatus.DEAD))) {
+        this.validateStatusForApplyEvents(oldCattle.status);
+      }
       const { characteristics, ...updateD } = data;
       const updateData = { updatedAt: new Date(), ...updateD };
       this.logger.log(updateData);
