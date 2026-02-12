@@ -47,16 +47,27 @@ docker compose up -d
 ### Auth (JWT)
 - `POST /api/v1/auth/login`
   - Autentica y devuelve JWT
+  - Devuelve `access_token`, `refresh_token`, `expires_in`, `user`, `permissions`
+- `POST /api/v1/auth/refresh`
+  - Renueva `access_token` usando `refresh_token`
+  - Rota `refresh_token` en Redis en cada renovación
+- `POST /api/v1/auth/logout`
+  - Requiere `Authorization: Bearer <token>`
+  - Revoca sesión y refresh token en Redis
   - Header esperado en endpoints protegidos:  
     `Authorization: Bearer <token>`
 
 ### Configuración de expiración de sesión
 - La variable de entorno `JWT_EXPIRATION` define:
   - La expiración del `access_token` firmado por JWT.
-  - El TTL de la sesión almacenada en Redis (`session:{userId}:{sessionId}`).
+  - Un límite mínimo para TTL de sesión en Redis.
+- La variable `JWT_REFRESH_EXPIRATION` define el TTL del refresh token en Redis (`refresh:{token}`).
+- El TTL de la sesión en Redis (`session:{userId}:{sessionId}`) se calcula como  
+  `max(JWT_EXPIRATION, JWT_REFRESH_EXPIRATION)` para permitir renovar sesión cuando el access token ya expiró.
 - Formatos soportados: `s` (segundos), `m` (minutos), `h` (horas), `d` (días).  
   Ejemplos: `30s`, `15m`, `24h`, `7d`.
 - Si `JWT_EXPIRATION` es inválido, el backend aplica fallback de seguridad a `86400` segundos (24h) para el TTL en Redis.
+- Si `JWT_REFRESH_EXPIRATION` es inválido, el backend aplica fallback a `604800` segundos (7 días).
 
 ### Guards y permisos
 - `JwtAuthGuard`: valida token JWT
@@ -89,6 +100,8 @@ docker compose up -d
 
 ### Auth
 - `POST /api/v1/auth/login` — Login y generación de JWT
+- `POST /api/v1/auth/refresh` — Renovar access token (con rotación de refresh token)
+- `POST /api/v1/auth/logout` — Cerrar sesión y revocar tokens en Redis
 
 ### Employee Management — Users
 - `POST /api/v1/users` — Crear usuario

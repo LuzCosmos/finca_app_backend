@@ -9,6 +9,7 @@ import { RoleModulePermission } from 'src/modules/employee-management/entities/r
 export class ApplicationPermissionsService {
   private readonly logger = new Logger(ApplicationPermissionsService.name);
   private static readonly DEFAULT_SESSION_TTL_SECONDS = 86400;
+  private static readonly DEFAULT_REFRESH_TTL_SECONDS = 604800;
 
   constructor(
     private readonly redisService: RedisService,
@@ -35,6 +36,21 @@ export class ApplicationPermissionsService {
     return amount * unitSeconds[unit];
   }
 
+  private resolveTtlFromConfig(
+    key: string,
+    fallbackSeconds: number,
+  ): number {
+    const configuredExpiration = this.configService.get<string>(key);
+    const parsedTtlSeconds = this.parseDurationToSeconds(configuredExpiration);
+    if (parsedTtlSeconds == null) {
+      this.logger.warn(
+        `Invalid ${key} value "${configuredExpiration}". Falling back to ${fallbackSeconds} seconds.`,
+      );
+      return fallbackSeconds;
+    }
+    return parsedTtlSeconds;
+  }
+
   /**
    * Compute a SHA-256 hash based on the permissions object.
    * @param permissions - e.g. {"module_code1": {"user": "11111", "tenant": "11110", ...}, "module_code2": {"role":"01001", "tenant": "11110", ...}}
@@ -54,17 +70,86 @@ export class ApplicationPermissionsService {
    */
   async saveSessionData(userId: string, sessionId: string, sessionData: Record<string, any>): Promise<void> {
     const key = `session:${userId}:${sessionId}`;
-    const configuredExpiration = this.configService.get<string>('JWT_EXPIRATION');
-    const sessionTtlSeconds = this.parseDurationToSeconds(configuredExpiration);
-    const ttlSeconds = sessionTtlSeconds ?? ApplicationPermissionsService.DEFAULT_SESSION_TTL_SECONDS;
+    const accessTtlSeconds = this.resolveTtlFromConfig(
+      'JWT_EXPIRATION',
+      ApplicationPermissionsService.DEFAULT_SESSION_TTL_SECONDS,
+    );
+    const refreshTtlSeconds = this.resolveTtlFromConfig(
+      'JWT_REFRESH_EXPIRATION',
+      ApplicationPermissionsService.DEFAULT_REFRESH_TTL_SECONDS,
+    );
+    // Session data must outlive access token so refresh can still rebuild a valid access token.
+    const ttlSeconds = Math.max(accessTtlSeconds, refreshTtlSeconds);
+    await this.redisService.set(key, JSON.stringify(sessionData), ttlSeconds);
+  }
 
-    if (sessionTtlSeconds == null) {
-      this.logger.warn(
-        `Invalid JWT_EXPIRATION value "${configuredExpiration}". Falling back to ${ttlSeconds} seconds.`,
-      );
+  async saveRefreshToken(
+    refreshToken: string,
+    userId: string,
+    sessionId: string,
+  ): Promise<void> {
+    const ttlSeconds = this.resolveTtlFromConfig(
+      'JWT_REFRESH_EXPIRATION',
+      ApplicationPermissionsService.DEFAULT_REFRESH_TTL_SECONDS,
+    );
+    const refreshKey = `refresh:${refreshToken}`;
+    const sessionRefreshKey = `refresh_session:${userId}:${sessionId}`;
+    const existingRefreshToken = await this.redisService.get(sessionRefreshKey);
+    if (existingRefreshToken) {
+      await this.redisService.del(`refresh:${existingRefreshToken}`);
     }
 
-    await this.redisService.set(key, JSON.stringify(sessionData), ttlSeconds);
+    const payload = {
+      userId,
+      sessionId,
+      createdAt: new Date().toISOString(),
+    };
+
+    await this.redisService.set(refreshKey, JSON.stringify(payload), ttlSeconds);
+    await this.redisService.set(sessionRefreshKey, refreshToken, ttlSeconds);
+  }
+
+  async getRefreshTokenData(
+    refreshToken: string,
+  ): Promise<{ userId: string; sessionId: string } | null> {
+    const raw = await this.redisService.get(`refresh:${refreshToken}`);
+    if (!raw) return null;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        userId?: string;
+        sessionId?: string;
+      };
+      if (!parsed.userId || !parsed.sessionId) return null;
+      return { userId: parsed.userId, sessionId: parsed.sessionId };
+    } catch (error) {
+      this.logger.warn(
+        `Invalid refresh token payload for key refresh:${refreshToken}`,
+      );
+      return null;
+    }
+  }
+
+  async deleteRefreshToken(refreshToken: string): Promise<void> {
+    const tokenData = await this.getRefreshTokenData(refreshToken);
+    await this.redisService.del(`refresh:${refreshToken}`);
+    if (tokenData) {
+      await this.redisService.del(
+        `refresh_session:${tokenData.userId}:${tokenData.sessionId}`,
+      );
+    }
+  }
+
+  async deleteRefreshTokenBySession(
+    userId: string,
+    sessionId: string,
+  ): Promise<void> {
+    const sessionRefreshKey = `refresh_session:${userId}:${sessionId}`;
+    const refreshToken = await this.redisService.get(sessionRefreshKey);
+    if (refreshToken) {
+      await this.redisService.del(`refresh:${refreshToken}`);
+    }
+    await this.redisService.del(sessionRefreshKey);
   }
 
   /**
