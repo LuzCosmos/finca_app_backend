@@ -50,6 +50,14 @@ docker compose up -d
   - Header esperado en endpoints protegidos:  
     `Authorization: Bearer <token>`
 
+### Configuración de expiración de sesión
+- La variable de entorno `JWT_EXPIRATION` define:
+  - La expiración del `access_token` firmado por JWT.
+  - El TTL de la sesión almacenada en Redis (`session:{userId}:{sessionId}`).
+- Formatos soportados: `s` (segundos), `m` (minutos), `h` (horas), `d` (días).  
+  Ejemplos: `30s`, `15m`, `24h`, `7d`.
+- Si `JWT_EXPIRATION` es inválido, el backend aplica fallback de seguridad a `86400` segundos (24h) para el TTL en Redis.
+
 ### Guards y permisos
 - `JwtAuthGuard`: valida token JWT
 - `ApplicationPermissionsGuard`: permisos por módulo/entidad/acción  

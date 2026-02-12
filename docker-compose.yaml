@@ -72,7 +72,6 @@ services:
       # JWT
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-24h}
-      JWT_TTL: ${JWT_TTL:-86400}
 
       # ChirpStack
       CHIRPSTACK_API_URL: ${CHIRPSTACK_API_URL}

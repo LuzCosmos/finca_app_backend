@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { RedisService } from 'src/modules/auth/redis/redis.service';
 import { RoleModulePermission } from 'src/modules/employee-management/entities/role-module-permission.entity';
@@ -7,8 +8,32 @@ import { RoleModulePermission } from 'src/modules/employee-management/entities/r
 @Injectable()
 export class ApplicationPermissionsService {
   private readonly logger = new Logger(ApplicationPermissionsService.name);
+  private static readonly DEFAULT_SESSION_TTL_SECONDS = 86400;
 
-  constructor(private redisService: RedisService) { }
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
+  ) { }
+
+  private parseDurationToSeconds(raw: string | undefined): number | null {
+    if (!raw) return null;
+    const value = raw.trim().toLowerCase();
+    const match = /^(\d+)\s*([smhd])?$/.exec(value);
+    if (!match) return null;
+
+    const amount = Number.parseInt(match[1], 10);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+
+    const unit = match[2] ?? 's';
+    const unitSeconds: Record<string, number> = {
+      s: 1,
+      m: 60,
+      h: 3600,
+      d: 86400,
+    };
+
+    return amount * unitSeconds[unit];
+  }
 
   /**
    * Compute a SHA-256 hash based on the permissions object.
@@ -29,8 +54,17 @@ export class ApplicationPermissionsService {
    */
   async saveSessionData(userId: string, sessionId: string, sessionData: Record<string, any>): Promise<void> {
     const key = `session:${userId}:${sessionId}`;
-    // Store the session data with a TTL of 24 hours (86400 seconds)
-    await this.redisService.set(key, JSON.stringify(sessionData), 86400);
+    const configuredExpiration = this.configService.get<string>('JWT_EXPIRATION');
+    const sessionTtlSeconds = this.parseDurationToSeconds(configuredExpiration);
+    const ttlSeconds = sessionTtlSeconds ?? ApplicationPermissionsService.DEFAULT_SESSION_TTL_SECONDS;
+
+    if (sessionTtlSeconds == null) {
+      this.logger.warn(
+        `Invalid JWT_EXPIRATION value "${configuredExpiration}". Falling back to ${ttlSeconds} seconds.`,
+      );
+    }
+
+    await this.redisService.set(key, JSON.stringify(sessionData), ttlSeconds);
   }
 
   /**
