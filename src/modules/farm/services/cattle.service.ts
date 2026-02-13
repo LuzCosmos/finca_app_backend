@@ -20,8 +20,6 @@ import { DevicesService } from '../../production-center/services/devices.service
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import { SimpleEventType } from 'src/modules/massive-events/enums/simple-event-type.enum';
-import { ColorRepository } from '../repositories/color.repository';
-import { CharacteristicRepository } from '../repositories/characteristic.repository';
 import { CattleCharacteristicRepository } from '../repositories/cattle-characteristic.repository';
 import { CattleCharacteristic } from '../entities/cattle-characteristic.entity';
 import { CattleWeightHistory, WeightContext } from '../entities/cattle-weight-history.entity';
@@ -40,10 +38,7 @@ export class CattleService {
     private readonly cattleWeightHistoryRepository: CattleWeightHistoryRepository,
     private readonly cattleEartagHistoryRepository: CattleEartagHistoryRepository,
     private readonly cattleMedicationHistoryRepository: CattleMedicationHistoryRepository,
-    private readonly colorRepository: ColorRepository,
-    private readonly characteristicRepository: CharacteristicRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
-    private readonly lotService: LotService,
     private readonly deviceService: DevicesService,
     private readonly animalSimpleEventRepository: AnimalSimpleEventRepository,
     private readonly dataSource: DataSource,

@@ -8,9 +8,6 @@ import { PurchaseReception } from '../entities/purchase-reception.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
 import { MassiveEvent } from '../../massive-events/entities/massive-events.entity'
 import { SimpleEventResponseDto } from 'src/modules/massive-events/dto/simple-event-response.dto';
-import { Color } from '../../farm/entities/color.entity';
-import { Characteristic } from '../../farm/entities/characteristic.entity';
-import { PurchaseStatus } from 'src/modules/commerce/enums/purchase-status.enum';
 
 export class AnimalSimpleEventReceptionResponseDto {
 
@@ -244,40 +241,6 @@ export class PurchaseReceptionResponseDto {
       purchaseCattleCount: purchaseCattleCount,
       purchaseTotalWeight: purchaseTotalWeight,
       purchaseStatus: purchase.status,
-    };
-  }
-}
-
-export class ColorResponseDto {
-  @ApiProperty({ format: 'uuid', description: 'ID de la color' })
-  @IsUUID()
-  id: string;
-
-  @ApiProperty({ example: 'Black', description: 'Nombre de la color' })
-  @IsString()
-  name: string;
-
-  static toResponseDto(entity: Color): ColorResponseDto {
-    return {
-      id: entity.id,
-      name: entity.name,
-    };
-  }
-}
-
-export class CharacteristicResponseDto {
-  @ApiProperty({ format: 'uuid', description: 'ID de la característica' })
-  @IsUUID()
-  id: string;
-
-  @ApiProperty({ example: 'White Belly', description: 'Nombre de la característica' })
-  @IsString()
-  name: string;
-
-  static toResponseDto(entity: Characteristic): CharacteristicResponseDto {
-    return {
-      id: entity.id,
-      name: entity.name,
     };
   }
 }

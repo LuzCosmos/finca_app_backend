@@ -25,10 +25,6 @@ import { BrandController } from './controllers/brand.controller';
 import { BrandRepository } from './repositories/brand.repository';
 import { BrandService } from './services/brand.service';
 import { Brand } from './entities/brand.entity';
-import { Characteristic } from './entities/characteristic.entity';
-import { Color } from './entities/color.entity';
-import { ColorRepository } from './repositories/color.repository';
-import { CharacteristicRepository } from './repositories/characteristic.repository';
 import { CattleCharacteristicRepository } from './repositories/cattle-characteristic.repository';
 import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
 import { ColorCharacteristicsService } from './services/color-characteristics.service';
@@ -41,8 +37,6 @@ import { ColorCharacteristicsController } from './controllers/color-characterist
     TypeOrmModule.forFeature([
       Cattle,
       CattleCharacteristic,
-      Characteristic,
-      Color,
       CattleDeviceHistory,
       CattleWeightHistory,
       CattleEartagHistory,
@@ -61,8 +55,6 @@ import { ColorCharacteristicsController } from './controllers/color-characterist
     CattleWeightHistoryRepository,
     CattleEartagHistoryRepository,
     CattleMedicationHistoryRepository,
-    ColorRepository,
-    CharacteristicRepository,
     CattleCharacteristicRepository,
     LocationService,
     LocationRepository,
@@ -83,9 +75,7 @@ import { ColorCharacteristicsController } from './controllers/color-characterist
     CattleRepository,
     CattleDeviceHistoryRepository,
     CattleWeightHistoryRepository,
-    CattleCharacteristicRepository,
-    ColorRepository,
-    CharacteristicRepository
+    CattleCharacteristicRepository
   ],
 })
 export class FarmModule { } 
