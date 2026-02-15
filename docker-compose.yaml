@@ -44,7 +44,7 @@ services:
   # Backend API
   backend:
     container_name: finca_app_backend
-    image: finca_app_backend:1
+    image: finca_app_backend:latest
     restart: unless-stopped
     ports:
       - '${APP_PORT_EXTERNAL}:3000'

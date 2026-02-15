@@ -75,9 +75,7 @@ export class ReceptionController {
       sessionUser.tenant_id,
       idPurchase,
       sessionUser.sub);
-    const colors = await this.receptionsService.getColors(sessionUser.tenant_id);
-    const characteristics = await this.receptionsService.getCharacteristics(sessionUser.tenant_id);
-    const receptionResponseDto = ReceptionResponseDto.toResponseDto(receptionInfo, colors, characteristics);
+    const receptionResponseDto = ReceptionResponseDto.toResponseDto(receptionInfo);
     return receptionResponseDto;
   }
 

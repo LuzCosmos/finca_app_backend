@@ -124,13 +124,7 @@ export class ReceptionsService {
     return reception;
   }
 
-  async getColors(idTenant: string): Promise<any[]> {
-    return this.colorCharacteristicsService.getAllColors();
-  }
 
-  async getCharacteristics(idTenant: string): Promise<any[]> {
-    return this.colorCharacteristicsService.getAllCharacteristics();
-  }
 
   async receiveCattle_Transaction(idTenant: string, idCurrentUser: string, cattleDto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
     return this.ds.transaction(async manager => {

@@ -251,35 +251,20 @@ export class ReceptionResponseDto {
   @ApiProperty({ type: PurchaseReceptionResponseDto, description: 'Purchase reception' })
   reception: PurchaseReceptionResponseDto;
 
-  @ApiProperty({ type: [String], description: 'List of colors' })
-  colors: string[];
 
-  @ApiProperty({ type: [String], description: 'List of characteristics' })
-  characteristics: string[];
-
-
-  static toResponseDto(receptionInfo: PurchaseReceptionResponseDto, colors: string[], characteristics: string[]
-  ): ReceptionResponseDto {
+  static toResponseDto(receptionInfo: PurchaseReceptionResponseDto): ReceptionResponseDto {
     return {
-      reception: receptionInfo,
-      colors: colors,
-      characteristics: characteristics,
-
+      reception: receptionInfo
     };
   }
 
   static toResponseDto_optional(entity: PurchaseReception, purchase: Purchase, providerName: string,
     lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
-    appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
-    colors: string[], characteristics: string[]
-  ): ReceptionResponseDto {
+    appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent): ReceptionResponseDto {
 
     var receptionInfo = PurchaseReceptionResponseDto.toResponseDto(entity, purchase, providerName, lots, lotCattle, cattle, appliedEvents, massiveEvent);
     return {
-      reception: receptionInfo,
-      colors: colors,
-      characteristics: characteristics,
-
+      reception: receptionInfo
     };
   }
 
