@@ -44,7 +44,11 @@ export class ReceiveCattleRequestDto {
 
   @IsOptional()
   @IsString()
-  eartag?: string;
+  eartagLeft?: string;
+
+  @IsOptional()
+  @IsString()
+  eartagRight?: string;
 
   @IsOptional()
   @IsUUID()

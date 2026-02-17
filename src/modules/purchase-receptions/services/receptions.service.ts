@@ -135,10 +135,16 @@ export class ReceptionsService {
       var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
       var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
       await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
-      if (cattleDto.eartag) {
-        const existingCattleWithEartag = await this.cattleRepo.findByEartag(idTenant, cattleDto.eartag, manager);
+      if (cattleDto.eartagLeft) {
+        const existingCattleWithEartag = await this.cattleRepo.findByAnyEartag(idTenant, cattleDto.eartagLeft, manager);
         if (existingCattleWithEartag) {
-          throw new ConflictException(`Eartag ${cattleDto.eartag} already exists for another cattle`);
+          throw new ConflictException(`Eartag ${cattleDto.eartagLeft} already exists for another cattle`);
+        }
+      }
+      if (cattleDto.eartagRight) {
+        const existingCattleWithEartag = await this.cattleRepo.findByAnyEartag(idTenant, cattleDto.eartagRight, manager);
+        if (existingCattleWithEartag) {
+          throw new ConflictException(`Eartag ${cattleDto.eartagRight} already exists for another cattle`);
         }
       }
       if (cattleDto.idDevice) {
@@ -172,7 +178,8 @@ export class ReceptionsService {
         lot: cattleLotNumber ?? null,
         idBrand: cattleDto.idBrand ?? null,
         color: cattleDto.color,
-        eartag: cattleDto.eartag ?? null,
+        eartagLeft: cattleDto.eartagLeft ?? null,
+        eartagRight: cattleDto.eartagRight ?? null,
         idDevice: cattleDto.idDevice ?? null,
         castrated: cattleDto.castrated,
         comments: cattleDto.comments ?? null,

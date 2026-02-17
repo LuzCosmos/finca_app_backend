@@ -222,20 +222,45 @@ export class CattleService {
         break;
 
       case SimpleEventType.EARTAG:
-        const cattleWithSameEartag = await this.cattleRepository.findByEartag(idTenant, ev.data.eartagNumber);
-        if (cattleWithSameEartag && cattleWithSameEartag.id !== cattle.id) {
-          throw new ConflictException(`Eartag ${ev.data.eartagNumber} already exists for another cattle`);
+        const nextEartagLeft = ev.data.eartagLeft ?? null;
+        const nextEartagRight = ev.data.eartagRight ?? null;
+
+        if (nextEartagLeft) {
+          const cattleWithSameEartagLeft = await this.cattleRepository.findByAnyEartag(idTenant, nextEartagLeft, manager);
+          if (cattleWithSameEartagLeft && cattleWithSameEartagLeft.id !== cattle.id) {
+            throw new ConflictException(`Eartag ${nextEartagLeft} already exists for another cattle`);
+          }
+          cattle.eartagLeft = nextEartagLeft;
+          await this.cattleEartagHistoryRepository.createWithManager(manager, {
+            idTenant: idTenant,
+            idCattle: cattle.id,
+            data: { eartagLeft: nextEartagLeft },
+            assignedAt: ev.appliedAt ?? new Date(),
+            assignedBy: ev.appliedBy ?? idCurrentUser,
+            idMassiveEvent: ev.idMassiveEvent,
+          } as any);
         }
-        cattle.eartag = ev.data.eartagNumber;
+
+        if (nextEartagRight) {
+          const cattleWithSameEartagRight = await this.cattleRepository.findByAnyEartag(idTenant, nextEartagRight, manager);
+          if (cattleWithSameEartagRight && cattleWithSameEartagRight.id !== cattle.id) {
+            throw new ConflictException(`Eartag ${nextEartagRight} already exists for another cattle`);
+          }
+          cattle.eartagRight = nextEartagRight;
+          await this.cattleEartagHistoryRepository.createWithManager(manager, {
+            idTenant: idTenant,
+            idCattle: cattle.id,
+            data: { eartagRight: nextEartagRight },
+            assignedAt: ev.appliedAt ?? new Date(),
+            assignedBy: ev.appliedBy ?? idCurrentUser,
+            idMassiveEvent: ev.idMassiveEvent,
+          } as any);
+        }
+
+        if (!nextEartagLeft && !nextEartagRight) {
+          break;
+        }
         cattle.updatedAt = new Date();
-        await this.cattleEartagHistoryRepository.createWithManager(manager, {
-          idTenant: idTenant,
-          idCattle: cattle.id,
-          eartagNumber: ev.data.eartagNumber,
-          assignedAt: ev.appliedAt ?? new Date(),
-          assignedBy: ev.appliedBy ?? idCurrentUser,
-          idMassiveEvent: ev.idMassiveEvent,
-        } as any);
         break;
 
       case SimpleEventType.TRACKER:
@@ -483,10 +508,16 @@ export class CattleService {
           throw new ConflictException('Cattle with number ' + updateData.number + ' already exists');
         }
       }
-      if (updateData.eartag) {
-        let cattle = await this.cattleRepository.findByEartag(idTenant, updateData.eartag, trxManager);
+      if (updateData.eartagLeft) {
+        const cattle = await this.cattleRepository.findByAnyEartag(idTenant, updateData.eartagLeft, trxManager);
         if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST) && cattle.id != id) {
-          throw new ConflictException(`Eartag ${updateData.eartag} already exists for another cattle`);
+          throw new ConflictException(`Eartag ${updateData.eartagLeft} already exists for another cattle`);
+        }
+      }
+      if (updateData.eartagRight) {
+        const cattle = await this.cattleRepository.findByAnyEartag(idTenant, updateData.eartagRight, trxManager);
+        if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST) && cattle.id != id) {
+          throw new ConflictException(`Eartag ${updateData.eartagRight} already exists for another cattle`);
         }
       }
       await this.cattleRepository.update(idTenant, id, updateData, trxManager);
@@ -620,8 +651,8 @@ export class CattleService {
     await this.cattleRepository.delete(idTenant, id);
   }
 
-  async findByEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
-    return await this.cattleRepository.findByEartag(idTenant, eartag, manager);
+  async findByAnyEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
+    return await this.cattleRepository.findByAnyEartag(idTenant, eartag, manager);
   }
   async findByNumber(idTenant: string, number: string, manager?: EntityManager): Promise<Cattle | null> {
     return await this.cattleRepository.findByNumberAndTenantId(idTenant, number, manager);

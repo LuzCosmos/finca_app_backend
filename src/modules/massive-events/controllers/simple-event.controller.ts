@@ -42,11 +42,11 @@ export class SimpleEventController {
         }
       },
       eartag: {
-        summary: 'Eartag type (data varies per cattle)',
+        summary: 'Eartag type (can define left/right values)',
         value: {
           idMassiveEvent: 'uuid-massive-event',
           type: 'eartag',
-          data: {}
+          data: { eartagLeft: 'ET-L-001', eartagRight: 'ET-R-001' }
         }
       },
       tracker: {
@@ -117,7 +117,7 @@ export class SimpleEventController {
               id: 'uuid-se-eartag',
               idMassiveEvent: 'uuid-massive',
               type: 'eartag',
-              dataJson: '{}',
+              dataJson: '{"eartagLeft":"ET-L-001","eartagRight":"ET-R-001"}',
             },
             {
               id: 'uuid-se-tracker',

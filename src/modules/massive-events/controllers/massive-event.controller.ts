@@ -125,7 +125,7 @@ export class MassiveEventController {
                 {
                   id: 'uuid-se-eartag',
                   type: 'eartag',
-                  dataJson: '{}'
+                  dataJson: '{"eartagLeft":"ET-L-001","eartagRight":"ET-R-001"}'
                 },
                 {
                   id: 'uuid-se-tracker',

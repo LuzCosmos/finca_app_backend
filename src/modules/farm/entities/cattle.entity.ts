@@ -79,9 +79,13 @@ export class Cattle {
   @OneToMany(() => CattleCharacteristic, (cattleCharacteristic) => cattleCharacteristic.cattle)
   cattleCharacteristics: CattleCharacteristic[];
 
-  /** Eartag actual */
-  @Column({ name: 'eartag', type: 'varchar', length: 50, nullable: true })
-  eartag: string | null;
+  /** Arete izquierdo */
+  @Column({ name: 'eartag_left', type: 'varchar', length: 50, nullable: true })
+  eartagLeft: string | null;
+
+  /** Arete derecho */
+  @Column({ name: 'eartag_right', type: 'varchar', length: 50, nullable: true })
+  eartagRight: string | null;
 
   @Column({ name: 'id_device', type: 'uuid', nullable: true })
   idDevice: string | null;

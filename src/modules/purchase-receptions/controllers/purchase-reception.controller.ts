@@ -56,7 +56,7 @@ export class ReceptionController {
     if (!eartag?.trim()) {
       throw new BadRequestException('eartag is required');
     }
-    var cattle = await this.cattleService.findByEartag(sessionUser.tenant_id, eartag.trim())
+    var cattle = await this.cattleService.findByAnyEartag(sessionUser.tenant_id, eartag.trim())
     const exists =
       !!cattle &&
       (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST);
@@ -108,7 +108,8 @@ export class ReceptionController {
           idBrand: 'uuid-brand-789', // Optional
           color: 'color_enum', // Optional
           characteristicsIds: ['char_enum_1', 'char_enum_2'], // Optional
-          eartag: 'ET-12345', // Optional
+          eartagLeft: 'ET-12345', // Optional
+          eartagRight: 'ET-12346', // Optional
           idDevice: 'uuid-device-999', // Optional
           castrated: true, // Optional
           hasHorn: true, // Optional

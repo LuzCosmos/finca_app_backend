@@ -177,9 +177,13 @@ export class CattleRepository {
     }
   }
 
-  async findByEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
+  async findByAnyEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
-    return repo.findOne({ where: { idTenant, eartag } });
+    return repo
+      .createQueryBuilder('c')
+      .where('c.idTenant = :idTenant', { idTenant })
+      .andWhere('(c.eartagLeft = :eartag OR c.eartagRight = :eartag)', { eartag })
+      .getOne();
   }
 
   async getBasicInfo(idTenant: string, manager?: EntityManager): Promise<Cattle[]> {
@@ -342,7 +346,7 @@ export class CattleRepository {
       .where('c.idTenant = :idTenant', { idTenant })
       .andWhere('c.status IN (:...statuses)', { statuses })
       .andWhere(
-        '(c.number ILIKE :query OR c.eartag ILIKE :query OR d.name ILIKE :query OR d.deveui ILIKE :query)',
+        '(c.number ILIKE :query OR c.eartagLeft ILIKE :query OR c.eartagRight ILIKE :query OR d.name ILIKE :query OR d.deveui ILIKE :query)',
         { query: `%${query}%` }
       )
       .limit(20);

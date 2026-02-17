@@ -93,7 +93,7 @@ export class CattleController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Search cattle by number, eartag, or device' })
+  @ApiOperation({ summary: 'Search cattle by number, eartags, or device' })
   @ApiResponse({ status: 200, description: 'List of matching cattle', type: [CattleResponseDto] })
   @RequireAction('read')
   search(@SessionUser() sessionUser: SessionUserDto, @Query('q') query: string) {
@@ -214,7 +214,7 @@ export class CattleController {
             idMassiveEvent: 'uuid-massive-event-1',
             events: [
               { type: 'weight', data: { weight: 350.58 }, idSimpleEvent: 'uuid-simple-event-1' },
-              { type: 'eartag', data: { eartagNumber: 'ET-789' }, idSimpleEvent: 'uuid-simple-event-2' },
+              { type: 'eartag', data: { eartagLeft: 'ET-789', eartagRight: 'ET-790' }, idSimpleEvent: 'uuid-simple-event-2' },
               { type: 'tracker', data: { tracker_deveui: 'a173ecf6ffe3abcd' }, idSimpleEvent: 'uuid-simple-event-3' },
               { type: 'castration', data: {}, idSimpleEvent: 'uuid-simple-event-4' },
               { type: 'medication', data: { medicationName: "Antrimizin NF 85 mg", dosage: "1.2 mg/kg", route: "oral", lot: "LOT-2025" }, idSimpleEvent: 'uuid-simple-event-5' },
@@ -271,14 +271,14 @@ export class CattleController {
             {
               cattleNumber: 'C-002',
               type: 'eartag',
-              data: { eartagNumber: 'ET-789' },
+              data: { eartagLeft: 'ET-789' },
               idMassiveEvent: 'uuid-massive-event-1',
               idSimpleEvent: 'uuid-simple-event-2'
             },
             {
               cattleNumber: 'C-003',
               type: 'eartag',
-              data: { eartagNumber: 'ET-790' },
+              data: { eartagRight: 'ET-790' },
               idMassiveEvent: 'uuid-massive-event-2',
               idSimpleEvent: 'uuid-simple-event-3'
             }

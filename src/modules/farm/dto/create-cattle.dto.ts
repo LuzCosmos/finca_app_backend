@@ -121,7 +121,12 @@ export class CreateCattleDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
-  eartag?: string;
+  eartagLeft?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  eartagRight?: string;
 
   @ApiProperty({ required: false })
   @IsUUID()

@@ -165,6 +165,26 @@ export class SimpleEventService {
   }
 
   validateDataFields(type: string, dataInput: any) {
+    if (type == 'eartag') {
+      let data: any;
+      if (typeof dataInput === 'string') {
+        if (dataInput.trim() === '') {
+          throw new BadRequestException('dataJson is required for type eartag');
+        }
+        data = JSON.parse(dataInput);
+      } else if (dataInput && typeof dataInput === 'object') {
+        data = dataInput;
+      } else {
+        throw new BadRequestException('data is required for type eartag');
+      }
+
+      const left = typeof data.eartagLeft === 'string' ? data.eartagLeft.trim() : '';
+      const right = typeof data.eartagRight === 'string' ? data.eartagRight.trim() : '';
+      if (left.length === 0 && right.length === 0) {
+        throw new BadRequestException('dataJson is invalid for type eartag');
+      }
+    }
+
     if (type == 'medication') {
       let data: any;
       if (typeof dataInput === 'string') {
