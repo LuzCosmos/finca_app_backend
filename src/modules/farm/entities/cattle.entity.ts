@@ -62,9 +62,6 @@ export class Cattle {
   @Column({ name: 'id_lot', type: 'uuid', nullable: true })
   idLot: string | null;
 
-  @Column({ length: 10, nullable: true })
-  lot: string;
-
   @Column({ name: 'id_brand', type: 'uuid', nullable: true })
   idBrand: string | null;
 
@@ -154,8 +151,8 @@ export class Cattle {
   })
   gender: CattleGender;
 
-  @Column({ name: 'age', nullable: true })
-  age: string;
+  @Column({ name: 'birth_date_aprx', type: 'date', nullable: true })
+  birthDateAprx: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -113,7 +113,7 @@ export class ReceptionController {
           idDevice: 'uuid-device-999', // Optional
           castrated: true, // Optional
           hasHorn: true, // Optional
-          age: 'number',
+          birthDateAprx: '2024-01-15',
           gender: 'gender_enum',
           comments: 'Initial reception check completed.', // Optional
           idProvider: 'uuid-provider-123', // Optional

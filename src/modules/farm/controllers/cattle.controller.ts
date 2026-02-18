@@ -68,7 +68,6 @@ export class CattleController {
           brand: 'uuid-brand',
           color: 'colors_enum',
           characteristics: ['string'],
-          lot: 'string',
           receivedAt: 'string',
           receivedWeight: 0,
           purchaseWeight: 0,

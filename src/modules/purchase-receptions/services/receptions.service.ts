@@ -151,13 +151,11 @@ export class ReceptionsService {
         await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, cattleDto.idDevice, manager, new Date());
         await this.cattleRepo.unsetDevice(idTenant, cattleDto.idDevice, manager);
       }
-      var cattleLotNumber;
       if (cattleDto.idLot) {
         let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
         if (!lot) {
           throw new NotFoundException('Lot not found ' + cattleDto.idLot);
         }
-        cattleLotNumber = lot!.lotNumber
         if (!cattleDto.purchaseWeight) {
           cattleDto.purchaseWeight = lot.averageWeight;
         }
@@ -175,7 +173,6 @@ export class ReceptionsService {
         purchaseWeight: cattleDto.purchaseWeight,
         purchasePrice: cattleDto.purchasePrice,
         idLot: cattleDto.idLot ?? null,
-        lot: cattleLotNumber ?? null,
         idBrand: cattleDto.idBrand ?? null,
         color: cattleDto.color,
         eartagLeft: cattleDto.eartagLeft ?? null,
@@ -190,7 +187,7 @@ export class ReceptionsService {
         idProvider: cattleDto.idProvider ?? null,
         idPurchase: cattleDto.idPurchase,
         gender: cattleDto.gender,
-        age: cattleDto.age,
+        birthDateAprx: cattleDto.birthDateAprx ? new Date(cattleDto.birthDateAprx) : null,
         hasHorn: cattleDto.hasHorn
       }
 
@@ -305,7 +302,6 @@ export class ReceptionsService {
         throw new NotFoundException('Lot not found');
       }
       cattle.idLot = dto.idLot;
-      cattle.lot = lot.lotNumber;
       cattle.purchaseWeight = lot.averageWeight ?? 0;
       cattle.purchasePrice = (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
       cattle = await this.cattleRepo.saveWithManager(manager, cattle);

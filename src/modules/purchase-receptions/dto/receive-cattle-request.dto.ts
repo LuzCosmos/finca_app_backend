@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, IsUUID, IsNumber, Min, IsDate, IsBoolean, isUUID } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUUID, IsNumber, IsDateString, IsBoolean } from 'class-validator';
 
 export class ReceiveCattleRequestDto {
   @IsUUID()
@@ -72,8 +72,8 @@ export class ReceiveCattleRequestDto {
   gender?: string;
 
   @IsOptional()
-  @IsNumber()
-  age?: number;
+  @IsDateString()
+  birthDateAprx?: string;
 }
 
 export class UpdateLotCattleRequestDto {

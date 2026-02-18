@@ -404,8 +404,8 @@ export class CattleService {
           throw new NotFoundException(`Device ${data.idDevice} not found`);
         }
       }
-      if (data.age !== undefined && data.age !== null) {
-        (data as any).age = data.age.toString();
+      if (data.birthDateAprx) {
+        (data as any).birthDateAprx = new Date(data.birthDateAprx);
       }
       const cattle = await this.cattleRepository.create(data, trxManager);
       if (data.characteristics) {
@@ -966,7 +966,6 @@ export class CattleService {
     dto.sysNumber = rowValues[0];
     dto.number = rowValues[1];
     if (rowValues[2]) { dto.brand = rowValues[2]; }
-    if (rowValues[6]) { dto.lot = rowValues[6]; }
     dto.receivedAt = rowValues[7];
     dto.receivedWeight = rowValues[9];
     dto.purchaseWeight = rowValues[8];

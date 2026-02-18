@@ -32,12 +32,6 @@ export class CreateCattleDto {
   @IsOptional()
   brand?: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(10)
-  lot?: string;
-
   @ApiProperty({ required: true })
   @IsDateString()
   receivedAt: string;
@@ -144,9 +138,9 @@ export class CreateCattleDto {
   status?: CattleStatus;
 
   @ApiProperty({ required: false })
-  @IsNumber()
+  @IsDateString()
   @IsOptional()
-  age?: number;
+  birthDateAprx?: string;
 
   @ApiProperty({ required: true })
   @IsNumber()
