@@ -29,11 +29,13 @@ import { CattleCharacteristicRepository } from './repositories/cattle-characteri
 import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
 import { ColorCharacteristicsService } from './services/color-characteristics.service';
 import { ColorCharacteristicsController } from './controllers/color-characteristics.controller';
+import { ConfigurationModule } from '../configurations/configuration.module';
 
 @Module({
   imports: [
     forwardRef(() => MassiveEventsModule),
     forwardRef(() => CommerceModule),
+    ConfigurationModule,
     TypeOrmModule.forFeature([
       Cattle,
       CattleCharacteristic,

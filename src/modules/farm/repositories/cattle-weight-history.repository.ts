@@ -51,6 +51,21 @@ export class CattleWeightHistoryRepository {
     }
   }
 
+  /** Registro de peso más reciente (por fecha DESC) para calcular ganancia diaria. */
+  async findLastByCattle(
+    idTenant: string,
+    idCattle: string,
+    manager?: EntityManager,
+  ): Promise<CattleWeightHistory | null> {
+    const repo = manager ? manager.getRepository(CattleWeightHistory) : this.repo;
+    const list = await repo.find({
+      where: { idTenant, idCattle },
+      order: { date: 'DESC' },
+      take: 1,
+    });
+    return list[0] ?? null;
+  }
+
   async findOneById(
     idTenant: string,
     id: string,

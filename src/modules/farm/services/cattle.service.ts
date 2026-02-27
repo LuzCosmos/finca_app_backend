@@ -26,6 +26,7 @@ import { CattleWeightHistory, WeightContext } from '../entities/cattle-weight-hi
 import { CreateCattleMedicationHistoryDto } from '../dto/create-cattle-medication-history.dto';
 import { CattleMedicationHistory } from '../entities/cattle-medication-history.entity';
 import { LotService } from 'src/modules/commerce/services/lot.service';
+import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
 
 @Injectable()
 export class CattleService {
@@ -44,6 +45,7 @@ export class CattleService {
     private readonly dataSource: DataSource,
     private readonly massiveEventService: MassiveEventService,
     private readonly simpleEventService: SimpleEventService,
+    private readonly configurationsService: ConfigurationsService,
   ) { }
 
   /**
@@ -207,19 +209,35 @@ export class CattleService {
   ): Promise<void> {
     this.validateStatusForApplyEvents(cattle.status);
     switch (ev.type) {
-      case SimpleEventType.WEIGHT:
-        cattle.lastWeight = ev.data.weight;
+      case SimpleEventType.WEIGHT: {
+        const newWeight = ev.data.weight;
+        const newDate = ev.appliedAt ?? new Date();
+        const previousRecord = await this.cattleWeightHistoryRepository.findLastByCattle(idTenant, cattle.id, manager);
+        let averageDailyGain: number | null = null;
+        if (previousRecord != null && previousRecord.weight != null) {
+          averageDailyGain = this.computeAverageDailyGain(
+            Number(previousRecord.weight),
+            previousRecord.date,
+            newWeight,
+            newDate,
+          );
+        }
+        cattle.lastWeight = newWeight;
         cattle.updatedAt = new Date();
-        const event = await this.cattleWeightHistoryRepository.createWithManager(manager, {
+        if (averageDailyGain != null) {
+          cattle.averageDailyGain = averageDailyGain;
+        }
+        await this.cattleWeightHistoryRepository.createWithManager(manager, {
           idTenant: idTenant,
           idCattle: cattle.id,
-          weight: ev.data.weight,
-          date: ev.appliedAt ?? new Date(),
+          weight: newWeight,
+          date: newDate,
           idMassiveEvent: ev.idMassiveEvent,
           context: WeightContext.EVENT,
           recordedBy: ev.appliedBy ?? idCurrentUser,
         } as any);
         break;
+      }
 
       case SimpleEventType.EARTAG:
         const nextEartagLeft = ev.data.eartagLeft ?? null;
@@ -407,6 +425,9 @@ export class CattleService {
       if (data.birthDateAprx) {
         (data as any).birthDateAprx = new Date(data.birthDateAprx);
       }
+      if (data.newFeedStartDate) {
+        (data as any).newFeedStartDate = new Date(data.newFeedStartDate);
+      }
       const cattle = await this.cattleRepository.create(data, trxManager);
       if (data.characteristics) {
         await this.updateCharacteristics(cattle.id, data.characteristics, idTenant, trxManager);
@@ -430,6 +451,15 @@ export class CattleService {
           trxManager,
         );
         cattle.device = device;
+      }
+      if (data.lastWeight) {
+        const cwh = new CattleWeightHistory();
+        cwh.idTenant = idTenant;
+        cwh.idCattle = cattle.id;
+        cwh.weight = data.lastWeight;
+        cwh.date = new Date();
+        cwh.context = WeightContext.MANUAL;
+        await this.cattleWeightHistoryRepository.create(cwh, trxManager);
       }
       return cattle;
     });
@@ -471,6 +501,12 @@ export class CattleService {
       }
       const { characteristics, ...updateD } = data;
       const updateData = { updatedAt: new Date(), ...updateD };
+      if (updateData.birthDateAprx != null) {
+        (updateData as any).birthDateAprx = new Date(updateData.birthDateAprx as any);
+      }
+      if (updateData.newFeedStartDate != null) {
+        (updateData as any).newFeedStartDate = new Date(updateData.newFeedStartDate as any);
+      }
       this.logger.log(updateData);
       if (characteristics) {
         await this.updateCharacteristics(id, characteristics, idTenant, trxManager);
@@ -520,7 +556,7 @@ export class CattleService {
           throw new ConflictException(`Eartag ${updateData.eartagRight} already exists for another cattle`);
         }
       }
-      await this.cattleRepository.update(idTenant, id, updateData, trxManager);
+
       /*if (updateData.purchaseWeight) {
         const cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.PURCHASE);
         if (cwhs.length > 0) {
@@ -537,14 +573,33 @@ export class CattleService {
         }
       }*/
       if (updateData.lastWeight) {
+        const newWeight = updateData.lastWeight;
+        const newDate = new Date();
+        const previousRecord = await this.cattleWeightHistoryRepository.findLastByCattle(idTenant, id, trxManager);
+        if (updateData.averageDailyGain == null) {
+          let averageDailyGain: number | null = null;
+          if (previousRecord != null && previousRecord.weight != null) {
+            averageDailyGain = this.computeAverageDailyGain(
+              Number(previousRecord.weight),
+              previousRecord.date,
+              newWeight,
+              newDate,
+            );
+          }
+          updateData.updatedAt = new Date();
+          if (averageDailyGain != null) {
+            updateData.averageDailyGain = averageDailyGain;
+          }
+        }
         const cwh = new CattleWeightHistory();
         cwh.idTenant = idTenant;
         cwh.idCattle = id;
         cwh.weight = updateData.lastWeight;
-        cwh.date = new Date();
+        cwh.date = newDate;
         cwh.context = WeightContext.MANUAL;
         await this.cattleWeightHistoryRepository.create(cwh, trxManager);
       }
+      await this.cattleRepository.update(idTenant, id, updateData, trxManager);
       if (updateData.receivedWeight) {
         var cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.RECEIVED);
         if (cwhs.length > 0) {
@@ -582,10 +637,24 @@ export class CattleService {
         this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager),
         this.cattleMedicationHistoryRepository.findByCattle(idTenant, id, trxManager),
       ]);
+      const tenantGainConfig = await this.configurationsService.getTenantConfiguration(idTenant, 'average_daily_gain');
+      const tenantGainKg = tenantGainConfig ? parseFloat(tenantGainConfig.value) : 0;
+      const lastWeight = updatedCattle.lastWeight != null ? Number(updatedCattle.lastWeight) : null;
+      const lastEntry = weightHistory.length > 0 ? weightHistory[weightHistory.length - 1] : null;
+      const lastWeightDate = lastEntry ? new Date(lastEntry.date) : null;
+      const gainPerDayKg = updatedCattle.averageDailyGain != null ? Number(updatedCattle.averageDailyGain) : tenantGainKg;
+      const daysSince = lastWeightDate
+        ? (Date.now() - lastWeightDate.getTime()) / (1000 * 60 * 60 * 24)
+        : 0;
+      const estimatedWeight =
+        lastWeight != null
+          ? Math.round((lastWeight + gainPerDayKg * daysSince) * 100) / 100
+          : null;
       return {
         ...updatedCattle,
         weightHistory,
         medicationHistory,
+        estimatedWeight,
       };
     });
   }
@@ -598,6 +667,23 @@ export class CattleService {
     return this.dataSource.transaction(async (trxManager) => {
       await this.updateCharacteristicsWithManager(idCattle, characteristics, idTenant, trxManager);
     });
+  }
+
+  /**
+   * Calcula la ganancia diaria promedio (kg/día) entre dos pesos y sus fechas.
+   * @returns null si no hay diferencia de días positiva o no se puede calcular.
+   */
+  private computeAverageDailyGain(
+    previousWeight: number,
+    previousDate: Date,
+    newWeight: number,
+    newDate: Date,
+  ): number | null {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysDiff = (newDate.getTime() - previousDate.getTime()) / msPerDay;
+    if (daysDiff <= 0) return null;
+    const gain = (Number(newWeight) - Number(previousWeight)) / daysDiff;
+    return Math.round(gain * 1000) / 1000;
   }
 
   private async updateCharacteristicsWithManager(idCattle: string, characteristics: string[], idTenant: string, manager: EntityManager): Promise<void> {
@@ -672,18 +758,33 @@ export class CattleService {
     const page = Math.max(1, q.page ?? 1);
     const limit = Math.max(1, q.limit ?? 10);
     const { total, rows } = await this.cattleRepository.listPaged(idTenant, q, page, limit);
-    // Procesamos todos los rows en paralelo
+
+    const tenantGainConfig = await this.configurationsService.getTenantConfiguration(idTenant, 'average_daily_gain');
+    const tenantGainKg = tenantGainConfig ? parseFloat(tenantGainConfig.value) : 0;
+
     const items = await Promise.all(rows.map(async (cattle) => {
-      // Ejecutamos las dos consultas de historial en paralelo para este cattle
       const [weightHistory, medicationHistory] = await Promise.all([
         this.cattleWeightHistoryRepository.findByCattle(idTenant, cattle.id),
         this.cattleMedicationHistoryRepository.findByCattle(idTenant, cattle.id),
       ]);
-      // Retornamos un objeto nuevo combinando los datos del cattle con los historiales
+
+      const lastWeight = cattle.lastWeight != null ? Number(cattle.lastWeight) : null;
+      const lastEntry = weightHistory.length > 0 ? weightHistory[weightHistory.length - 1] : null;
+      const lastWeightDate = lastEntry ? new Date(lastEntry.date) : null;
+      const gainPerDayKg = cattle.averageDailyGain != null ? Number(cattle.averageDailyGain) : tenantGainKg;
+      const daysSince = lastWeightDate
+        ? (Date.now() - lastWeightDate.getTime()) / (1000 * 60 * 60 * 24)
+        : 0;
+      const estimatedWeight =
+        lastWeight != null
+          ? Math.round((lastWeight + gainPerDayKg * daysSince) * 100) / 100
+          : null;
+
       return {
         ...cattle,
         weightHistory,
         medicationHistory,
+        estimatedWeight,
       };
     }));
     return { page, limit, total, items };

@@ -142,6 +142,16 @@ export class CreateCattleDto {
   @IsOptional()
   birthDateAprx?: string;
 
+  @ApiProperty({ required: false, description: 'Fecha en que la res inicia con la nueva alimentación' })
+  @IsDateString()
+  @IsOptional()
+  newFeedStartDate?: string;
+
+  @ApiProperty({ required: false, description: 'Ganancia diaria promedio (kg/día)' })
+  @IsNumber()
+  @IsOptional()
+  averageDailyGain?: number;
+
   @ApiProperty({ required: true })
   @IsNumber()
   lastWeight?: number;

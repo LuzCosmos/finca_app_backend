@@ -154,6 +154,14 @@ export class Cattle {
   @Column({ name: 'birth_date_aprx', type: 'date', nullable: true })
   birthDateAprx: Date | null;
 
+  /** Fecha en que la res inicia con la nueva alimentación */
+  @Column({ name: 'new_feed_start_date', type: 'date', nullable: true })
+  newFeedStartDate: Date | null;
+
+  /** Ganancia diaria promedio (kg/día) */
+  @Column({ name: 'average_daily_gain', type: 'numeric', precision: 6, scale: 3, nullable: true })
+  averageDailyGain: number | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

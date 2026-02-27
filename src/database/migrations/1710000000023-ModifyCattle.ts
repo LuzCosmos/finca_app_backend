@@ -18,9 +18,29 @@ export class ModifyCattle1710000000023 implements MigrationInterface {
       ALTER TABLE "cattle"
       ADD COLUMN IF NOT EXISTS "birth_date_aprx" date;
     `);
+
+    await queryRunner.query(`
+      ALTER TABLE "cattle"
+      ADD COLUMN IF NOT EXISTS "new_feed_start_date" date;
+    `);
+
+    await queryRunner.query(`
+      ALTER TABLE "cattle"
+      ADD COLUMN IF NOT EXISTS "average_daily_gain" numeric(6,3);
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      ALTER TABLE "cattle"
+      DROP COLUMN IF EXISTS "average_daily_gain";
+    `);
+
+    await queryRunner.query(`
+      ALTER TABLE "cattle"
+      DROP COLUMN IF EXISTS "new_feed_start_date";
+    `);
+
     await queryRunner.query(`
       ALTER TABLE "cattle"
       DROP COLUMN IF EXISTS "birth_date_aprx";
