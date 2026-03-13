@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Cattle, CattleStatus } from '../entities/cattle.entity';
 import { Device } from 'src/modules/production-center/entities/device.entity';
@@ -26,6 +26,7 @@ import { CattleWeightHistory, WeightContext } from '../entities/cattle-weight-hi
 import { CreateCattleMedicationHistoryDto } from '../dto/create-cattle-medication-history.dto';
 import { CattleMedicationHistory } from '../entities/cattle-medication-history.entity';
 import { LotService } from 'src/modules/commerce/services/lot.service';
+import { SalesService } from 'src/modules/commerce/services/sales.service';
 import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
 
 @Injectable()
@@ -45,6 +46,8 @@ export class CattleService {
     private readonly dataSource: DataSource,
     private readonly massiveEventService: MassiveEventService,
     private readonly simpleEventService: SimpleEventService,
+    @Inject(forwardRef(() => SalesService))
+    private readonly salesService: SalesService,
     private readonly configurationsService: ConfigurationsService,
   ) { }
 
@@ -557,6 +560,26 @@ export class CattleService {
         }
       }
 
+      // Sale sync: only when cattle is SOLD and salePrice or saleWeight are being updated
+      let syncResult: { saleId: string; totalAmount: number; totalWeightKg: number } | null = null;
+      if (updateData.salePrice != null || updateData.saleWeight != null) {
+        if (oldCattle.status !== CattleStatus.SOLD) {
+          throw new BadRequestException('SALE_FIELDS_ONLY_FOR_SOLD_CATTLE');
+        }
+        if (updateData.salePrice != null && (typeof updateData.salePrice !== 'number' || Number(updateData.salePrice) < 0)) {
+          throw new BadRequestException('INVALID_SALE_PRICE');
+        }
+        if (updateData.saleWeight != null && (typeof updateData.saleWeight !== 'number' || Number(updateData.saleWeight) < 0)) {
+          throw new BadRequestException('INVALID_SALE_WEIGHT');
+        }
+        syncResult = await this.salesService.syncSaleDataForSoldCattle(
+          idTenant,
+          id,
+          { salePrice: updateData.salePrice ?? undefined, saleWeight: updateData.saleWeight ?? undefined },
+          trxManager,
+        );
+      }
+
       /*if (updateData.purchaseWeight) {
         const cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.PURCHASE);
         if (cwhs.length > 0) {
@@ -650,12 +673,20 @@ export class CattleService {
         lastWeight != null
           ? Math.round((lastWeight + gainPerDayKg * daysSince) * 100) / 100
           : null;
-      return {
+      const result: any = {
         ...updatedCattle,
         weightHistory,
         medicationHistory,
         estimatedWeight,
       };
+      if (syncResult != null) {
+        result.affectedSaleId = syncResult.saleId;
+        result.affectedSaleTotals = {
+          totalAmount: syncResult.totalAmount,
+          totalWeightKg: syncResult.totalWeightKg,
+        };
+      }
+      return result;
     });
   }
 
@@ -933,7 +964,7 @@ export class CattleService {
   }
 
   validateStatusForApplyEvents(status: string) {
-    if (status !== CattleStatus.ACTIVE) {
+    if (status == CattleStatus.LOST || status == CattleStatus.DEAD) {
       throw new BadRequestException('cattleIsNotActive');
     }
   }

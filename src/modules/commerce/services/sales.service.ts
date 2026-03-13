@@ -205,4 +205,77 @@ export class SalesService {
         // This is complex and skipped for this iteration unless requested.
         // Warn if critical fields look changed.
     }
+
+    /**
+     * Syncs sale-related data when a SOLD cattle's salePrice or saleWeight is updated.
+     * Must be called within an existing transaction (same EntityManager).
+     * Updates the linked SaleDetail, recalculates parent Sale totals, and returns the affected sale id.
+     */
+    async syncSaleDataForSoldCattle(
+        idTenant: string,
+        cattleId: string,
+        payload: { salePrice?: number; saleWeight?: number },
+        manager: EntityManager,
+    ): Promise<{ saleId: string; totalAmount: number; totalWeightKg: number }> {
+        if (payload.salePrice == null && payload.saleWeight == null) {
+            throw new BadRequestException('At least one of salePrice or saleWeight must be provided');
+        }
+
+        const detailRepo = manager.getRepository(SaleDetail);
+        const detail = await detailRepo
+            .createQueryBuilder('detail')
+            .setLock('pessimistic_write')
+            .where('detail.cattleId = :cattleId', { cattleId })
+            .andWhere('detail.idTenant = :idTenant', { idTenant })
+            .getOne();
+
+        if (!detail) {
+            throw new BadRequestException('SOLD_CATTLE_MISSING_SALE_DETAIL');
+        }
+
+        const saleRepo = manager.getRepository(Sale);
+        const sale = await saleRepo
+            .createQueryBuilder('sale')
+            .setLock('pessimistic_write')
+            .where('sale.id = :saleId', { saleId: detail.saleId })
+            .andWhere('sale.idTenant = :idTenant', { idTenant })
+            .getOne();
+
+        if (!sale) {
+            throw new BadRequestException('SALE_NOT_FOUND');
+        }
+
+        if (payload.salePrice != null) {
+            detail.calculatedPrice = Number(payload.salePrice);
+        }
+        if (payload.saleWeight != null) {
+            detail.measuredWeight = Number(payload.saleWeight);
+        }
+        await manager.save(SaleDetail, detail);
+
+        const allDetails = await manager.find(SaleDetail, {
+            where: { saleId: sale.id, idTenant },
+        });
+
+        const totalAmount = allDetails.reduce((sum, d) => sum + Number(d.calculatedPrice), 0);
+        const totalWeightKg = allDetails.reduce((sum, d) => sum + Number(d.measuredWeight), 0);
+        const totalAnimalCount = allDetails.length;
+
+        await manager.update(
+            Sale,
+            { id: sale.id, idTenant },
+            {
+                totalAmount,
+                totalWeightKg,
+                totalAnimalCount,
+                updatedAt: new Date(),
+            },
+        );
+
+        return {
+            saleId: sale.id,
+            totalAmount,
+            totalWeightKg,
+        };
+    }
 }
