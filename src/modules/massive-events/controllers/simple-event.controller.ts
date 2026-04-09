@@ -46,7 +46,7 @@ export class SimpleEventController {
         value: {
           idMassiveEvent: 'uuid-massive-event',
           type: 'eartag',
-          data: { eartagLeft: 'ET-L-001', eartagRight: 'ET-R-001' }
+          data: {}
         }
       },
       tracker: {

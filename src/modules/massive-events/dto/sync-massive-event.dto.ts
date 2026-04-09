@@ -28,6 +28,12 @@ export class SyncSimpleEventInputDto {
     example: '2025-07-24T10:00:00Z',
   })
   createdAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether the simple event is active for new cattle applications',
+    example: true,
+  })
+  isActive?: boolean;
 }
 
 export class SyncMassiveEventDto {
@@ -72,6 +78,12 @@ export class SyncMassiveEventDto {
     example: '2025-07-24T00:00:00Z',
   })
   updatedAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional display name for the massive event',
+    example: 'Vacunación marzo',
+  })
+  name?: string;
 
   @ApiPropertyOptional({
     description: 'List of simpleEvents to synchronize',
