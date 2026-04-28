@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, Query, ConflictException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, Query, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -26,6 +26,7 @@ import { PurchaseService } from 'src/modules/commerce/services/purchase.service'
 @RequireModule('RECEPTION')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class ReceptionController {
+  private readonly logger = new Logger(ReceptionController.name);
 
   constructor(
     private readonly receptionsService: ReceptionsService,
@@ -70,7 +71,7 @@ export class ReceptionController {
   @ApiResponse({ status: 400, description: 'Invalid request body' })
   @RequireAction('create')
   async findOrCreateReception(@SessionUser() sessionUser: SessionUserDto, @Param('idPurchase') idPurchase: string) {
-    console.log('idPurchase - controller', idPurchase);
+    this.logger.debug(`findOrCreateReception: purchaseId=${idPurchase}`);
     const receptionInfo = await this.receptionsService.findOrCreateReceptionByIdPurchase(
       sessionUser.tenant_id,
       idPurchase,
@@ -123,7 +124,9 @@ export class ReceptionController {
     }
   })
   async receiveCattle(@SessionUser() sessionUser: SessionUserDto, @Body() dto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
-    console.log('dto - controller', dto);
+    this.logger.debug(
+      `receiveCattle: purchaseId=${dto.idPurchase}, number=${dto.number}, tenantUser=${sessionUser.sub}`,
+    );
     return this.receptionsService.receiveCattle_Transaction(
       sessionUser.tenant_id,
       sessionUser.sub,

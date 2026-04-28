@@ -69,10 +69,10 @@ export class AuthService {
 
   async validateUser(username: string, company_username: string, password: string): Promise<any> {
     const user = await this.usersService.findByUsernameAndPasswordAndCompanyUsername(username, password, company_username);
-    this.logger.debug('User:', user);
     if (!user) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
+    this.logger.debug(`User validated: id=${user.id}, tenantId=${user.tenantId}`);
     return user;
   }
 
@@ -80,8 +80,10 @@ export class AuthService {
     const roleIds = user.roles.map(role => role.id);
     const roleModulePermissions = await this.roleModulePermissionsService.getByRolesAndTenant(roleIds, user.tenantId);
     const permissions = this.applicationPermissionsService.getSimplefiedModulePermissionsByRolesAndModuleAndTenant(roleModulePermissions);
-    this.logger.debug('Permissions:', permissions);
     const permissionsHash = this.applicationPermissionsService.computePermissionsHash(permissions);
+    this.logger.debug(
+      `Login permissions snapshot: moduleKeys=${Object.keys(permissions).length}, hashLength=${permissionsHash?.length ?? 0}`,
+    );
     const sessionId = crypto.randomUUID();
     const sessionData = {
       username: user.username,
@@ -96,7 +98,7 @@ export class AuthService {
     await this.applicationPermissionsService.saveSessionData(user.id, sessionId, sessionData);
     const { accessToken, refreshToken } =
       await this.issueAccessAndRefreshTokens(sessionData);
-    this.logger.debug('Access token generated for user:', user.id);
+    this.logger.debug(`Access token issued for userId=${user.id}`);
     return {
       access_token: accessToken,
       refresh_token: refreshToken,

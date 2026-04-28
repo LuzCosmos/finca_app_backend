@@ -1,7 +1,13 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ApplicationPermissionsService } from './application-permissions.service';
-import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class ApplicationPermissionsGuard implements CanActivate {
@@ -20,13 +26,13 @@ export class ApplicationPermissionsGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const tokenUser = request.user;
-    this.logger.debug('User from request:', tokenUser);
     if (!tokenUser || !tokenUser.sub) {
       throw new UnauthorizedException('User not authenticated');
     }
 
-    console.log('User from request:', tokenUser);
-    console.log('request:', request);
+    this.logger.debug(
+      `Permission guard: userId=${tokenUser.sub}, route=${request.method} ${request.url ?? request.path ?? ''}`,
+    );
     // Use decorators to get the module, entity and action
     let module = this.reflector.get<string>('requireModule', context.getHandler());
     if (!module) {

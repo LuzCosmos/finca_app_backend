@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -7,6 +7,8 @@ import { ApplicationPermissionsService } from '../../../common/application-permi
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor(
     private configService: ConfigService,
     private usersService: UsersService,
@@ -24,20 +26,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    console.log('JwtStrategy validating payload:', payload);
     if (!payload || !payload.sub) {
-      console.log('JwtStrategy: Payload missing or no sub');
+      this.logger.warn('JWT validation rejected: missing subject');
       throw new UnauthorizedException();
     }
     // Retrieve the session data from Redis
     const sessionData = await this.permissionsService.getSessionFromRedis(payload.sub, payload.sessionId);
     if (!sessionData) {
-      console.log('JwtStrategy: No session data found in Redis for sub:', payload.sub);
+      this.logger.warn(
+        `JWT validation rejected: no Redis session (userId=${payload.sub}, sessionIdPresent=${Boolean(payload.sessionId)})`,
+      );
       throw new UnauthorizedException('Session expired or invalid.');
     }
     // Validate that the permissions hash matches
     if (sessionData.permissionsHash !== payload.permissionsHash) {
-      console.log('JwtStrategy: Permissions hash mismatch.', sessionData.permissionsHash, payload.permissionsHash);
+      this.logger.warn(
+        `JWT validation rejected: permissions hash mismatch (userId=${payload.sub})`,
+      );
       throw new UnauthorizedException('Permissions outdated. Please refresh your session.');
     }
     // Return the session data (or customize as needed)
