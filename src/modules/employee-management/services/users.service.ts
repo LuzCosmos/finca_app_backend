@@ -24,6 +24,7 @@ interface CreateAdminUserDto {
 
 @Injectable()
 export class UsersService {
+  private static readonly BCRYPT_ROUNDS = 10;
   private readonly logger = new Logger(UsersService.name);
   constructor(
     @InjectRepository(User)
@@ -41,7 +42,7 @@ export class UsersService {
    * @returns The user created
    */
   async create(createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    const hashedPassword = await bcrypt.hash(createUserDto.password, UsersService.BCRYPT_ROUNDS);
     const savedUser = await this.userCustomRepository.createUserWithRoles(createUserDto, hashedPassword);
     return plainToInstance(UserResponseDto, savedUser);
   }
@@ -208,16 +209,16 @@ export class UsersService {
       const user_db = await this.userCustomRepository.findByUsernameAndCompanyUsername(username, company_username);
       if (!user_db) {
         throw new UnauthorizedException('Credenciales inválidas');
-        return null;
       }
-      var user: User | null = null;
       const isPasswordValid = await bcrypt.compare(password, user_db.password);
       if (!isPasswordValid) {
         throw new UnauthorizedException('Credenciales inválidas');
       }
-      user = plainToInstance(User, user_db);
-      return user;
+      return plainToInstance(User, user_db);
     } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       this.logger.error('Error en findByUsernameAndPasswordAndCompanyUsername:', error);
       throw error;
     }
@@ -229,7 +230,7 @@ export class UsersService {
    * @returns The hashed password
    */
   getHashedPassword(password: string): Promise<string> {
-    return bcrypt.hash(password, 10);
+    return bcrypt.hash(password, UsersService.BCRYPT_ROUNDS);
   }
 
   /**
@@ -284,7 +285,7 @@ export class UsersService {
       throw new NotFoundException('Admin role not found');
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, UsersService.BCRYPT_ROUNDS);
 
     const user = userRepository.create({
       username: dto.username,
