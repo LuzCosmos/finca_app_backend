@@ -14,8 +14,22 @@ type PagedInput = {
   updatedAfter?: Date;
 };
 
+type CattleBasicSyncItem = {
+  idTenant: string;
+  id: string;
+  number: string;
+  sysNumber: string;
+  idDevice: string | null;
+  eartagLeft: string | null;
+  eartagRight: string | null;
+  castrated: boolean;
+  hasHorns: boolean;
+  color: string;
+  updatedAt: string;
+};
+
 type PagedOutput = {
-  items: Array<Pick<Cattle, 'id' | 'number' | 'sysNumber'>>;
+  items: CattleBasicSyncItem[];
   nextCursor: string | null;
   hasMore: boolean;
   total: number | null; // opcional, aquí lo dejamos null para no encarecer
@@ -253,7 +267,19 @@ export class CattleRepository {
       );
     }
     qb
-      .select(['c.id', 'c.number', 'c.sysNumber', 'c.updatedAt'])
+      .select([
+        'c.id',
+        'c.idTenant',
+        'c.number',
+        'c.sysNumber',
+        'c.idDevice',
+        'c.eartagLeft',
+        'c.eartagRight',
+        'c.castrated',
+        'c.hasHorn',
+        'c.color',
+        'c.updatedAt',
+      ])
       .orderBy('c.updatedAt', 'ASC')
       .addOrderBy('c.id', 'ASC')
       .limit(limit + 1); // pedimos uno extra para saber si hay más
@@ -269,12 +295,19 @@ export class CattleRepository {
         'utf8',
       ).toString('base64');
     }
-    // Map a DTO ligero
-    const items = pageItems.map(r => ({
+    // Map a DTO ligero (hasHorns alinea con columna has_horns / propiedad hasHorn)
+    const items = pageItems.map((r) => ({
       idTenant: r.idTenant,
       id: r.id,
       number: r.number,
-      sysNumber: (r as any).sysNumber,
+      sysNumber: r.sysNumber,
+      idDevice: r.idDevice ?? null,
+      eartagLeft: r.eartagLeft ?? null,
+      eartagRight: r.eartagRight ?? null,
+      castrated: r.castrated,
+      hasHorns: r.hasHorn,
+      color: r.color,
+      updatedAt: r.updatedAt.toISOString(),
     }));
     return {
       items,

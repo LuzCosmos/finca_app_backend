@@ -4,6 +4,7 @@ import { DevicesService } from '../services/devices.service';
 import { CreateDeviceDto } from '../dto/create-device.dto';
 import { UpdateDeviceDto } from '../dto/update-device.dto';
 import { DeviceResponseDto } from '../dto/device-response.dto';
+import { DeviceCatalogResponseDto } from '../dto/device-catalog-response.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
 import { RequireAction, RequireEntity, RequireModule } from '../../../common/application-permissions/application-permissions.decorator';
@@ -34,6 +35,14 @@ export class DevicesController {
     createDeviceDto.createdAt = new Date();
     createDeviceDto.updatedAt = new Date();
     return await this.deviceService.create(createDeviceDto);
+  }
+
+  @Get('catalog')
+  @ApiOperation({ summary: 'Catálogo mínimo (id, deveui, name) para apps móviles' })
+  @ApiResponse({ status: 200, description: 'Lista', type: [DeviceCatalogResponseDto] })
+  @RequireAction('list')
+  async catalog(@SessionUser() sessionUser: SessionUserDto): Promise<DeviceCatalogResponseDto[]> {
+    return await this.deviceService.findAllCatalog(sessionUser.tenant_id);
   }
 
   @Get(':deveui')

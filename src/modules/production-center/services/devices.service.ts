@@ -425,6 +425,18 @@ export class DevicesService {
     return await this.deviceRepository.findAll(idTenant);
   }
 
+  /** Solo id, deveui, name — para sincronización offline en móvil (sin claves). */
+  async findAllCatalog(
+    idTenant: string,
+  ): Promise<{ id: string; deveui: string; name: string }[]> {
+    const rows = await this.deviceRepository.findAll(idTenant);
+    return rows.map((d) => ({
+      id: d.id,
+      deveui: d.deveui,
+      name: d.name,
+    }));
+  }
+
   /**
    * Import devices from Excel file
    * @param file - The Excel file
