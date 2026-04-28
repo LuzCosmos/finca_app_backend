@@ -31,6 +31,7 @@ export class MassiveEventService {
       massiveEvent = this.massiveEventRepo.createInstance({
         id: payload.id,
         idTenant: payload.idTenant,
+        name: payload.name,
         eventDate: new Date(payload.eventDate),
         status: payload.status,
         createdBy: payload.createdBy,
@@ -50,12 +51,17 @@ export class MassiveEventService {
             idMassiveEvent: massiveEvent.id,
             idTenant: payload.idTenant,
             type: se.type,
+            isActive: se.isActive ?? true,
             data: se.dataJson ? JSON.parse(se.dataJson) : null,
             createdAt: se.createdAt ? new Date(se.createdAt) : undefined,
           });
           const simEv = await this.simpleEventRepo.saveWithManager(manager, simpleEvent);
           simpleEvents.push(simEv);
         } else {
+          if (se.isActive !== undefined && exists.isActive !== se.isActive) {
+            exists.isActive = se.isActive;
+            await manager.save(SimpleEvent, exists);
+          }
           simpleEvents.push(exists);
         }
       }
