@@ -57,7 +57,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Token renovado exitosamente' })
   @ApiResponse({ status: 401, description: 'Refresh token inválido o expirado' })
   async refresh(@Body() body: RefreshTokenDto) {
-    const refreshToken = body.refresh_token ?? body.refreshToken;
+    const refreshToken = (body.refresh_token ?? body.refreshToken)?.trim();
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token is required');
     }

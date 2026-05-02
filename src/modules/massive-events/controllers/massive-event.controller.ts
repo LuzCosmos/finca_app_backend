@@ -49,7 +49,7 @@ export class MassiveEventController {
   })
   async create(@SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateMassiveEventDto) {
     const massiveEvent = await this.massiveEventService.createMassiveEvent(sessionUser.tenant_id, sessionUser.sub, dto);
-    return MassiveEventResponseDto.toResponseDto(massiveEvent, massiveEvent.simpleEvents);
+    return MassiveEventResponseDto.toResponseDto(massiveEvent, massiveEvent.simpleEvents ?? []);
   }
 
   @Get(':id')
@@ -59,7 +59,7 @@ export class MassiveEventController {
   @RequireAction('read')
   async findOne(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string) {
     const massiveEvent = await this.massiveEventService.findByIdOrFail(sessionUser.tenant_id, id);
-    return MassiveEventResponseDto.toResponseDto(massiveEvent, massiveEvent.simpleEvents);
+    return MassiveEventResponseDto.toResponseDto(massiveEvent, massiveEvent.simpleEvents ?? []);
   }
 
   @Get('cattle/:id')
@@ -76,7 +76,9 @@ export class MassiveEventController {
   @RequireAction('read')
   async list(@SessionUser() sessionUser: SessionUserDto) {
     const massiveEvents = await this.massiveEventService.findAll(sessionUser.tenant_id);
-    return massiveEvents.map(massiveEvent => MassiveEventResponseDto.toResponseDto(massiveEvent, massiveEvent.simpleEvents));
+    return massiveEvents.map(massiveEvent =>
+      MassiveEventResponseDto.toResponseDto(massiveEvent, massiveEvent.simpleEvents ?? []),
+    );
   }
 
   @Put('close/:id')

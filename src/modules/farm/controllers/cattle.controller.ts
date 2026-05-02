@@ -1,4 +1,21 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UploadedFile,
+  UseInterceptors,
+  HttpCode,
+  HttpStatus,
+  Query,
+  UseGuards,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { CattleService } from '../services/cattle.service';
 import { CreateCattleDto } from '../dto/create-cattle.dto';
 import { UpdateCattleDto } from '../dto/update-cattle.dto';
@@ -7,7 +24,6 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiConsumes, ApiBody
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from 'src/common/application-permissions/application-permissions.guard';
-import { UseGuards } from '@nestjs/common';
 import { CattleResponseDto } from '../dto/cattle-response.dto';
 import { CattleBasicResponseDto } from '../dto/cattle-basic-response.dto';
 import { CattleBasicPageDto } from '../dto/cattle-basic-page.dto';
@@ -22,9 +38,7 @@ import { extname } from 'path';
 import { ApplySimpleEventsDto } from '../../massive-events/dto/apply-simple-events.dto';
 import { AnimalSimpleEventRepository } from '../../massive-events/repositories/animal-simple-event.repository';
 import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } from '../../massive-events/dto/sync-animal-simple-event.dto';
-import { isMarkedAsUntransferable } from 'worker_threads';
 import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
-import { Logger } from '@nestjs/common';
 import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 
 @ApiTags('Cattle')
@@ -99,6 +113,61 @@ export class CattleController {
     return this.cattleService.search(sessionUser.tenant_id, query);
   }
 
+  /** Rutas GET con path fijo antes de @Get(':id') para que no se capturen como id (p. ej. basic-info). */
+  @Get('basic-info')
+  @ApiOperation({ summary: 'Get basic info of all cattle' })
+  @ApiResponse({ status: 200, description: 'Basic info of all cattle', type: [CattleBasicResponseDto] })
+  @RequireAction('read')
+  getBasicInfo(@SessionUser() sessionUser: SessionUserDto) {
+    return this.cattleService.getBasicInfo(sessionUser.tenant_id);
+  }
+
+  @Get('basic')
+  @ApiOperation({ summary: 'Get basic cattle info (paged with cursor & optional delta)' })
+  @ApiResponse({ status: 200, type: CattleBasicPageDto })
+  @RequireAction('read')
+  getBasicInfoPaged(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Query() query: CattleBasicQueryDto,
+  ) {
+    return this.cattleService.getBasicInfoPaged(sessionUser.tenant_id, query);
+  }
+
+  @Get('simple-events/:id')
+  @ApiOperation({ summary: 'List all simple events applied to a cattle' })
+  @ApiResponse({ status: 200, description: 'List of simple events IDs' })
+  @ApiResponse({ status: 404, description: 'Cattle not found' })
+  @RequireAction('read')
+  async findSimpleEventsByCattle(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
+    const links = await this.simpleEventCattleRepository.findByCattle(sessionUser.tenant_id, id);
+    return links.map(link => ({
+      idSimpleEvent: link.idSimpleEvent,
+      appliedAt: link.appliedAt,
+      appliedBy: link.appliedBy,
+    }));
+  }
+
+  @Get('validate-number/:number')
+  @RequireAction('read')
+  @ApiOperation({ summary: 'Validate cattle by number for sale (checks ACTIVE status)' })
+  @ApiResponse({ status: 200, description: 'Cattle is valid and ACTIVE', type: CattleResponseDto })
+  @ApiResponse({ status: 400, description: 'Cattle not found or not ACTIVE' })
+  async validateCattleByNumber(
+    @Param('number') number: string,
+    @SessionUser() user: SessionUserDto,
+  ) {
+    return this.cattleService.validateCattleByNumber(number, user.tenant_id);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List all cattle' })
+  @ApiResponse({ status: 200, description: 'List of cattle', type: PagedResponseDto })
+  @RequireAction('read')
+  async list(@SessionUser() sessionUser: SessionUserDto, @Query() query: CattleListQueryDto) {
+    const { items, total, page, limit } = await this.cattleService.listPaged(sessionUser.tenant_id, query);
+    return PagedResponseDto.of(page, limit, total, items);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a cattle by ID' })
   @ApiResponse({ status: 200, description: 'Cattle found', type: CattleResponseDto })
@@ -134,50 +203,8 @@ export class CattleController {
   @ApiResponse({ status: 204, description: 'Cattle deleted successfully' })
   @ApiResponse({ status: 404, description: 'Cattle not found' })
   @RequireAction('delete')
-  remove(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
-    this.cattleService.remove(sessionUser.tenant_id, id);
-  }
-
-  @Get()
-  @ApiOperation({ summary: 'List all cattle' })
-  @ApiResponse({ status: 200, description: 'List of cattle', type: PagedResponseDto })
-  @RequireAction('read')
-  async list(@SessionUser() sessionUser: SessionUserDto, @Query() query: CattleListQueryDto) {
-    const { items, total, page, limit } = await this.cattleService.listPaged(sessionUser.tenant_id, query);
-    return PagedResponseDto.of(page, limit, total, items);
-  }
-
-  @Get('basic-info')
-  @ApiOperation({ summary: 'Get basic info of all cattle' })
-  @ApiResponse({ status: 200, description: 'Basic info of all cattle', type: [CattleBasicResponseDto] })
-  @RequireAction('read')
-  getBasicInfo(@SessionUser() sessionUser: SessionUserDto) {
-    return this.cattleService.getBasicInfo(sessionUser.tenant_id);
-  }
-
-  @Get('basic')
-  @ApiOperation({ summary: 'Get basic cattle info (paged with cursor & optional delta)' })
-  @ApiResponse({ status: 200, type: CattleBasicPageDto })
-  @RequireAction('read')
-  getBasicInfoPaged(
-    @SessionUser() sessionUser: SessionUserDto,
-    @Query() query: CattleBasicQueryDto,
-  ) {
-    return this.cattleService.getBasicInfoPaged(sessionUser.tenant_id, query);
-  }
-
-  @Get('simple-events/:id')
-  @ApiOperation({ summary: 'List all simple events applied to a cattle' })
-  @ApiResponse({ status: 200, description: 'List of simple events IDs' })
-  @ApiResponse({ status: 404, description: 'Cattle not found' })
-  @RequireAction('read')
-  async findSimpleEventsByCattle(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
-    const links = await this.simpleEventCattleRepository.findByCattle(sessionUser.tenant_id, id);
-    return links.map(link => ({
-      idSimpleEvent: link.idSimpleEvent,
-      appliedAt: link.appliedAt,
-      appliedBy: link.appliedBy,
-    }));
+  async remove(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
+    await this.cattleService.remove(sessionUser.tenant_id, id);
   }
 
   @Post('apply-events/:cattleNumber')
@@ -238,6 +265,9 @@ export class CattleController {
       }>
     }
   ) {
+    if (!applied || !applied.idMassiveEvent || !Array.isArray(applied.events)) {
+      throw new BadRequestException('Invalid applied payload');
+    }
     const appliedEvents = await this.cattleService.applyMultipleSimpleEventsByNumber_transaction(
       sessionUser.tenant_id,
       sessionUser.sub,
@@ -304,7 +334,7 @@ export class CattleController {
       example1: {
         summary: 'Sync multiple SimpleEventCattle',
         value: {
-          simpleEventCattle: [
+          animalSimpleEvent: [
             {
               id: 'uuid-local-1',
               idTenant: 'tenant-uuid',
@@ -336,6 +366,9 @@ export class CattleController {
     @SessionUser() sessionUser: SessionUserDto,
     @Body() body: SyncAnimalSimpleEventRequestDto,
   ): Promise<SyncAnimalSimpleEventResponseDto> {
+    if (!Array.isArray(body.animalSimpleEvent)) {
+      throw new BadRequestException('animalSimpleEvent must be an array');
+    }
     const results = await this.cattleService.syncCattleSimpleEvents(sessionUser.tenant_id, sessionUser.sub, body.animalSimpleEvent);
     return { results };
   }
@@ -392,20 +425,6 @@ export class CattleController {
   @ApiResponse({ status: 500, description: 'Unexpected error during import process' })
   import(@SessionUser() sessionUser: SessionUserDto, @UploadedFile() file: Express.Multer.File) {
     return this.cattleService.import(file, sessionUser.tenant_id);
-  }
-
-  // New endpoints for Create Sale workflow
-
-  @Get('validate-number/:number')
-  @RequireAction('read')
-  @ApiOperation({ summary: 'Validate cattle by number for sale (checks ACTIVE status)' })
-  @ApiResponse({ status: 200, description: 'Cattle is valid and ACTIVE', type: CattleResponseDto })
-  @ApiResponse({ status: 400, description: 'Cattle not found or not ACTIVE' })
-  async validateCattleByNumber(
-    @Param('number') number: string,
-    @SessionUser() user: SessionUserDto,
-  ) {
-    return this.cattleService.validateCattleByNumber(number, user.tenant_id);
   }
 
   @Post(':id/weight-history')
