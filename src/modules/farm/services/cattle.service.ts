@@ -28,6 +28,7 @@ import { CattleMedicationHistory } from '../entities/cattle-medication-history.e
 import { LotService } from 'src/modules/commerce/services/lot.service';
 import { SalesService } from 'src/modules/commerce/services/sales.service';
 import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class CattleService {
@@ -89,7 +90,7 @@ export class CattleService {
         await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattle, ev);
         if (ev.idMassiveEvent) {
           await this.animalSimpleEventRepository.saveWithManager(manager, {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             idTenant,
             idSimpleEvent: ev.idSimpleEvent,
             idMassiveEvent: ev.idMassiveEvent,
@@ -166,7 +167,7 @@ export class CattleService {
       await this.simpleEventService.findByIdOrFail(idTenant, ev.idSimpleEvent, manager);
       await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattleEntity, { ...ev, idMassiveEvent: idMassiveEvent, appliedBy: ev.appliedBy ?? idCurrentUser });
       const event = await this.animalSimpleEventRepository.saveWithManager(manager, {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         idTenant,
         idSimpleEvent: ev.idSimpleEvent,
         idMassiveEvent: idMassiveEvent,

@@ -103,6 +103,9 @@ export class ReceptionsService {
         }
       }
       var provider = await this.providerRepo.findById(purchase!.idProvider, idTenant, manager);
+      if (!provider) {
+        throw new NotFoundException('Provider not found');
+      }
       var lots = await this.lotRepo.findByPurchaseId(idPurchase, idTenant, manager);
       var lotCattle: Record<string, Cattle[]> = {};
       var appliedEvents: Record<string, AnimalSimpleEvent[]> = {};
@@ -119,7 +122,7 @@ export class ReceptionsService {
         var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(idTenant, c.id, manager);
         appliedEvents[c.id] = animalSimpleEvents;
       }
-      return PurchaseReceptionResponseDto.toResponseDto(reception, purchase!, provider!.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
+      return PurchaseReceptionResponseDto.toResponseDto(reception, purchase!, provider.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
     });
     return reception;
   }
@@ -133,7 +136,10 @@ export class ReceptionsService {
         throw new ConflictException('Cattle with number ' + cattleDto.number + ' already exists');
       }
       var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
-      var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
+      if (!nextCattleSysnumber) {
+        throw new NotFoundException('Configuration next_cattle_sysnumber not found');
+      }
+      var nextCattleSysnumberValue = parseInt(nextCattleSysnumber.value);
       await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
       if (cattleDto.eartagLeft) {
         const existingCattleWithEartag = await this.cattleRepo.findByAnyEartag(idTenant, cattleDto.eartagLeft, manager);
