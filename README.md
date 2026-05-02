@@ -59,3 +59,16 @@ docker compose up -d
 ```
 
 This will start PostgreSQL, Redis, and the Backend API.
+
+## 3. Tests E2E (backend)
+
+Desde `finca_app_backend/`, con Postgres y Redis accesibles según tu `.env` / `test/.env.e2e`:
+
+```bash
+npm run seed:e2e   # idempotente: crea tenant/usuario E2E (+ usuario MANAGER limitado si defines E2E_LIMITED_*)
+npm test
+npm run test:e2e
+npm run test:ci    # unitarios + cobertura v8 y umbral mínimo de líneas (scripts/check-coverage-min.cjs)
+```
+
+Detalle, checklist, CI y aislamiento: **`docs/ejecucion_local_de_test.md`** en la raíz del monorepo (`finca_app/docs/…`).

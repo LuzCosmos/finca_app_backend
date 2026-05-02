@@ -102,6 +102,7 @@ export class MassiveEventController {
 */
 
   @Post('sync')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sync Massive Events and their Simple Events (offline to backend)' })
   @ApiResponse({ status: 200, description: 'Massive Events synced successfully', type: SyncMassiveEventsResponseDto })
   @ApiBody({

@@ -1,12 +1,15 @@
-import { IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID, IsArray, IsEnum } from 'class-validator';
+import { Allow, IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID, IsArray, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CattleGender } from '../enums/cattle-gender.enum';
 import { CattleStatus } from '../entities/cattle.entity';
 export class CreateCattleDto {
 
+  /** Rellenado en servidor; @Allow evita que forbidNonWhitelisted falle tras plainToInstance. */
+  @Allow()
   idTenant: string;
 
   @IsUUID()
+  @IsOptional()
   idDevice?: string;
 
   @ApiProperty({ required: false })
@@ -51,6 +54,7 @@ export class CreateCattleDto {
 
   @ApiProperty({ required: false })
   @IsString()
+  @IsOptional()
   purchasedFrom?: string;
 
   @ApiProperty({ required: true })
@@ -59,10 +63,12 @@ export class CreateCattleDto {
 
   @ApiProperty({ required: false })
   @IsNumber()
+  @IsOptional()
   purchaseCommission?: number;
 
   @ApiProperty({ required: false })
   @IsNumber()
+  @IsOptional()
   negotiatedPricePerKg?: number;
 
   @ApiProperty({ required: false })
