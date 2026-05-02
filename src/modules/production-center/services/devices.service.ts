@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException, Logger, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { DeviceRepository } from '../repositories/device.repository';
 import { CreateDeviceDto } from '../dto/create-device.dto';
 import { UpdateDeviceDto } from '../dto/update-device.dto';
@@ -370,26 +370,42 @@ export class DevicesService {
 
   /**
    * Remove a device
-   * @param id - The device ID
+   * @param id - Local device UUID (`devices.id`)
+   * @param idTenant - Tenant ID for scoping
    */
   async remove(id: string, idTenant: string): Promise<void> {
-    const device = await this.deviceRepository.findByDevEuiAndTenantId(id, idTenant);
-    if (!device) {
-      throw new BadRequestException(`Device with ID ${id} not found`);
+    const device = await this.deviceRepository.findByIdAndTenantId(id, idTenant);
+    if (device == null) {
+      throw new NotFoundException(`Device with ID ${id} not found`);
     }
-    const response = await this.httpService.axiosRef.delete(
-      `${this.chirpstackUrl}/api/devices/${device.deveui}`,
-      {
-        headers: {
-          'accept': 'application/json',
-          'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`
+    try {
+      const response = await this.httpService.axiosRef.delete(
+        `${this.chirpstackUrl}/api/devices/${device.deveui}`,
+        {
+          headers: {
+            'accept': 'application/json',
+            'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`,
+          },
         },
+      );
+      if (response.status !== 200) {
+        throw new BadRequestException(
+          `Error removing device ${device.deveui} from Chirpstack: unexpected status ${response.status}`,
+        );
       }
-    );
-    if (response.status === 200) {
-      await this.deviceRepository.remove(id);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      const errorMsg = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : (error.message || 'Unknown error');
+      const status = error.response?.status;
+      throw new BadRequestException(
+        `Error removing device ${device.deveui} from Chirpstack (HTTP ${status ?? 'n/a'}): ${errorMsg}`,
+      );
     }
-    throw new BadRequestException(`Error removing device ${device.deveui} from Chirpstack`);
+    await this.deviceRepository.remove(id);
   }
 
   /**
