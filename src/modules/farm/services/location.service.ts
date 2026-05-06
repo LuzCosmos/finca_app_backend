@@ -48,6 +48,14 @@ export class LocationService {
   }
 
   /**
+   * Última ubicación por res (para mapa).
+   * Incluye `cattle.number` para mostrarlo en UI.
+   */
+  async findLatestPerCattleForTenant(idTenant: string) {
+    return this.locationRepository.findLatestPerCattleForTenant(idTenant);
+  }
+
+  /**
    * Find a location by ID
    * @param id - The ID of the location
    * @returns The location or null if no location is found

@@ -6,8 +6,7 @@ import { Location } from '../entities/location.entity';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from 'src/common/application-permissions/application-permissions.guard';
-import { RequireEntity } from 'src/common/application-permissions/application-permissions.decorator';
-import { RequireModule } from 'src/common/application-permissions/application-permissions.decorator';
+import { RequireAction, RequireEntity, RequireModule } from 'src/common/application-permissions/application-permissions.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 
@@ -29,14 +28,8 @@ export class LocationController {
     return this.locationService.create(dto);
   }*/
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get a location by ID' })
-  @ApiResponse({ status: 200, description: 'Location found', type: Location })
-  findOne(@Param('id') id: string) {
-    return this.locationService.findOne(id);
-  }
-
   @Get('cattle/:id')
+  @RequireAction('read')
   @ApiOperation({ summary: 'Get a location by cattle ID' })
   @ApiResponse({ status: 200, description: 'Location found', type: Location })
   findByCattle(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
@@ -44,13 +37,31 @@ export class LocationController {
   }
 
   @Get('device/:id')
+  @RequireAction('read')
   @ApiOperation({ summary: 'Get a location by device ID' })
   @ApiResponse({ status: 200, description: 'Location found', type: Location })
   findByDevice(@Param('id') id: string, @SessionUser() sessionUser: SessionUserDto) {
     return this.locationService.findByDevice(id, sessionUser.tenant_id);
   }
 
+  @Get('latest/cattle')
+  @RequireAction('read')
+  @ApiOperation({ summary: 'Get latest location per cattle (tenant)' })
+  @ApiResponse({ status: 200, description: 'Latest locations per cattle' })
+  findLatestPerCattle(@SessionUser() sessionUser: SessionUserDto) {
+    return this.locationService.findLatestPerCattleForTenant(sessionUser.tenant_id);
+  }
+
+  @Get(':id')
+  @RequireAction('read')
+  @ApiOperation({ summary: 'Get a location by ID' })
+  @ApiResponse({ status: 200, description: 'Location found', type: Location })
+  findOne(@Param('id') id: string) {
+    return this.locationService.findOne(id);
+  }
+
   @Delete(':id')
+  @RequireAction('delete')
   @ApiOperation({ summary: 'Delete a location' })
   @ApiResponse({ status: 200, description: 'Location deleted successfully' })
   remove(@Param('id') id: string) {
