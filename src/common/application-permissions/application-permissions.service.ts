@@ -189,6 +189,27 @@ export class ApplicationPermissionsService {
   }
 
   /**
+   * Normaliza máscaras CRUDL a exactamente 5 caracteres ('0' | '1').
+   * Las plantillas en `modules.access_details` a veces usan letras (p. ej. `CRUDL`) o
+   * abreviaturas de dos letras (`RU`) que tras `.replace(/[^01]/g, '1')` quedan como `"11"`.
+   * Esa forma corta deja `permissions[entity][2]` undefined y niega `update`.
+   * Convención legada: **dos bits** ⇒ permisos de **lectura** (índice 1) y **actualización** (índice 2).
+   */
+  static normalizeCrudlMask(raw: string): string {
+    const only01 = raw.replace(/[^01]/g, '');
+    if (only01.length >= 5) {
+      return only01.slice(0, 5);
+    }
+    if (only01.length === 0) {
+      return '00000';
+    }
+    if (only01.length === 2) {
+      return `0${only01[0]}${only01[1]}00`;
+    }
+    return only01.padEnd(5, '0');
+  }
+
+  /**
   * Validates if a user has permission to access a module.
   * 
   * @param module_code - The module code.
@@ -206,7 +227,9 @@ export class ApplicationPermissionsService {
     if (permissions[module_code][entity] == undefined) {
       return false;
     }
-    const entity_permission = permissions[module_code][entity];
+    const entity_permission = ApplicationPermissionsService.normalizeCrudlMask(
+      String(permissions[module_code][entity]),
+    );
     const actions = ['create', 'read', 'update', 'delete', 'list'];
     const actionIndex = actions.indexOf(action);
     const action_permission = entity_permission[actionIndex];
@@ -241,13 +264,15 @@ export class ApplicationPermissionsService {
         var entity_permission = "00000";
         if (Object.prototype.hasOwnProperty.call(permission.module.access_details, entity)) {
           entity_permission = permission.module.access_details[entity].replace(/[^0]/g, '1');
-          entity_permission.split('').map((char, index) => (char === '1' && role_permission[index] === '1' ? '1' : '0')).join('');
+          entity_permission = ApplicationPermissionsService.normalizeCrudlMask(entity_permission);
         }
         const combined_entity_permission = entity_permission.split('').map((char, index) => (char === '1' && role_permission[index] === '1' ? '1' : '0')).join('');
         if (permissions[permission.module.code][entity] == undefined) {
           permissions[permission.module.code][entity] = combined_entity_permission;
         } else {
-          const stored_entity_permission = permissions[permission.module.code][entity];
+          const stored_entity_permission = ApplicationPermissionsService.normalizeCrudlMask(
+            permissions[permission.module.code][entity],
+          );
           permissions[permission.module.code][entity] = stored_entity_permission.split('')
             .map((char, index) => (char === '1' || combined_entity_permission[index] === '1' ? '1' : '0'))
             .join('');

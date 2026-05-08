@@ -3,14 +3,20 @@ import * as mqtt from 'mqtt';
 import { ConfigService } from '@nestjs/config';
 import { LocationService } from '../farm/services/location.service';
 import { CreateLocationDto } from '../farm/dto/create-location.dto';
+import { Lw001BgProUplinkParserService } from '../production-center/lw001-bg-pro/lw001-bg-pro-uplink-parser.service';
+import { DeviceRemoteConfigurationService } from '../production-center/services/device-remote-configuration.service';
 
 @Injectable()
 export class MqttService implements OnModuleInit, OnModuleDestroy {
   private client: mqtt.MqttClient;
   private readonly configService: ConfigService;
   private readonly logger: Logger;
-  constructor(configService: ConfigService,
-    private readonly locationService: LocationService) {
+  constructor(
+    configService: ConfigService,
+    private readonly locationService: LocationService,
+    private readonly uplinkParser: Lw001BgProUplinkParserService,
+    private readonly remoteConfig: DeviceRemoteConfigurationService,
+  ) {
     this.configService = configService;
     this.logger = new Logger(MqttService.name);
   }
@@ -20,7 +26,8 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Parse ChirpStack uplink JSON, validate shape, persist location. Never throws to the MQTT client.
+   * Parse ChirpStack uplink JSON, opcionalmente persiste ubicación, y siempre intenta
+   * ingest de respuestas Read (MOKO). Nunca propaga errores al cliente MQTT.
    */
   private async processMqttMessage(topic: string, message: Buffer): Promise<void> {
     let parsedMessage: Record<string, unknown>;
@@ -33,6 +40,25 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    await this.tryPersistLocationFromChirpstackUplink(topic, parsedMessage);
+
+    // Independiente de si el uplink trae GPS: muchos frames (p. ej. heartbeat con Read)
+    // no incluyen `rxInfo[0].location` y antes se descartaba todo el mensaje aquí.
+    await this.processMokoUplinkForVerification(parsedMessage).catch((e) => {
+      this.logger.warn(
+        `MOKO verification processing failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    });
+  }
+
+  /**
+   * Si el JSON de ChirpStack trae coordenadas y tags de FincaApp, persiste un punto.
+   * Los `return` son locales a este método — no deben bloquear otras ramas de ingest.
+   */
+  private async tryPersistLocationFromChirpstackUplink(
+    topic: string,
+    parsedMessage: Record<string, unknown>,
+  ): Promise<void> {
     try {
       const rxInfo = parsedMessage.rxInfo;
       if (!Array.isArray(rxInfo) || rxInfo.length === 0) {
@@ -97,6 +123,55 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         e instanceof Error ? e.stack : undefined,
       );
     }
+  }
+
+  /**
+   * Si el uplink trae datos en base64 con un puerto que puede contener respuesta a
+   * `Read parameters` (heartbeat fPort 1 o respuesta directa fPort 10), los parsea y dispara
+   * verificación de los downlinks pendientes.
+   *
+   * Puertos aceptados:
+   *  - `fPort=1` (heartbeat): a veces el firmware "pega" una respuesta TLV tras la sección
+   *    estándar (reason+fw+activeStateCount). El parser solo expone `parameters` si encaja.
+   *  - `fPort=10` (general commands response): respuesta directa al CMD `Read` enviada en el
+   *    mismo puerto del downlink. Este puerto fue clave para confirmar lecturas en bloques
+   *    pequeños (≤ ~16 IDs) cuando el firmware no respondía a lecturas masivas.
+   *
+   * No lanza nunca: si algo falla, el mensaje MQTT se considera procesado (la verificación es
+   * mejor-esfuerzo, no debe bloquear ingest de telemetría).
+   */
+  private async processMokoUplinkForVerification(
+    message: Record<string, unknown>,
+  ): Promise<void> {
+    const dataB64 = message.data;
+    const fPort = message.fPort;
+    if (typeof dataB64 !== 'string' || typeof fPort !== 'number') return;
+
+    const deviceInfo = message.deviceInfo as Record<string, unknown> | undefined;
+    const tags = deviceInfo?.tags as Record<string, unknown> | undefined;
+    const idDevice = tags?.idDevice;
+    if (typeof idDevice !== 'string' || idDevice.length === 0) return;
+
+    let payload: Buffer;
+    try {
+      payload = Buffer.from(dataB64, 'base64');
+    } catch {
+      return;
+    }
+
+    const parsed = this.uplinkParser.parse(fPort, payload);
+    if (!parsed.ok) return;
+    if (parsed.type !== 'heartbeat' && parsed.type !== 'read_response') return;
+    if (!parsed.parameters || parsed.parameters.length === 0) return;
+
+    await this.remoteConfig.processUplinkForVerification({
+      idDevice,
+      parameters: parsed.parameters.map((p) => ({
+        id: p.id,
+        name: p.name,
+        valueHex: p.valueHex,
+      })),
+    });
   }
 
   onModuleInit() {

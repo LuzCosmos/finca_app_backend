@@ -30,6 +30,7 @@ import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
 import { ColorCharacteristicsService } from './services/color-characteristics.service';
 import { ColorCharacteristicsController } from './controllers/color-characteristics.controller';
 import { ConfigurationModule } from '../configurations/configuration.module';
+import { CattleRemoteConfigController } from './controllers/cattle-remote-config.controller';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ConfigurationModule } from '../configurations/configuration.module';
     ColorCharacteristicsController,
     CattleController,
     LocationController,
+    CattleRemoteConfigController,
   ],
   exports: [
     ColorCharacteristicsService,
