@@ -45,6 +45,7 @@ export class LocationController {
   }
 
   @Get('latest/cattle')
+  @RequireEntity('cattle')
   @RequireAction('read')
   @ApiOperation({ summary: 'Get latest location per cattle (tenant)' })
   @ApiResponse({ status: 200, description: 'Latest locations per cattle' })
