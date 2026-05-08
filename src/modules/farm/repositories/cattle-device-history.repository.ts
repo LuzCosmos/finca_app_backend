@@ -173,4 +173,17 @@ export class CattleDeviceHistoryRepository {
       await repo.save(current);
     }
   }
+
+  /**
+   * Devuelve la asignación vigente de device para un cattle (unassignedAt IS NULL).
+   * Útil para resolver `cattle → device` desde controllers de configuración remota.
+   */
+  async findActiveByCattle(
+    idTenant: string,
+    idCattle: string,
+  ): Promise<CattleDeviceHistory | null> {
+    return this.repo.findOne({
+      where: { idTenant, idCattle, unassignedAt: IsNull() },
+    });
+  }
 }

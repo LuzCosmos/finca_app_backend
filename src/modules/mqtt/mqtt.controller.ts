@@ -9,7 +9,7 @@ export class MqttController {
  // @MessagePattern('application/+/device/+/event/+')
  @MessagePattern('application/#')
   handleChirpstackEvent(@Payload() message: any) {
-    this.logger.debug(
+    this.logger.log(
       `ChirpStack event received (microservice handler), payloadType=${typeof message}`,
     );
     // Here you can process the event (e.g., save to database, trigger business logic, etc.)
@@ -17,7 +17,7 @@ export class MqttController {
   }
   @MessagePattern('au915_0/gateway/+/command/+')
   handleGatewayCommand(@Payload() message: any) {
-    this.logger.debug(
+    this.logger.log(
       `Gateway command received (microservice handler), payloadType=${typeof message}`,
     );
     return { ack: true };
