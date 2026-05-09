@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, IsUUID, IsNumber, IsDateString, IsBoolean } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUUID, IsNumber, IsDateString, IsBoolean, IsInt, Min, Max } from 'class-validator';
 
 export class ReceiveCattleRequestDto {
   @IsUUID()
@@ -74,6 +74,34 @@ export class ReceiveCattleRequestDto {
   @IsOptional()
   @IsDateString()
   birthDateAprx?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(8)
+  milkTeethCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(8)
+  permanentTeethCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  milkTeethWear?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  permanentTeethWear?: number;
+
+  @IsOptional()
+  @IsDateString()
+  dentalEvaluationDate?: string;
 }
 
 export class UpdateLotCattleRequestDto {

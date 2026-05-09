@@ -68,6 +68,8 @@ describe('CattleService', () => {
       empty as SimpleEventService,
       empty as SalesService,
       empty as ConfigurationsService,
+      empty as never,
+      empty as never,
     );
   });
 
@@ -313,6 +315,8 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
       simpleEventService as unknown as SimpleEventService,
       salesService as unknown as SalesService,
       configurationsService as unknown as ConfigurationsService,
+      {} as never,
+      {} as never,
     );
 
     (randomUUID as jest.Mock).mockReturnValue('00000000-0000-4000-8000-000000000001');

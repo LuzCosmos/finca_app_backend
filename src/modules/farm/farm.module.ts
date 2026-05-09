@@ -14,6 +14,9 @@ import { CattleWeightHistoryRepository } from './repositories/cattle-weight-hist
 import { CattleEartagHistory } from './entities/cattle-eartag-history.entity';
 import { CattleEartagHistoryRepository } from './repositories/cattle-eartag-history.repository';
 import { CattleMedicationHistory } from './entities/cattle-medication-history.entity';
+import { CattleAgeHistory } from './entities/cattle-age-history.entity';
+import { CattleAgeHistoryRepository } from './repositories/cattle-age-history.repository';
+import { DentitionEstimationService } from './services/dentition-estimation.service';
 import { CattleMedicationHistoryRepository } from './repositories/cattle-medication-history.repository';
 import { ProductionCenterModule } from '../production-center/production-center.module';
 import { Location } from './entities/location.entity';
@@ -44,6 +47,7 @@ import { CattleRemoteConfigController } from './controllers/cattle-remote-config
       CattleWeightHistory,
       CattleEartagHistory,
       CattleMedicationHistory,
+      CattleAgeHistory,
       Location,
       Brand
     ]),
@@ -64,6 +68,8 @@ import { CattleRemoteConfigController } from './controllers/cattle-remote-config
     BrandRepository,
     BrandService,
     ColorCharacteristicsService,
+    CattleAgeHistoryRepository,
+    DentitionEstimationService,
   ],
   controllers: [
     BrandController,

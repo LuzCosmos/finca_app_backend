@@ -58,7 +58,11 @@ describe('ReceptionsService', () => {
   };
   let deviceService: { findById: jest.Mock; updateWithDevice: jest.Mock };
   let lotService: { UpdateLotDataAfterReception: jest.Mock };
-  let cattleService: { applyMultipleSimpleEventsByNumber_manager: jest.Mock };
+  let cattleService: {
+    applyMultipleSimpleEventsByNumber_manager: jest.Mock;
+    mergeReceiveCattleBirthAndDentition: jest.Mock;
+    recordAgeHistoryFromSavedCattle: jest.Mock;
+  };
 
   const tenantId = 'tenant-1';
   const purchaseId = 'purchase-1';
@@ -126,7 +130,11 @@ describe('ReceptionsService', () => {
     };
     deviceService = { findById: jest.fn(), updateWithDevice: jest.fn() };
     lotService = { UpdateLotDataAfterReception: jest.fn() };
-    cattleService = { applyMultipleSimpleEventsByNumber_manager: jest.fn() };
+    cattleService = {
+      applyMultipleSimpleEventsByNumber_manager: jest.fn(),
+      mergeReceiveCattleBirthAndDentition: jest.fn().mockReturnValue({}),
+      recordAgeHistoryFromSavedCattle: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = buildService();
   });

@@ -15,6 +15,7 @@ import { Purchase } from '../../commerce/entities/purchase.entity';
 import { CattleColor } from '../enums/cattle-color.enum';
 import { CattleCharacteristic } from './cattle-characteristic.entity';
 import { CattleGender } from '../enums/cattle-gender.enum';
+import { BirthDateAprxSource } from '../enums/birth-date-aprx-source.enum';
 
 export enum CattleStatus {
   ACTIVE = 'ACTIVE',
@@ -153,6 +154,33 @@ export class Cattle {
 
   @Column({ name: 'birth_date_aprx', type: 'date', nullable: true })
   birthDateAprx: Date | null;
+
+  @Column({
+    name: 'birth_date_aprx_source',
+    type: 'enum',
+    enum: BirthDateAprxSource,
+    enumName: 'birth_date_aprx_source_enum',
+    nullable: true,
+  })
+  birthDateAprxSource: BirthDateAprxSource | null;
+
+  @Column({ name: 'milk_teeth_count', type: 'int', nullable: true })
+  milkTeethCount: number | null;
+
+  @Column({ name: 'permanent_teeth_count', type: 'int', nullable: true })
+  permanentTeethCount: number | null;
+
+  @Column({ name: 'milk_teeth_wear', type: 'smallint', nullable: true })
+  milkTeethWear: number | null;
+
+  @Column({ name: 'permanent_teeth_wear', type: 'smallint', nullable: true })
+  permanentTeethWear: number | null;
+
+  @Column({ name: 'dental_evaluation_date', type: 'date', nullable: true })
+  dentalEvaluationDate: Date | null;
+
+  @Column({ name: 'dentition_table_version', type: 'varchar', length: 32, nullable: true })
+  dentitionTableVersion: string | null;
 
   /** Fecha en que la res inicia con la nueva alimentación */
   @Column({ name: 'new_feed_start_date', type: 'date', nullable: true })
