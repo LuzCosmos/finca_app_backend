@@ -10,6 +10,22 @@ import { CattleDeviceHistoryRepository } from '../../farm/repositories/cattle-de
 import { DevicesService } from '../../production-center/services/devices.service';
 import { CattleRepository } from '../../farm/repositories/cattle.repository';
 
+/** Inicio y fin del día civil en hora local para strings YYYY-MM-DD (fin inclusivo 23:59:59.999). */
+function calendarDayBounds(dateStr: string): { start: Date; end: Date } {
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:[Tt ].*)?$/.exec(dateStr.trim());
+    if (m) {
+        const y = Number(m[1]);
+        const mo = Number(m[2]);
+        const d = Number(m[3]);
+        return {
+            start: new Date(y, mo - 1, d, 0, 0, 0, 0),
+            end: new Date(y, mo - 1, d, 23, 59, 59, 999),
+        };
+    }
+    const parsed = new Date(dateStr);
+    return { start: parsed, end: parsed };
+}
+
 @Injectable()
 export class SalesService {
     private readonly logger = new Logger(SalesService.name);
@@ -121,9 +137,20 @@ export class SalesService {
             queryBuilder.andWhere('sale.buyerId = :buyerId', { buyerId });
         }
 
-        if (startDate) {
-            const start = new Date(startDate);
-            const end = endDate ? new Date(endDate) : new Date('2999-12-31');
+        // Filtra si hay cualquiera de las dos fechas; la fecha final incluye todo el día hasta 23:59:59.999 (hora local).
+        if (startDate || endDate) {
+            let start: Date;
+            let end: Date;
+            if (startDate && endDate) {
+                start = calendarDayBounds(startDate).start;
+                end = calendarDayBounds(endDate).end;
+            } else if (startDate) {
+                start = calendarDayBounds(startDate).start;
+                end = new Date(2999, 11, 31, 23, 59, 59, 999);
+            } else {
+                start = new Date(1970, 0, 1, 0, 0, 0, 0);
+                end = calendarDayBounds(endDate!).end;
+            }
             queryBuilder.andWhere('sale.transactionDate BETWEEN :start AND :end', { start, end });
         }
 
