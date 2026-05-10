@@ -29,6 +29,14 @@ import { LotService } from 'src/modules/commerce/services/lot.service';
 import { SalesService } from 'src/modules/commerce/services/sales.service';
 import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
 import { randomUUID } from 'crypto';
+import { DentitionEstimationService } from './dentition-estimation.service';
+import { CattleAgeHistoryRepository } from '../repositories/cattle-age-history.repository';
+import { CattleAgeHistory } from '../entities/cattle-age-history.entity';
+import { BirthDateAprxSource } from '../enums/birth-date-aprx-source.enum';
+// sapa2014-v1 / SAPA2014: ver comentario en dentition-table-sapa2014.ts (fuente bibliográfica).
+import { DENTITION_TABLE_VERSION } from '../constants/dentition-table-sapa2014';
+import { ReceiveCattleRequestDto } from '../../purchase-receptions/dto/receive-cattle-request.dto';
+import { PreviewBirthFromDentitionDto } from '../dto/preview-birth-from-dentition.dto';
 
 @Injectable()
 export class CattleService {
@@ -50,6 +58,8 @@ export class CattleService {
     @Inject(forwardRef(() => SalesService))
     private readonly salesService: SalesService,
     private readonly configurationsService: ConfigurationsService,
+    private readonly dentitionEstimation: DentitionEstimationService,
+    private readonly cattleAgeHistoryRepository: CattleAgeHistoryRepository,
   ) { }
 
   /**
@@ -426,13 +436,15 @@ export class CattleService {
           throw new NotFoundException(`Device ${data.idDevice} not found`);
         }
       }
+      this.applyBirthAndDentitionMergeToDto(data as any);
       if (data.birthDateAprx) {
-        (data as any).birthDateAprx = new Date(data.birthDateAprx);
+        (data as any).birthDateAprx = new Date(data.birthDateAprx as any);
       }
       if (data.newFeedStartDate) {
         (data as any).newFeedStartDate = new Date(data.newFeedStartDate);
       }
       const cattle = await this.cattleRepository.create(data, trxManager);
+      await this.recordAgeHistoryIfNeeded(trxManager, idTenant, cattle.id, data as any, idCurrentUser);
       if (data.characteristics) {
         await this.updateCharacteristics(cattle.id, data.characteristics, idTenant, trxManager);
       }
@@ -505,6 +517,7 @@ export class CattleService {
       }
       const { characteristics, ...updateD } = data;
       const updateData = { updatedAt: new Date(), ...updateD };
+      this.applyPatchBirthAndDentition(updateData as Record<string, unknown>);
       if (updateData.birthDateAprx != null) {
         (updateData as any).birthDateAprx = new Date(updateData.birthDateAprx as any);
       }
@@ -624,6 +637,10 @@ export class CattleService {
         await this.cattleWeightHistoryRepository.create(cwh, trxManager);
       }
       await this.cattleRepository.update(idTenant, id, updateData, trxManager);
+      if ((updateData as Record<string, unknown>).birthDateAprxSource != null) {
+        const updatedForHistory = await this.findByIdOrFail(idTenant, id, trxManager);
+        await this.recordAgeHistoryFromSavedCattle(trxManager, idTenant, updatedForHistory, idCurrentUser);
+      }
       if (updateData.receivedWeight) {
         var cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.RECEIVED);
         if (cwhs.length > 0) {
@@ -1132,6 +1149,184 @@ export class CattleService {
       this.logger.error(error);
       this.logger.debug(`Row ${rowNumber}, system number ${rowValues[0]} has error creating cattle. ${error.message}`);
       throw new BadRequestException(`system number ${rowValues[0]} has error creating cattle.`);
+    }
+  }
+
+  /** Recepción: campos de fecha/dentición para persistir en cattle. */
+  mergeReceiveCattleBirthAndDentition(dto: ReceiveCattleRequestDto): Partial<Cattle> {
+    this.assertNoPartialDentitionFields(dto);
+    const out: Partial<Cattle> = {};
+    if (this.isFullDentitionFields(dto)) {
+      const ageDays = this.dentitionEstimation.estimateAgeDays({
+        milkTeeth: dto.milkTeethCount!,
+        permanentTeeth: dto.permanentTeethCount!,
+        milkWear: dto.milkTeethWear!,
+        permanentWear: dto.permanentTeethWear!,
+      });
+      const evalDate = new Date(dto.dentalEvaluationDate!);
+      out.birthDateAprx = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+      out.birthDateAprxSource = BirthDateAprxSource.DENTITION;
+      out.milkTeethCount = dto.milkTeethCount!;
+      out.permanentTeethCount = dto.permanentTeethCount!;
+      out.milkTeethWear = dto.milkTeethWear!;
+      out.permanentTeethWear = dto.permanentTeethWear!;
+      out.dentalEvaluationDate = evalDate;
+      out.dentitionTableVersion = DENTITION_TABLE_VERSION;
+    } else if (dto.birthDateAprx) {
+      out.birthDateAprx = new Date(dto.birthDateAprx);
+      out.birthDateAprxSource = BirthDateAprxSource.MANUAL;
+    }
+    return out;
+  }
+
+  /**
+   * Estima fecha de nacimiento aproximada en servidor (misma lógica que alta/patch),
+   * sin persistir — para UI online antes de guardar.
+   */
+  previewBirthFromDentition(dto: PreviewBirthFromDentitionDto): {
+    birthDateAprx: string;
+    dentitionTableVersion: string;
+  } {
+    const ageDays = this.dentitionEstimation.estimateAgeDays({
+      milkTeeth: dto.milkTeethCount,
+      permanentTeeth: dto.permanentTeethCount,
+      milkWear: dto.milkTeethWear,
+      permanentWear: dto.permanentTeethWear,
+    });
+    const evalDate = new Date(dto.dentalEvaluationDate);
+    const birth = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+    const y = birth.getUTCFullYear();
+    const mo = String(birth.getUTCMonth() + 1).padStart(2, '0');
+    const da = String(birth.getUTCDate()).padStart(2, '0');
+    return {
+      birthDateAprx: `${y}-${mo}-${da}`,
+      dentitionTableVersion: DENTITION_TABLE_VERSION,
+    };
+  }
+
+  async recordAgeHistoryFromSavedCattle(
+    manager: EntityManager,
+    idTenant: string,
+    cattle: Cattle,
+    userId: string,
+  ): Promise<void> {
+    if (!cattle.birthDateAprxSource || !cattle.birthDateAprx) {
+      return;
+    }
+    await manager.save(CattleAgeHistory, {
+      id: randomUUID(),
+      idTenant,
+      idCattle: cattle.id,
+      source: cattle.birthDateAprxSource,
+      milkTeethCount: cattle.milkTeethCount,
+      permanentTeethCount: cattle.permanentTeethCount,
+      milkWear: cattle.milkTeethWear,
+      permanentWear: cattle.permanentTeethWear,
+      dentalEvaluationDate: cattle.dentalEvaluationDate,
+      birthDateAprxResult: cattle.birthDateAprx,
+      dentitionTableVersion: cattle.dentitionTableVersion,
+      recordedBy: userId,
+    });
+  }
+
+  private applyBirthAndDentitionMergeToDto(data: CreateCattleDto & Record<string, unknown>): void {
+    this.assertNoPartialDentitionFields(data);
+    if (this.isFullDentitionFields(data)) {
+      const ageDays = this.dentitionEstimation.estimateAgeDays({
+        milkTeeth: data.milkTeethCount!,
+        permanentTeeth: data.permanentTeethCount!,
+        milkWear: data.milkTeethWear!,
+        permanentWear: data.permanentTeethWear!,
+      });
+      const evalDate = new Date(data.dentalEvaluationDate!);
+      (data as any).birthDateAprx = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+      (data as any).birthDateAprxSource = BirthDateAprxSource.DENTITION;
+      (data as any).dentitionTableVersion = DENTITION_TABLE_VERSION;
+    } else if (data.birthDateAprx) {
+      (data as any).birthDateAprxSource = BirthDateAprxSource.MANUAL;
+    }
+  }
+
+  private async recordAgeHistoryIfNeeded(
+    manager: EntityManager,
+    idTenant: string,
+    idCattle: string,
+    data: Record<string, unknown>,
+    userId: string,
+  ): Promise<void> {
+    const source = data.birthDateAprxSource as BirthDateAprxSource | undefined;
+    if (!source) {
+      return;
+    }
+    const birth = data.birthDateAprx ? new Date(data.birthDateAprx as any) : null;
+    if (!birth) {
+      return;
+    }
+    await manager.save(CattleAgeHistory, {
+      id: randomUUID(),
+      idTenant,
+      idCattle,
+      source,
+      milkTeethCount: (data.milkTeethCount as number) ?? null,
+      permanentTeethCount: (data.permanentTeethCount as number) ?? null,
+      milkWear: (data.milkTeethWear as number) ?? null,
+      permanentWear: (data.permanentTeethWear as number) ?? null,
+      dentalEvaluationDate: data.dentalEvaluationDate ? new Date(data.dentalEvaluationDate as any) : null,
+      birthDateAprxResult: birth,
+      dentitionTableVersion: (data.dentitionTableVersion as string) ?? (source === BirthDateAprxSource.DENTITION ? DENTITION_TABLE_VERSION : null),
+      recordedBy: userId,
+    });
+  }
+
+  private assertNoPartialDentitionFields(dto: object): void {
+    const r = dto as Record<string, unknown>;
+    const keys = ['milkTeethCount', 'permanentTeethCount', 'milkTeethWear', 'permanentTeethWear', 'dentalEvaluationDate'] as const;
+    const present = keys.filter((k) => r[k] !== undefined && r[k] !== null);
+    if (present.length > 0 && present.length < keys.length) {
+      throw new BadRequestException('DENTITION_PARTIAL_FIELDS');
+    }
+  }
+
+  private isFullDentitionFields(dto: object): boolean {
+    const r = dto as Record<string, unknown>;
+    return (
+      r.milkTeethCount !== undefined &&
+      r.milkTeethCount !== null &&
+      r.permanentTeethCount !== undefined &&
+      r.permanentTeethCount !== null &&
+      r.milkTeethWear !== undefined &&
+      r.milkTeethWear !== null &&
+      r.permanentTeethWear !== undefined &&
+      r.permanentTeethWear !== null &&
+      r.dentalEvaluationDate !== undefined &&
+      r.dentalEvaluationDate !== null
+    );
+  }
+
+  private applyPatchBirthAndDentition(updateData: Record<string, unknown>): void {
+    this.assertNoPartialDentitionFields(updateData);
+    if (this.isFullDentitionFields(updateData)) {
+      const ageDays = this.dentitionEstimation.estimateAgeDays({
+        milkTeeth: updateData.milkTeethCount as number,
+        permanentTeeth: updateData.permanentTeethCount as number,
+        milkWear: updateData.milkTeethWear as number,
+        permanentWear: updateData.permanentTeethWear as number,
+      });
+      const evalDate = new Date(updateData.dentalEvaluationDate as string);
+      updateData.birthDateAprx = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+      updateData.birthDateAprxSource = BirthDateAprxSource.DENTITION;
+      updateData.dentalEvaluationDate = evalDate;
+      updateData.dentitionTableVersion = DENTITION_TABLE_VERSION;
+    } else if (updateData.birthDateAprx !== undefined && updateData.birthDateAprx !== null && !this.isFullDentitionFields(updateData)) {
+      const noDentitionKeys =
+        updateData.milkTeethCount === undefined &&
+        updateData.permanentTeethCount === undefined &&
+        updateData.milkTeethWear === undefined &&
+        updateData.permanentTeethWear === undefined &&
+        updateData.dentalEvaluationDate === undefined;
+      if (noDentitionKeys) {
+        updateData.birthDateAprxSource = BirthDateAprxSource.MANUAL;
+      }
     }
   }
 }

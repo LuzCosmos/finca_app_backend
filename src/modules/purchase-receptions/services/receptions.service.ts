@@ -169,6 +169,7 @@ export class ReceptionsService {
           cattleDto.purchasePrice = lot.averageWeight * lot.pricePerKg;
         }
       }
+      const birthPatch = this.cattleService.mergeReceiveCattleBirthAndDentition(cattleDto);
       var cattleData = {
         id: uuidv4(),
         idTenant,
@@ -193,11 +194,19 @@ export class ReceptionsService {
         idProvider: cattleDto.idProvider ?? null,
         idPurchase: cattleDto.idPurchase,
         gender: cattleDto.gender,
-        birthDateAprx: cattleDto.birthDateAprx ? new Date(cattleDto.birthDateAprx) : null,
-        hasHorn: cattleDto.hasHorn
-      }
+        birthDateAprx: birthPatch.birthDateAprx ?? (cattleDto.birthDateAprx ? new Date(cattleDto.birthDateAprx) : null),
+        birthDateAprxSource: birthPatch.birthDateAprxSource ?? null,
+        milkTeethCount: birthPatch.milkTeethCount ?? null,
+        permanentTeethCount: birthPatch.permanentTeethCount ?? null,
+        milkTeethWear: birthPatch.milkTeethWear ?? null,
+        permanentTeethWear: birthPatch.permanentTeethWear ?? null,
+        dentalEvaluationDate: birthPatch.dentalEvaluationDate ?? null,
+        dentitionTableVersion: birthPatch.dentitionTableVersion ?? null,
+        hasHorn: cattleDto.hasHorn,
+      };
 
       cattle = await this.cattleRepo.saveWithManager(manager, cattleData as unknown as Cattle);
+      await this.cattleService.recordAgeHistoryFromSavedCattle(manager, idTenant, cattle, idCurrentUser);
       var weightHistory: CattleWeightHistory = {
         id: uuidv4(),
         idTenant,

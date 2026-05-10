@@ -38,6 +38,7 @@ import { extname } from 'path';
 import { ApplySimpleEventsDto } from '../../massive-events/dto/apply-simple-events.dto';
 import { AnimalSimpleEventRepository } from '../../massive-events/repositories/animal-simple-event.repository';
 import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } from '../../massive-events/dto/sync-animal-simple-event.dto';
+import { PreviewBirthFromDentitionDto } from '../dto/preview-birth-from-dentition.dto';
 import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
 import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 
@@ -103,6 +104,17 @@ export class CattleController {
   @ApiResponse({ status: 500, description: 'Unexpected error during creation process' })
   create(@SessionUser() sessionUser: SessionUserDto, @Body() dto: CreateCattleDto) {
     return this.cattleService.create(sessionUser.tenant_id, dto, sessionUser.sub);
+  }
+
+  @Post('preview-birth-from-dentition')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Vista previa de fecha de nacimiento aproximada por dentición (sin persistir)',
+  })
+  @ApiResponse({ status: 200, description: 'birthDateAprx en yyyy-MM-dd (UTC día) + versión de tabla' })
+  @RequireAction('read')
+  previewBirthFromDentition(@Body() dto: PreviewBirthFromDentitionDto) {
+    return this.cattleService.previewBirthFromDentition(dto);
   }
 
   @Get('search')

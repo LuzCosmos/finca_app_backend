@@ -1,4 +1,4 @@
-import { Allow, IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID, IsArray, IsEnum } from 'class-validator';
+import { Allow, IsString, IsNotEmpty, IsOptional, IsDate, IsDateString, IsNumber, IsPositive, MaxLength, MinLength, IsUUID, IsArray, IsEnum, IsInt, Min, Max } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CattleGender } from '../enums/cattle-gender.enum';
 import { CattleStatus } from '../entities/cattle.entity';
@@ -147,6 +147,40 @@ export class CreateCattleDto {
   @IsDateString()
   @IsOptional()
   birthDateAprx?: string;
+
+  /** Dentición opcional — si se envían campos, deben enviarse todos para estimación (ver dominio). */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(8)
+  milkTeethCount?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(8)
+  permanentTeethCount?: number;
+
+  @ApiProperty({ required: false, description: 'Desgaste leche 0–5' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  milkTeethWear?: number;
+
+  @ApiProperty({ required: false, description: 'Desgaste permanentes 0–5' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  permanentTeethWear?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsDateString()
+  dentalEvaluationDate?: string;
 
   @ApiProperty({ required: false, description: 'Fecha en que la res inicia con la nueva alimentación' })
   @IsDateString()
