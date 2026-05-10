@@ -49,6 +49,7 @@ export class CattleAgeHistory {
   @Column({ name: 'birth_date_aprx_result', type: 'date', nullable: true })
   birthDateAprxResult: Date | null;
 
+  /** Ej. `sapa2014-v1`: versión de la tabla SAPA2014 (véase `dentition-table-sapa2014.ts`). */
   @Column({ name: 'dentition_table_version', type: 'varchar', length: 32, nullable: true })
   dentitionTableVersion: string | null;
 

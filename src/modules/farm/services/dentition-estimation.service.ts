@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+// SAPA2014 = tabla «Edad y dientes de los bovinos», SAPA/BM Editores, 2014 (ver dentition-table-sapa2014.ts).
 import { SAPA2014_RULES, DentitionRule } from '../constants/dentition-table-sapa2014';
 
 export type DentitionInputs = {
@@ -11,7 +12,7 @@ export type DentitionInputs = {
 @Injectable()
 export class DentitionEstimationService {
   /**
-   * Estima edad en días desde el nacimiento según tabla SAPA2014.
+   * Estima edad en días desde el nacimiento según tabla SAPA2014 (fuente: «Edad y dientes de los bovinos», SAPA/BM Editores, 2014).
    * Primero intenta coincidencia exacta de intervalos; si no hay, usa score por distancia al centro de cada intervalo compatible en conteos.
    */
   estimateAgeDays(input: DentitionInputs): number {
@@ -71,6 +72,36 @@ export class DentitionEstimationService {
     }
     if (input.milkTeeth < 0 || input.milkTeeth > 8 || input.permanentTeeth < 0 || input.permanentTeeth > 8) {
       throw new BadRequestException('DENTITION_TEETH_RANGE');
+    }
+    /** Grado 0 = «no aplica»; si hay dientes en ese tipo, debe haber desgaste observable (1–5). */
+    if (input.milkTeeth > 0 && input.milkWear === 0) {
+      throw new BadRequestException('DENTITION_WEAR_NA_WITH_PRESENT_MILK_TEETH');
+    }
+    if (input.permanentTeeth > 0 && input.permanentWear === 0) {
+      throw new BadRequestException('DENTITION_WEAR_NA_WITH_PRESENT_PERMANENT_TEETH');
+    }
+    if (input.permanentTeeth === 0 && input.permanentWear !== 0) {
+      throw new BadRequestException('DENTITION_PERM_WEAR_MUST_BE_NA_WHEN_NO_PERMANENT_TEETH');
+    }
+
+    const rulesForCounts = SAPA2014_RULES.filter(
+      (r) => r.milkTeeth === input.milkTeeth && r.permanentTeeth === input.permanentTeeth,
+    );
+    if (rulesForCounts.length > 0) {
+      const milkOk = rulesForCounts.some(
+        (r) => input.milkWear >= r.milkWearMin && input.milkWear <= r.milkWearMax,
+      );
+      if (!milkOk) {
+        throw new BadRequestException('DENTITION_MILK_WEAR_NOT_ALLOWED_FOR_COUNTS');
+      }
+      if (input.permanentTeeth > 0) {
+        const permOk = rulesForCounts.some(
+          (r) => input.permanentWear >= r.permWearMin && input.permanentWear <= r.permWearMax,
+        );
+        if (!permOk) {
+          throw new BadRequestException('DENTITION_PERM_WEAR_NOT_ALLOWED_FOR_COUNTS');
+        }
+      }
     }
   }
 

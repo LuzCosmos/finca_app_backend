@@ -179,6 +179,7 @@ export class Cattle {
   @Column({ name: 'dental_evaluation_date', type: 'date', nullable: true })
   dentalEvaluationDate: Date | null;
 
+  /** Ej. `sapa2014-v1`: versión de la tabla SAPA2014 (véase `dentition-table-sapa2014.ts`). */
   @Column({ name: 'dentition_table_version', type: 'varchar', length: 32, nullable: true })
   dentitionTableVersion: string | null;
 

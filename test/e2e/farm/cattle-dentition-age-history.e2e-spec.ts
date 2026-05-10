@@ -103,7 +103,7 @@ describe('Farm / cattle — dentición e historial de edad (e2e)', () => {
         milkTeethCount: 8,
         permanentTeethCount: 0,
         milkTeethWear: 3,
-        permanentTeethWear: 2,
+        permanentTeethWear: 0,
         dentalEvaluationDate,
       };
 
@@ -120,7 +120,7 @@ describe('Farm / cattle — dentición e historial de edad (e2e)', () => {
       expect(created.body.milkTeethCount).toBe(8);
       expect(created.body.permanentTeethCount).toBe(0);
       expect(created.body.milkTeethWear).toBe(3);
-      expect(created.body.permanentTeethWear).toBe(2);
+      expect(created.body.permanentTeethWear).toBe(0);
 
       await assertDentitionAgeDaysApprox(dataSource, cattleId, 365);
 
@@ -131,7 +131,7 @@ describe('Farm / cattle — dentición e historial de edad (e2e)', () => {
       expect(last.milkTeethCount).toBe(8);
       expect(last.permanentTeethCount).toBe(0);
       expect(last.milkWear).toBe(3);
-      expect(last.permanentWear).toBe(2);
+      expect(last.permanentWear).toBe(0);
 
       await assertCattleBirthMatchesHistoryResult(dataSource, cattleId, last.id);
 
@@ -194,6 +194,69 @@ describe('Farm / cattle — dentición e historial de edad (e2e)', () => {
       const msg = res.body?.message;
       const flat = Array.isArray(msg) ? msg.join(' ') : String(msg ?? '');
       expect(flat).toContain('DENTITION_PARTIAL_FIELDS');
+    });
+
+    it('POST crear con leche>0 y desgaste leche 0 responde 400 DENTITION_WEAR_NA_WITH_PRESENT_MILK_TEETH', async () => {
+      const { accessToken } = await getE2eSessionContext(app);
+      const suffix = `dent-wear0-milk-${Date.now()}`;
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/cattle')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          ...baseCreateBody(suffix),
+          milkTeethCount: 8,
+          permanentTeethCount: 0,
+          milkTeethWear: 0,
+          permanentTeethWear: 0,
+          dentalEvaluationDate: '2024-06-15',
+        });
+
+      expect(res.status).toBe(400);
+      const msg = res.body?.message;
+      const flat = Array.isArray(msg) ? msg.join(' ') : String(msg ?? '');
+      expect(flat).toContain('DENTITION_WEAR_NA_WITH_PRESENT_MILK_TEETH');
+    });
+
+    it('POST crear con 0 permanentes y desgaste perm ≠ 0 responde 400 DENTITION_PERM_WEAR_MUST_BE_NA_WHEN_NO_PERMANENT_TEETH', async () => {
+      const { accessToken } = await getE2eSessionContext(app);
+      const suffix = `dent-perm-na-${Date.now()}`;
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/cattle')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          ...baseCreateBody(suffix),
+          milkTeethCount: 8,
+          permanentTeethCount: 0,
+          milkTeethWear: 3,
+          permanentTeethWear: 2,
+          dentalEvaluationDate: '2024-06-15',
+        });
+
+      expect(res.status).toBe(400);
+      const msg = res.body?.message;
+      const flat = Array.isArray(msg) ? msg.join(' ') : String(msg ?? '');
+      expect(flat).toContain('DENTITION_PERM_WEAR_MUST_BE_NA_WHEN_NO_PERMANENT_TEETH');
+    });
+
+    it('POST crear con permanentes>0 y desgaste perm 0 responde 400 DENTITION_WEAR_NA_WITH_PRESENT_PERMANENT_TEETH', async () => {
+      const { accessToken } = await getE2eSessionContext(app);
+      const suffix = `dent-wear0-perm-${Date.now()}`;
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/cattle')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          ...baseCreateBody(suffix),
+          milkTeethCount: 0,
+          permanentTeethCount: 8,
+          milkTeethWear: 0,
+          permanentTeethWear: 0,
+          dentalEvaluationDate: '2024-06-15',
+        });
+
+      expect(res.status).toBe(400);
+      const msg = res.body?.message;
+      const flat = Array.isArray(msg) ? msg.join(' ') : String(msg ?? '');
+      expect(flat).toContain('DENTITION_WEAR_NA_WITH_PRESENT_PERMANENT_TEETH');
     });
 
     it('POST crear con dentición sin fila en tabla responde 400 DENTITION_NO_RULE_FOR_COUNTS', async () => {
@@ -275,7 +338,7 @@ describe('Farm / cattle — dentición e historial de edad (e2e)', () => {
           milkTeethCount: 8,
           permanentTeethCount: 0,
           milkTeethWear: 3,
-          permanentTeethWear: 2,
+          permanentTeethWear: 0,
           dentalEvaluationDate,
         });
 

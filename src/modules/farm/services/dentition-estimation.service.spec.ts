@@ -13,8 +13,8 @@ describe('DentitionEstimationService', () => {
       expect(service.estimateAgeDays({ milkTeeth: 2, permanentTeeth: 0, milkWear: 1, permanentWear: 0 })).toBe(0);
     });
 
-    it('resuelve fila 8 leche desgaste 3 → 365 días', () => {
-      expect(service.estimateAgeDays({ milkTeeth: 8, permanentTeeth: 0, milkWear: 3, permanentWear: 2 })).toBe(365);
+    it('resuelve fila 8 leche desgaste 3 → 365 días (sin permanentes: desgaste perm «no aplica» = 0)', () => {
+      expect(service.estimateAgeDays({ milkTeeth: 8, permanentTeeth: 0, milkWear: 3, permanentWear: 0 })).toBe(365);
     });
 
     it('resuelve 6 leche + 2 permanente con desgastes en intervalo → 730', () => {
@@ -36,11 +36,16 @@ describe('DentitionEstimationService', () => {
       }
     });
 
-    it('desgaste fuera del intervalo de la fila usa la única regla del par (distancia mínima)', () => {
-      // Fila 6+2 exige milkWear 3–4; con milkWear 5 no hay exacta → misma regla 730 días
-      expect(
+    it('rechaza desgaste leche fuera de los intervalos SAPA para el par de conteos', () => {
+      expect(() =>
         service.estimateAgeDays({ milkTeeth: 6, permanentTeeth: 2, milkWear: 5, permanentWear: 1 }),
-      ).toBe(730);
+      ).toThrow('DENTITION_MILK_WEAR_NOT_ALLOWED_FOR_COUNTS');
+    });
+
+    it('rechaza desgaste permanentes si no hay dientes permanentes visibles', () => {
+      expect(() =>
+        service.estimateAgeDays({ milkTeeth: 8, permanentTeeth: 0, milkWear: 3, permanentWear: 2 }),
+      ).toThrow('DENTITION_PERM_WEAR_MUST_BE_NA_WHEN_NO_PERMANENT_TEETH');
     });
 
     it('rechaza desgaste fuera de 0–5', () => {
@@ -58,6 +63,24 @@ describe('DentitionEstimationService', () => {
           permanentWear: 0,
         }),
       ).toThrow('DENTITION_INVALID_NUMBERS');
+    });
+
+    it('rechaza desgaste leche 0 si hay dientes de leche (>0)', () => {
+      expect(() =>
+        service.estimateAgeDays({ milkTeeth: 8, permanentTeeth: 0, milkWear: 0, permanentWear: 0 }),
+      ).toThrow('DENTITION_WEAR_NA_WITH_PRESENT_MILK_TEETH');
+    });
+
+    it('rechaza desgaste permanentes 0 si hay permanentes (>0)', () => {
+      expect(() =>
+        service.estimateAgeDays({ milkTeeth: 0, permanentTeeth: 8, milkWear: 0, permanentWear: 0 }),
+      ).toThrow('DENTITION_WEAR_NA_WITH_PRESENT_PERMANENT_TEETH');
+    });
+
+    it('permite desgaste leche 0 si no hay dientes de leche', () => {
+      expect(
+        service.estimateAgeDays({ milkTeeth: 0, permanentTeeth: 8, milkWear: 0, permanentWear: 2 }),
+      ).toBeGreaterThan(0);
     });
   });
 

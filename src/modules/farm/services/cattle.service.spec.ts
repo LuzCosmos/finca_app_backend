@@ -28,6 +28,8 @@ import { UpdateCattleDto } from '../dto/update-cattle.dto';
 import { WeightContext } from '../entities/cattle-weight-history.entity';
 import { SimpleEventType } from 'src/modules/massive-events/enums/simple-event-type.enum';
 import { SyncAnimalSimpleEventDto } from 'src/modules/massive-events/dto/sync-animal-simple-event.dto';
+import { DentitionEstimationService } from './dentition-estimation.service';
+import { CattleAgeHistoryRepository } from '../repositories/cattle-age-history.repository';
 
 describe('CattleService', () => {
   let service: CattleService;
@@ -796,5 +798,42 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
       expect(out[0].status).toBe('failed');
       expect(out[1].status).toBe('synced');
     });
+  });
+});
+
+describe('CattleService.previewBirthFromDentition', () => {
+  const empty = {} as never;
+  let previewSvc: CattleService;
+
+  beforeEach(() => {
+    previewSvc = new CattleService(
+      empty as CattleRepository,
+      empty as CattleDeviceHistoryRepository,
+      empty as CattleWeightHistoryRepository,
+      empty as CattleEartagHistoryRepository,
+      empty as CattleMedicationHistoryRepository,
+      empty as CattleCharacteristicRepository,
+      empty as DevicesService,
+      empty as AnimalSimpleEventRepository,
+      empty as DataSource,
+      empty as MassiveEventService,
+      empty as SimpleEventService,
+      empty as SalesService,
+      empty as ConfigurationsService,
+      new DentitionEstimationService(),
+      empty as CattleAgeHistoryRepository,
+    );
+  });
+
+  it('devuelve birthDateAprx yyyy-mm-dd y versión de tabla', () => {
+    const r = previewSvc.previewBirthFromDentition({
+      milkTeethCount: 8,
+      permanentTeethCount: 0,
+      milkTeethWear: 1,
+      permanentTeethWear: 0,
+      dentalEvaluationDate: '2024-06-15',
+    });
+    expect(r.dentitionTableVersion).toBe('sapa2014-v1');
+    expect(r.birthDateAprx).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

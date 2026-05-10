@@ -1,6 +1,12 @@
 /**
- * Tabla SAPA 2014 — filas codificadas para matching por conteos + desgaste (0–5).
- * Documento: edad_bovinos/tabla_edad_bovinos_dientes.md
+ * Tabla de estimación de edad por dentición (versión interna **SAPA2014**).
+ *
+ * **Qué significa SAPA2014:** etiqueta del proyecto para la tabla derivada de la obra
+ * «Edad y dientes de los bovinos», SAPA (*Sitio Argentino de Producción Animal*) /
+ * BM Editores, 2014 — no es un estándar ISO. Ver `finca_app_docs/edad_bovinos/tabla_edad_bovinos_dientes.md`
+ * (nota para desarrollo y § Fuente base).
+ *
+ * Filas codificadas para matching por conteos + desgaste (0–5).
  * Rangos textuales → un único ageDays (punto representativo).
  */
 export const DENTITION_TABLE_VERSION = 'sapa2014-v1';
@@ -15,7 +21,10 @@ export type DentitionRule = {
   ageDays: number;
 };
 
-/** Sin solapamiento por fila: desgaste agregado encaja en un solo intervalo por par (leche, permanente). */
+/**
+ * Reglas SAPA2014 — misma fuente bibliográfica que describe el bloque de comentarios superior.
+ * Sin solapamiento por fila: desgaste agregado encaja en un solo intervalo por par (leche, permanente).
+ */
 export const SAPA2014_RULES: DentitionRule[] = [
   { milkTeeth: 2, permanentTeeth: 0, milkWearMin: 1, milkWearMax: 1, permWearMin: 0, permWearMax: 5, ageDays: 0 },
   { milkTeeth: 4, permanentTeeth: 0, milkWearMin: 1, milkWearMax: 1, permWearMin: 0, permWearMax: 5, ageDays: 7 },

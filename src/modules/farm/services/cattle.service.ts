@@ -33,8 +33,10 @@ import { DentitionEstimationService } from './dentition-estimation.service';
 import { CattleAgeHistoryRepository } from '../repositories/cattle-age-history.repository';
 import { CattleAgeHistory } from '../entities/cattle-age-history.entity';
 import { BirthDateAprxSource } from '../enums/birth-date-aprx-source.enum';
+// sapa2014-v1 / SAPA2014: ver comentario en dentition-table-sapa2014.ts (fuente bibliográfica).
 import { DENTITION_TABLE_VERSION } from '../constants/dentition-table-sapa2014';
 import { ReceiveCattleRequestDto } from '../../purchase-receptions/dto/receive-cattle-request.dto';
+import { PreviewBirthFromDentitionDto } from '../dto/preview-birth-from-dentition.dto';
 
 @Injectable()
 export class CattleService {
@@ -1175,6 +1177,31 @@ export class CattleService {
       out.birthDateAprxSource = BirthDateAprxSource.MANUAL;
     }
     return out;
+  }
+
+  /**
+   * Estima fecha de nacimiento aproximada en servidor (misma lógica que alta/patch),
+   * sin persistir — para UI online antes de guardar.
+   */
+  previewBirthFromDentition(dto: PreviewBirthFromDentitionDto): {
+    birthDateAprx: string;
+    dentitionTableVersion: string;
+  } {
+    const ageDays = this.dentitionEstimation.estimateAgeDays({
+      milkTeeth: dto.milkTeethCount,
+      permanentTeeth: dto.permanentTeethCount,
+      milkWear: dto.milkTeethWear,
+      permanentWear: dto.permanentTeethWear,
+    });
+    const evalDate = new Date(dto.dentalEvaluationDate);
+    const birth = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+    const y = birth.getUTCFullYear();
+    const mo = String(birth.getUTCMonth() + 1).padStart(2, '0');
+    const da = String(birth.getUTCDate()).padStart(2, '0');
+    return {
+      birthDateAprx: `${y}-${mo}-${da}`,
+      dentitionTableVersion: DENTITION_TABLE_VERSION,
+    };
   }
 
   async recordAgeHistoryFromSavedCattle(
