@@ -50,6 +50,7 @@ describe('MassiveEventService', () => {
     };
     animalSimpleEventRepo = {};
     cattleRepo = {};
+    const userRepo = { find: jest.fn().mockResolvedValue([]), findOne: jest.fn() };
 
     service = new MassiveEventService(
       dataSource as unknown as DataSource,
@@ -57,6 +58,7 @@ describe('MassiveEventService', () => {
       simpleEventRepo as unknown as SimpleEventRepository,
       animalSimpleEventRepo as unknown as AnimalSimpleEventRepository,
       cattleRepo as unknown as CattleRepository,
+      userRepo as never,
     );
   });
 

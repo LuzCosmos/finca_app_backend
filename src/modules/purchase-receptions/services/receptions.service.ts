@@ -82,7 +82,7 @@ export class ReceptionsService {
       var reception = await this.prRepo.findByPurchase(idTenant, idPurchase, manager);
       var massiveEvent;
       if (!reception) {
-        var dataMassiveEvent: MassiveEvent = {
+        massiveEvent = this.massiveEventRepo.createInstance({
           id: uuidv4(),
           idTenant,
           eventDate: new Date(),
@@ -92,8 +92,9 @@ export class ReceptionsService {
           updatedAt: new Date(),
           simpleEvents: [],
           name: 'Reception ' + purchase!.id,
-        }
-        massiveEvent = await this.massiveEventRepo.saveWithManager(manager, dataMassiveEvent);
+          linkedToPurchaseReception: true,
+        });
+        massiveEvent = await this.massiveEventRepo.saveWithManager(manager, massiveEvent);
         massiveEvent.simpleEvents = [];
         reception = await this.prRepo.createInstance({ idTenant, idPurchase, idMassiveEvent: massiveEvent.id }, manager);
       } else {

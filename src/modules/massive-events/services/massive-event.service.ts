@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, Logger, HttpException, HttpStatus } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 import { MassiveEventRepository } from '../repositories/massive-event.repository';
 import { SimpleEventRepository } from '../repositories/simple-event.repository';
 import { CreateMassiveEventDto } from '../dto/create-massive-event.dto';
@@ -9,6 +10,8 @@ import { SimpleEvent } from '../entities/simple-event.entity';
 import { MassiveEvent } from '../entities/massive-events.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { SyncMassiveEventDto, SyncMassiveEventResultDto } from '../dto/sync-massive-event.dto';
+import { MassiveEventListQueryDto } from '../dto/massive-event-list.query.dto';
+import { User } from 'src/modules/employee-management/entities/user.entity';
 
 @Injectable()
 export class MassiveEventService {
@@ -20,6 +23,8 @@ export class MassiveEventService {
     private readonly simpleEventRepo: SimpleEventRepository,
     private readonly simpleEventCattleRepository: AnimalSimpleEventRepository,
     private readonly cattleRepository: CattleRepository,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {}
 
   private async saveMassiveAndSimples(manager: EntityManager, payload: SyncMassiveEventDto): Promise<MassiveEvent> {
@@ -37,6 +42,7 @@ export class MassiveEventService {
         createdBy: payload.createdBy,
         createdAt: payload.createdAt ? new Date(payload.createdAt) : undefined,
         updatedAt: payload.updatedAt ? new Date(payload.updatedAt) : undefined,
+        linkedToPurchaseReception: false,
       });
       await this.massiveEventRepo.saveWithManager(manager, massiveEvent);
     }
@@ -122,6 +128,7 @@ export class MassiveEventService {
         eventDate: new Date(dto.eventDate),
         status: 'open',
         createdBy,
+        linkedToPurchaseReception: false,
       });
       await this.massiveEventRepo.saveWithManager(manager, massiveEvent);
 
@@ -156,6 +163,27 @@ export class MassiveEventService {
   }
 
   /**
+   * Lectura en contexto módulo masivos: rechaza masivos ligados a recepción de compra.
+   */
+  async findByIdForMassiveEventsModuleOrFail(idTenant: string, idMassiveEvent: string, manager?: EntityManager): Promise<MassiveEvent> {
+    const massiveEvent = await this.findByIdOrFail(idTenant, idMassiveEvent, manager);
+    if (
+      massiveEvent.linkedToPurchaseReception ||
+      (await this.massiveEventRepo.existsPurchaseReceptionForMassive(idTenant, idMassiveEvent))
+    ) {
+      throw new HttpException(
+        {
+          code: 'MASSIVE_EVENT_FROM_PURCHASE_RECEPTION',
+          message:
+            'This massive event belongs to a purchase reception and is not available in the massive events module.',
+        },
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+    return massiveEvent;
+  }
+
+  /**
    * Get a MassiveEvent by ID and tenant
    * @param idTenant - The tenant ID
    * @param id - The MassiveEvent ID
@@ -164,6 +192,28 @@ export class MassiveEventService {
   async findWithSimpleEventsByIdOrFail(idTenant: string, idMassiveEvent: string, manager?: EntityManager): Promise<MassiveEvent> {
     const massiveEvent = await this.massiveEventRepo.findOneWithSimpleEvents(idTenant, idMassiveEvent, manager);
     if (!massiveEvent) throw new NotFoundException(`MassiveEvent ${idMassiveEvent} not found`);
+    return massiveEvent;
+  }
+
+  async findWithSimpleEventsForMassiveEventsModuleOrFail(
+    idTenant: string,
+    idMassiveEvent: string,
+    manager?: EntityManager,
+  ): Promise<MassiveEvent> {
+    const massiveEvent = await this.findWithSimpleEventsByIdOrFail(idTenant, idMassiveEvent, manager);
+    if (
+      massiveEvent.linkedToPurchaseReception ||
+      (await this.massiveEventRepo.existsPurchaseReceptionForMassive(idTenant, idMassiveEvent))
+    ) {
+      throw new HttpException(
+        {
+          code: 'MASSIVE_EVENT_FROM_PURCHASE_RECEPTION',
+          message:
+            'This massive event belongs to a purchase reception and is not available in the massive events module.',
+        },
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
     return massiveEvent;
   }
   
@@ -197,10 +247,44 @@ export class MassiveEventService {
     });
   }
 
+  async findStandaloneListPaged(idTenant: string, q: MassiveEventListQueryDto) {
+    const page = Math.max(1, q.page ?? 1);
+    const limit = Math.min(500, Math.max(1, q.limit ?? 10));
+    const { items, total } = await this.massiveEventRepo.findStandaloneMassiveEventsPaged(idTenant, {
+      page,
+      limit,
+      from: q.from,
+      to: q.to,
+      name: q.name,
+      status: q.status ?? 'all',
+    });
+    const usernameByUserId = await this.buildUsernameByUserIdMap(idTenant, items);
+    return { items, total, page, limit, usernameByUserId };
+  }
+
+  /** Resuelve `username` para un usuario del tenant (p. ej. GET :id). */
+  async getUsernameForUser(idTenant: string, userId: string): Promise<string | undefined> {
+    const u = await this.userRepo.findOne({
+      where: { id: userId, tenantId: idTenant },
+      select: { username: true },
+    });
+    return u?.username;
+  }
+
+  private async buildUsernameByUserIdMap(idTenant: string, items: MassiveEvent[]): Promise<Map<string, string>> {
+    const ids = [...new Set(items.map(m => m.createdBy).filter((id): id is string => !!id))];
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const users = await this.userRepo.find({
+      where: { id: In(ids), tenantId: idTenant },
+      select: { id: true, username: true },
+    });
+    return new Map(users.map(u => [u.id, u.username]));
+  }
+
   /**
-   * Get all MassiveEvents by tenant
-   * @param idTenant - The tenant ID
-   * @returns The MassiveEvents
+   * Get all MassiveEvents by tenant (incluye recepciones; uso interno / admin).
    */
   async findAll(idTenant: string) {
     return this.massiveEventRepo.findAllByTenant(idTenant);
@@ -215,6 +299,19 @@ export class MassiveEventService {
   async closeMassiveEvent(idTenant: string, id: string) {
     await this.dataSource.transaction(async manager => {
       const massiveEvent = await this.findByIdOrFail(idTenant, id, manager);
+      if (
+        massiveEvent.linkedToPurchaseReception ||
+        (await this.massiveEventRepo.existsPurchaseReceptionForMassive(idTenant, id))
+      ) {
+        throw new HttpException(
+          {
+            code: 'MASSIVE_EVENT_FROM_PURCHASE_RECEPTION',
+            message:
+              'This massive event belongs to a purchase reception and cannot be closed from the massive events module.',
+          },
+          HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
       //if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
       await this.simpleEventRepo.deleteUnappliedByMassiveEvent(manager, idTenant, id);
       const simpleEvents = await this.simpleEventRepo.findByMassiveEvent(idTenant, id);

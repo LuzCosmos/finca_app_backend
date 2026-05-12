@@ -8,16 +8,19 @@ import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 import { MassiveEvent } from '../entities/massive-events.entity';
 import { CreateMassiveEventDto } from '../dto/create-massive-event.dto';
 import { MassiveEventResponseDto } from '../dto/massive-event-response.dto';
+import { PagedResponseDto } from 'src/shared/dto/paged-response.dto';
+import { MassiveEventListQueryDto } from '../dto/massive-event-list.query.dto';
 
 describe('MassiveEventController', () => {
   let controller: MassiveEventController;
   let massiveEventService: {
     createMassiveEvent: jest.Mock;
-    findByIdOrFail: jest.Mock;
-    findAll: jest.Mock;
+    findByIdForMassiveEventsModuleOrFail: jest.Mock;
+    findStandaloneListPaged: jest.Mock;
     findCattleByMassiveEvent: jest.Mock;
     closeMassiveEvent: jest.Mock;
     syncMassiveEvents: jest.Mock;
+    getUsernameForUser: jest.Mock;
   };
 
   const session: SessionUserDto = {
@@ -33,11 +36,12 @@ describe('MassiveEventController', () => {
   beforeEach(async () => {
     massiveEventService = {
       createMassiveEvent: jest.fn(),
-      findByIdOrFail: jest.fn(),
-      findAll: jest.fn(),
+      findByIdForMassiveEventsModuleOrFail: jest.fn(),
+      findStandaloneListPaged: jest.fn(),
       findCattleByMassiveEvent: jest.fn(),
       closeMassiveEvent: jest.fn(),
       syncMassiveEvents: jest.fn(),
+      getUsernameForUser: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -63,6 +67,7 @@ describe('MassiveEventController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         simpleEvents: [],
+        linkedToPurchaseReception: false,
       } as MassiveEvent;
       massiveEventService.createMassiveEvent.mockResolvedValue(entity);
       const dto: CreateMassiveEventDto = { eventDate: '2025-06-01' };
@@ -81,6 +86,7 @@ describe('MassiveEventController', () => {
         eventDate: new Date('2025-06-01'),
         createdAt: new Date(),
         updatedAt: new Date(),
+        linkedToPurchaseReception: false,
       } as MassiveEvent;
 
       massiveEventService.createMassiveEvent.mockResolvedValue(entity);
@@ -111,17 +117,23 @@ describe('MassiveEventController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         simpleEvents: [],
+        linkedToPurchaseReception: false,
+        createdBy: 'user-1',
       } as MassiveEvent;
-      massiveEventService.findByIdOrFail.mockResolvedValue(entity);
+      massiveEventService.findByIdForMassiveEventsModuleOrFail.mockResolvedValue(entity);
+      massiveEventService.getUsernameForUser.mockResolvedValue('alice');
 
       const out = await controller.findOne(session, 'me-1');
 
-      expect(massiveEventService.findByIdOrFail).toHaveBeenCalledWith('tenant-1', 'me-1');
-      expect(out).toEqual(MassiveEventResponseDto.toResponseDto(entity, entity.simpleEvents ?? []));
+      expect(massiveEventService.findByIdForMassiveEventsModuleOrFail).toHaveBeenCalledWith('tenant-1', 'me-1');
+      expect(massiveEventService.getUsernameForUser).toHaveBeenCalledWith('tenant-1', 'user-1');
+      expect(out).toEqual(
+        MassiveEventResponseDto.toResponseDto(entity, entity.simpleEvents ?? [], { createdByUsername: 'alice' }),
+      );
     });
 
-    it('propaga errores de findByIdOrFail', async () => {
-      massiveEventService.findByIdOrFail.mockRejectedValue(new NotFoundException('not found'));
+    it('propaga errores de findByIdForMassiveEventsModuleOrFail', async () => {
+      massiveEventService.findByIdForMassiveEventsModuleOrFail.mockRejectedValue(new NotFoundException('not found'));
 
       await expect(controller.findOne(session, 'missing')).rejects.toThrow(NotFoundException);
     });
@@ -134,10 +146,12 @@ describe('MassiveEventController', () => {
         { idCattle: 'c2', number: 'N2' },
       ];
 
+      massiveEventService.findByIdForMassiveEventsModuleOrFail.mockResolvedValue({ id: 'me-1' } as MassiveEvent);
       massiveEventService.findCattleByMassiveEvent.mockResolvedValue(result);
 
       const out = await controller.getAppliedCattleIdsByMassiveEvent('me-1', session);
 
+      expect(massiveEventService.findByIdForMassiveEventsModuleOrFail).toHaveBeenCalledWith('tenant-1', 'me-1');
       expect(massiveEventService.findCattleByMassiveEvent).toHaveBeenCalledWith(
         'tenant-1',
         'me-1',
@@ -146,6 +160,7 @@ describe('MassiveEventController', () => {
     });
 
     it('getAppliedCattleIdsByMassiveEvent propaga errores del service', async () => {
+      massiveEventService.findByIdForMassiveEventsModuleOrFail.mockResolvedValue({} as MassiveEvent);
       massiveEventService.findCattleByMassiveEvent.mockRejectedValue(new Error('lookup error'));
 
       await expect(
@@ -155,7 +170,9 @@ describe('MassiveEventController', () => {
   });
 
   describe('list', () => {
-    it('lista eventos y mapea cada uno a response DTO', async () => {
+    const query = new MassiveEventListQueryDto();
+
+    it('lista eventos paginados y mapea cada uno a response DTO', async () => {
       const e1 = {
         id: 'a',
         idTenant: 'tenant-1',
@@ -164,17 +181,26 @@ describe('MassiveEventController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         simpleEvents: [],
+        linkedToPurchaseReception: false,
       } as MassiveEvent;
       const e2 = { ...e1, id: 'b' } as MassiveEvent;
-      massiveEventService.findAll.mockResolvedValue([e1, e2]);
+      massiveEventService.findStandaloneListPaged.mockResolvedValue({
+        items: [e1, e2],
+        total: 2,
+        page: 1,
+        limit: 10,
+        usernameByUserId: new Map<string, string>(),
+      });
 
-      const out = await controller.list(session);
+      const out = await controller.list(session, query);
 
-      expect(massiveEventService.findAll).toHaveBeenCalledWith('tenant-1');
-      expect(out).toEqual([
-        MassiveEventResponseDto.toResponseDto(e1, e1.simpleEvents ?? []),
-        MassiveEventResponseDto.toResponseDto(e2, e2.simpleEvents ?? []),
-      ]);
+      expect(massiveEventService.findStandaloneListPaged).toHaveBeenCalledWith('tenant-1', query);
+      expect(out).toEqual(
+        PagedResponseDto.of(1, 10, 2, [
+          MassiveEventResponseDto.toResponseDto(e1, e1.simpleEvents ?? []),
+          MassiveEventResponseDto.toResponseDto(e2, e2.simpleEvents ?? []),
+        ]),
+      );
     });
 
     it('trata massive events sin simpleEvents como array vacío en el DTO', async () => {
@@ -185,19 +211,26 @@ describe('MassiveEventController', () => {
         eventDate: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
+        linkedToPurchaseReception: false,
       } as MassiveEvent;
 
-      massiveEventService.findAll.mockResolvedValue([entity]);
+      massiveEventService.findStandaloneListPaged.mockResolvedValue({
+        items: [entity],
+        total: 1,
+        page: 1,
+        limit: 10,
+        usernameByUserId: new Map<string, string>(),
+      });
 
-      const out = await controller.list(session);
+      const out = await controller.list(session, query);
 
-      expect(out).toEqual([MassiveEventResponseDto.toResponseDto(entity, [])]);
+      expect(out).toEqual(PagedResponseDto.of(1, 10, 1, [MassiveEventResponseDto.toResponseDto(entity, [])]));
     });
 
-    it('list propaga errores de findAll', async () => {
-      massiveEventService.findAll.mockRejectedValue(new Error('db error'));
+    it('list propaga errores de findStandaloneListPaged', async () => {
+      massiveEventService.findStandaloneListPaged.mockRejectedValue(new Error('db error'));
 
-      await expect(controller.list(session)).rejects.toThrow('db error');
+      await expect(controller.list(session, query)).rejects.toThrow('db error');
     });
   });
 

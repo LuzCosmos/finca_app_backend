@@ -18,6 +18,10 @@ export class MassiveEvent {
   @Column({ type: 'varchar', length: 20, default: 'open' })
   status: string;
 
+  /** True si el masivo fue creado para una recepción de compra (listado masivos lo excluye; offline sin tabla recepciones). */
+  @Column({ name: 'linked_to_purchase_reception', type: 'boolean', default: false })
+  linkedToPurchaseReception: boolean;
+
   @Column({ name: 'created_by', type: 'uuid', nullable: true })
   createdBy?: string;
 
