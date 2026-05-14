@@ -257,6 +257,8 @@ export class MassiveEventService {
       to: q.to,
       name: q.name,
       status: q.status ?? 'all',
+      sortBy: q.sortBy,
+      sortDir: q.sortDir,
     });
     const usernameByUserId = await this.buildUsernameByUserIdMap(idTenant, items);
     return { items, total, page, limit, usernameByUserId };

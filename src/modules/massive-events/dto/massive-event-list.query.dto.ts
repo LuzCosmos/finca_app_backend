@@ -35,4 +35,18 @@ export class MassiveEventListQueryDto {
   @IsOptional()
   @IsIn(['all', 'open', 'closed'])
   status: 'all' | 'open' | 'closed' = 'all';
+
+  @ApiPropertyOptional({
+    enum: ['eventDate', 'name', 'status', 'createdAt', 'updatedAt'],
+    description: 'Columna de ordenación (listado autónomo paginado)',
+    default: 'eventDate',
+  })
+  @IsOptional()
+  @IsIn(['eventDate', 'name', 'status', 'createdAt', 'updatedAt'])
+  sortBy?: 'eventDate' | 'name' | 'status' | 'createdAt' | 'updatedAt';
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortDir?: 'asc' | 'desc';
 }

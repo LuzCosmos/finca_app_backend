@@ -71,7 +71,10 @@ export class MassiveEventRepository {
    */
   async findStandaloneMassiveEventsPaged(
     idTenant: string,
-    q: Pick<MassiveEventListQueryDto, 'page' | 'limit' | 'from' | 'to' | 'name' | 'status'>,
+    q: Pick<
+      MassiveEventListQueryDto,
+      'page' | 'limit' | 'from' | 'to' | 'name' | 'status' | 'sortBy' | 'sortDir'
+    >,
   ): Promise<{ items: MassiveEvent[]; total: number }> {
     const page = Math.max(1, q.page ?? 1);
     const limit = Math.min(500, Math.max(1, q.limit ?? 10));
@@ -106,12 +109,21 @@ export class MassiveEventRepository {
 
     const total = await qb.clone().getCount();
 
+    const sortCol =
+      {
+        eventDate: 'me.eventDate',
+        name: 'me.name',
+        status: 'me.status',
+        createdAt: 'me.createdAt',
+        updatedAt: 'me.updatedAt',
+      }[q.sortBy ?? 'eventDate'] ?? 'me.eventDate';
+    const sortDir = (q.sortDir ?? 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
     const idRows = await qb
       .clone()
       .select('me.id')
-      .orderBy('me.eventDate', 'DESC')
-      .addOrderBy('me.name', 'ASC')
-      .addOrderBy('me.updatedAt', 'DESC')
+      .orderBy(sortCol, sortDir)
+      .addOrderBy('me.id', 'ASC')
       .skip((page - 1) * limit)
       .take(limit)
       .getMany();
