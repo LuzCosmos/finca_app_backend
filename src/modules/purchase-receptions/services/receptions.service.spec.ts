@@ -33,7 +33,7 @@ describe('ReceptionsService', () => {
   let deviceRepo: { find: jest.Mock };
   let prRepo: { findByPurchase: jest.Mock; createInstance: jest.Mock };
   let purchaseRepo: { findById: jest.Mock };
-  let massiveEventRepo: { saveWithManager: jest.Mock; findById: jest.Mock };
+  let massiveEventRepo: { createInstance: jest.Mock; saveWithManager: jest.Mock; findById: jest.Mock };
   let lotRepo: { findByPurchaseId: jest.Mock; findById: jest.Mock };
   let cattleRepo: {
     findByPurchaseId?: jest.Mock;
@@ -103,7 +103,11 @@ describe('ReceptionsService', () => {
     deviceRepo = { find: jest.fn() };
     prRepo = { findByPurchase: jest.fn(), createInstance: jest.fn() };
     purchaseRepo = { findById: jest.fn() };
-    massiveEventRepo = { saveWithManager: jest.fn(), findById: jest.fn() };
+    massiveEventRepo = {
+      createInstance: jest.fn((data: Partial<MassiveEvent>) => ({ ...data } as MassiveEvent)),
+      saveWithManager: jest.fn(),
+      findById: jest.fn(),
+    };
     lotRepo = { findByPurchaseId: jest.fn(), findById: jest.fn() };
     cattleRepo = {
       findByIdLot: jest.fn(),
