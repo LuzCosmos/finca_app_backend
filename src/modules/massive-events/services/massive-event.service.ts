@@ -8,6 +8,7 @@ import { AnimalSimpleEventRepository } from '../repositories/animal-simple-event
 import { CattleRepository } from 'src/modules/farm/repositories/cattle.repository';
 import { SimpleEvent } from '../entities/simple-event.entity';
 import { MassiveEvent } from '../entities/massive-events.entity';
+import { AnimalSimpleEvent } from '../entities/animal-simple-event.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { SyncMassiveEventDto, SyncMassiveEventResultDto } from '../dto/sync-massive-event.dto';
 import { MassiveEventListQueryDto } from '../dto/massive-event-list.query.dto';
@@ -290,6 +291,87 @@ export class MassiveEventService {
    */
   async findAll(idTenant: string) {
     return this.massiveEventRepo.findAllByTenant(idTenant);
+  }
+
+  /**
+   * Agrupa `animal_simple_event` por número de animal para rehidratar la sesión en cliente
+   * (edición / continuar). `previousWeight` reservado para historial de pesajes; por ahora null.
+   */
+  async findAppliedAnimalsSession(
+    idTenant: string,
+    idMassiveEvent: string,
+  ): Promise<{
+    groups: Array<{
+      animalNumber: string;
+      idAnimal?: string;
+      previousWeight: number | null;
+      events: Array<{
+        id: string;
+        idTenant: string;
+        idAnimal?: string;
+        animalNumber: string;
+        type: string;
+        data: unknown;
+        appliedAt: Date;
+        appliedBy?: string;
+        idMassiveEvent: string;
+        idSimpleEvent: string;
+      }>;
+    }>;
+  }> {
+    await this.findByIdForMassiveEventsModuleOrFail(idTenant, idMassiveEvent);
+    const animalRows = await this.simpleEventCattleRepository.findByMassiveEvent(idTenant, idMassiveEvent);
+    if (animalRows.length === 0) {
+      return { groups: [] };
+    }
+    const simpleIds = [...new Set(animalRows.map(r => r.idSimpleEvent))];
+    const simpleList = await this.simpleEventRepo.findByIds(idTenant, simpleIds);
+    const simpleById = new Map(simpleList.map(s => [s.id, s]));
+
+    const byAnimal = new Map<
+      string,
+      {
+        animalNumber: string;
+        idAnimal?: string;
+        rows: AnimalSimpleEvent[];
+      }
+    >();
+
+    for (const ase of animalRows) {
+      const animalNumber = ase.provisionalNumber ?? ase.idAnimal ?? 'unknown';
+      let g = byAnimal.get(animalNumber);
+      if (!g) {
+        g = { animalNumber, idAnimal: ase.idAnimal ?? undefined, rows: [] };
+        byAnimal.set(animalNumber, g);
+      }
+      g.rows.push(ase);
+      if (!g.idAnimal && ase.idAnimal) {
+        g.idAnimal = ase.idAnimal;
+      }
+    }
+
+    const groups = [...byAnimal.values()].map(g => ({
+      animalNumber: g.animalNumber,
+      idAnimal: g.idAnimal,
+      previousWeight: null as number | null,
+      events: g.rows.map(ase => {
+        const se = simpleById.get(ase.idSimpleEvent);
+        return {
+          id: ase.id,
+          idTenant: ase.idTenant,
+          idAnimal: ase.idAnimal,
+          animalNumber: g.animalNumber,
+          type: se?.type ?? 'unknown',
+          data: ase.data,
+          appliedAt: ase.appliedAt,
+          appliedBy: ase.appliedBy,
+          idMassiveEvent: ase.idMassiveEvent,
+          idSimpleEvent: ase.idSimpleEvent,
+        };
+      }),
+    }));
+
+    return { groups };
   }
 
   /**
