@@ -191,6 +191,26 @@ export class CattleRepository {
     }
   }
 
+  async findOneForUpdateByNumberAndStatuses(idTenant: string, number: string, statuses: CattleStatus[], manager: EntityManager): Promise<Cattle | null> {
+    try {
+      return manager.getRepository(Cattle).findOne({
+        where: { idTenant, number, status: In(statuses) },
+        lock: { mode: 'pessimistic_write' },
+      });
+    } catch (err) {
+      if (err instanceof QueryFailedError) {
+        const pgCode = err.driverError?.code as string | undefined;
+        if (pgCode === '55P03') { // Locked
+          throw new HttpException('Resource is locked', HttpStatus.LOCKED); // 423
+        }
+        if (pgCode === '40P01') { // Deadlock
+          throw new ConflictException('A deadlock occurred, please retry.');
+        }
+      }
+      throw err;
+    }
+  }
+
   async findByAnyEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
     return repo
