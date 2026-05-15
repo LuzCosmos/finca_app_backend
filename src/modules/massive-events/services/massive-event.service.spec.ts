@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { MassiveEventService } from './massive-event.service';
 import { MassiveEventRepository } from '../repositories/massive-event.repository';
@@ -20,8 +20,15 @@ describe('MassiveEventService', () => {
     findAllByTenant: jest.Mock;
     createInstance: jest.Mock;
     saveWithManager: jest.Mock;
+    existsPurchaseReceptionForMassive: jest.Mock;
+    updateByIdWithManager: jest.Mock;
   };
-  let simpleEventRepo: { createInstance: jest.Mock; saveWithManager: jest.Mock };
+  let simpleEventRepo: {
+    createInstance: jest.Mock;
+    saveWithManager: jest.Mock;
+    deleteUnappliedByMassiveEvent: jest.Mock;
+    findByMassiveEvent: jest.Mock;
+  };
   let animalSimpleEventRepo: Record<string, never>;
   let cattleRepo: Record<string, never>;
   let mockManager: Record<string, jest.Mock>;
@@ -43,10 +50,14 @@ describe('MassiveEventService', () => {
       findAllByTenant: jest.fn(),
       createInstance: jest.fn(),
       saveWithManager: jest.fn(),
+      existsPurchaseReceptionForMassive: jest.fn(),
+      updateByIdWithManager: jest.fn(),
     };
     simpleEventRepo = {
       createInstance: jest.fn(),
       saveWithManager: jest.fn(),
+      deleteUnappliedByMassiveEvent: jest.fn(),
+      findByMassiveEvent: jest.fn(),
     };
     animalSimpleEventRepo = {};
     cattleRepo = {};
@@ -312,6 +323,88 @@ describe('MassiveEventService', () => {
       );
       expect(simpleEventRepo.saveWithManager).toHaveBeenCalled();
       expect(out.simpleEvents.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('closeMassiveEvent', () => {
+    const openMassive = {
+      id: eventId,
+      idTenant: tenantId,
+      linkedToPurchaseReception: false,
+    } as unknown as MassiveEvent;
+
+    beforeEach(() => {
+      massiveEventRepo.findById.mockResolvedValue(openMassive);
+      massiveEventRepo.existsPurchaseReceptionForMassive.mockResolvedValue(false);
+      simpleEventRepo.deleteUnappliedByMassiveEvent.mockResolvedValue(0);
+    });
+
+    it('cierra cuando quedan simple events aplicados tras limpieza', async () => {
+      simpleEventRepo.findByMassiveEvent.mockResolvedValue([{ id: 'se-1' } as SimpleEvent]);
+
+      await service.closeMassiveEvent(tenantId, eventId);
+
+      expect(simpleEventRepo.deleteUnappliedByMassiveEvent).toHaveBeenCalled();
+      expect(massiveEventRepo.updateByIdWithManager).toHaveBeenCalledWith(
+        expect.anything(),
+        eventId,
+        tenantId,
+        { status: 'closed' },
+      );
+    });
+
+    it('422 string cuando no quedan simple events tras deleteUnapplied', async () => {
+      simpleEventRepo.findByMassiveEvent.mockResolvedValue([]);
+
+      try {
+        await service.closeMassiveEvent(tenantId, eventId);
+        fail('expected HttpException');
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        const he = e as HttpException;
+        expect(he.getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+        expect(he.getResponse()).toBe('No simple events applied');
+      }
+    });
+
+    it('422 con cuerpo { code } cuando está ligado a recepción de compra (flag)', async () => {
+      const linked = {
+        ...openMassive,
+        linkedToPurchaseReception: true,
+      } as unknown as MassiveEvent;
+      massiveEventRepo.findById.mockResolvedValue(linked);
+
+      try {
+        await service.closeMassiveEvent(tenantId, eventId);
+        fail('expected HttpException');
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        const he = e as HttpException;
+        expect(he.getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+        expect(he.getResponse()).toEqual(
+          expect.objectContaining({
+            code: 'MASSIVE_EVENT_FROM_PURCHASE_RECEPTION',
+          }),
+        );
+      }
+    });
+
+    it('422 con cuerpo { code } cuando existe recepción (repo)', async () => {
+      massiveEventRepo.existsPurchaseReceptionForMassive.mockResolvedValue(true);
+
+      try {
+        await service.closeMassiveEvent(tenantId, eventId);
+        fail('expected HttpException');
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        const he = e as HttpException;
+        expect(he.getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+        expect(he.getResponse()).toEqual(
+          expect.objectContaining({
+            code: 'MASSIVE_EVENT_FROM_PURCHASE_RECEPTION',
+          }),
+        );
+      }
     });
   });
 });
