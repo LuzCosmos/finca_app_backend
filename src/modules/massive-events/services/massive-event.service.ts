@@ -6,6 +6,7 @@ import { SimpleEventRepository } from '../repositories/simple-event.repository';
 import { CreateMassiveEventDto } from '../dto/create-massive-event.dto';
 import { AnimalSimpleEventRepository } from '../repositories/animal-simple-event.repository';
 import { CattleRepository } from 'src/modules/farm/repositories/cattle.repository';
+import { CattleWeightHistoryRepository } from 'src/modules/farm/repositories/cattle-weight-history.repository';
 import { SimpleEvent } from '../entities/simple-event.entity';
 import { MassiveEvent } from '../entities/massive-events.entity';
 import { AnimalSimpleEvent } from '../entities/animal-simple-event.entity';
@@ -24,6 +25,7 @@ export class MassiveEventService {
     private readonly simpleEventRepo: SimpleEventRepository,
     private readonly simpleEventCattleRepository: AnimalSimpleEventRepository,
     private readonly cattleRepository: CattleRepository,
+    private readonly cattleWeightHistoryRepository: CattleWeightHistoryRepository,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
   ) {}
@@ -295,7 +297,7 @@ export class MassiveEventService {
 
   /**
    * Agrupa `animal_simple_event` por número de animal para rehidratar la sesión en cliente
-   * (edición / continuar). `previousWeight` reservado para historial de pesajes; por ahora null.
+   * (edición / continuar). `previousWeight` = último peso en `cattle_weight_history` ajeno al masivo actual.
    */
   async findAppliedAnimalsSession(
     idTenant: string,
@@ -350,10 +352,21 @@ export class MassiveEventService {
       }
     }
 
+    const cattleIds = [...byAnimal.values()]
+      .map(g => g.idAnimal)
+      .filter((id): id is string => !!id);
+    const previousByCattle =
+      await this.cattleWeightHistoryRepository.findPreviousWeightsBeforeMassiveEvent(
+        idTenant,
+        cattleIds,
+        idMassiveEvent,
+      );
+
     const groups = [...byAnimal.values()].map(g => ({
       animalNumber: g.animalNumber,
       idAnimal: g.idAnimal,
-      previousWeight: null as number | null,
+      previousWeight:
+        g.idAnimal != null ? (previousByCattle.get(g.idAnimal) ?? null) : null,
       events: g.rows.map(ase => {
         const se = simpleById.get(ase.idSimpleEvent);
         return {

@@ -66,6 +66,40 @@ export class CattleWeightHistoryRepository {
     return list[0] ?? null;
   }
 
+  /**
+   * Último peso registrado **antes** del evento masivo indicado (excluye filas de ese masivo).
+   * Usado en `GET .../applied-animals` para `previousWeight` al rehidratar sesión.
+   */
+  async findPreviousWeightsBeforeMassiveEvent(
+    idTenant: string,
+    idCattleList: string[],
+    idMassiveEvent: string,
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    const uniqueIds = [...new Set(idCattleList.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+    const repo = manager ? manager.getRepository(CattleWeightHistory) : this.repo;
+    const rows = await repo
+      .createQueryBuilder('cwh')
+      .where('cwh.id_tenant = :idTenant', { idTenant })
+      .andWhere('cwh.id_cattle IN (:...ids)', { ids: uniqueIds })
+      .andWhere('(cwh."idMassiveEvent" IS NULL OR cwh."idMassiveEvent" != :idMassiveEvent)', {
+        idMassiveEvent,
+      })
+      .orderBy('cwh.date', 'DESC')
+      .getMany();
+
+    const byCattle = new Map<string, number>();
+    for (const row of rows) {
+      if (!byCattle.has(row.idCattle) && row.weight != null) {
+        byCattle.set(row.idCattle, Number(row.weight));
+      }
+    }
+    return byCattle;
+  }
+
   async findOneById(
     idTenant: string,
     id: string,

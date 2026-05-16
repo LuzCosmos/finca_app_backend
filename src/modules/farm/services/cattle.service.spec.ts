@@ -146,14 +146,17 @@ describe('CattleService', () => {
       expect(cattleRepository.search).not.toHaveBeenCalled();
     });
 
-    it('busca solo ganado ACTIVE cuando el query es válido', async () => {
+    it('busca ganado ACTIVE y SOLD cuando el query es válido', async () => {
       const rows = [{ id: cattleId }] as unknown as Cattle[];
       cattleRepository.search.mockResolvedValue(rows);
 
       const out = await service.search(tenantId, '123');
 
       expect(out).toBe(rows);
-      expect(cattleRepository.search).toHaveBeenCalledWith(tenantId, '123', [CattleStatus.ACTIVE]);
+      expect(cattleRepository.search).toHaveBeenCalledWith(tenantId, '123', [
+        CattleStatus.ACTIVE,
+        CattleStatus.SOLD,
+      ]);
     });
   });
 
@@ -225,7 +228,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
     findByAnyEartag: jest.Mock;
     unsetDevice: jest.Mock;
     saveWithManager: jest.Mock;
-    findOneForUpdateByNumber: jest.Mock;
+    findOneForUpdateByNumberAndStatuses: jest.Mock;
   };
   let cattleDeviceHistoryRepository: {
     unassignDeviceByidDevice: jest.Mock;
@@ -266,7 +269,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
       findByAnyEartag: jest.fn(),
       unsetDevice: jest.fn(),
       saveWithManager: jest.fn(),
-      findOneForUpdateByNumber: jest.fn(),
+      findOneForUpdateByNumberAndStatuses: jest.fn(),
     };
     cattleDeviceHistoryRepository = {
       unassignDeviceByidDevice: jest.fn().mockResolvedValue(undefined),
@@ -546,7 +549,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
         status: 'open',
         simpleEvents: [],
       } as never);
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue({
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue({
         id: cattleId,
         status: CattleStatus.ACTIVE,
         number: 'N1',
@@ -571,7 +574,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
         status: 'open',
         simpleEvents: [],
       } as never);
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue({
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue({
         id: cattleId,
         status: CattleStatus.ACTIVE,
         number: 'N1',
@@ -606,7 +609,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
 
     it('lanza NotFoundException si no hay cattle con ese número', async () => {
       massiveEventService.findWithSimpleEventsByIdOrFail.mockResolvedValue({ status: 'open', simpleEvents: [] } as never);
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue(null);
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue(null);
 
       await expect(
         service.applyMultipleSimpleEventsByNumber_manager(
@@ -622,7 +625,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
 
     it('aplicando WEIGHT crea historial de evento y persiste cattle', async () => {
       massiveEventService.findWithSimpleEventsByIdOrFail.mockResolvedValue({ status: 'open', simpleEvents: [] } as never);
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue({
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue({
         id: cattleId,
         status: CattleStatus.ACTIVE,
         number: 'N1',
@@ -656,7 +659,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
 
     it('lanza ConflictException si EARTAG duplicado en otro animal', async () => {
       massiveEventService.findWithSimpleEventsByIdOrFail.mockResolvedValue({ status: 'open', simpleEvents: [] } as never);
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue({
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue({
         id: cattleId,
         status: CattleStatus.ACTIVE,
         number: 'N1',
@@ -678,7 +681,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
 
     it('lanza NotFoundException si TRACKER referencia dispositivo inexistente', async () => {
       massiveEventService.findWithSimpleEventsByIdOrFail.mockResolvedValue({ status: 'open', simpleEvents: [] } as never);
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue({
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue({
         id: cattleId,
         status: CattleStatus.ACTIVE,
         number: 'N1',
@@ -700,7 +703,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
 
     it('aplicando MEDICATION persiste en historial de medicación', async () => {
       massiveEventService.findWithSimpleEventsByIdOrFail.mockResolvedValue({ status: 'open', simpleEvents: [] } as never);
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue({
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue({
         id: cattleId,
         status: CattleStatus.ACTIVE,
         number: 'N1',
@@ -751,14 +754,14 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
     });
 
     it('failed si el cattle no existe', async () => {
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue(null);
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue(null);
       const out = await service.syncCattleSimpleEvents(tenantId, userId, [payload()]);
       expect(out[0].status).toBe('failed');
       expect(out[0].message).toContain('not found');
     });
 
     it('failed si el status no permite aplicar eventos', async () => {
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue({
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue({
         id: cattleId,
         status: CattleStatus.DEAD,
       } as Cattle);
@@ -768,7 +771,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
     });
 
     it('synced con payload válido WEIGHT', async () => {
-      cattleRepository.findOneForUpdateByNumber.mockResolvedValue({
+      cattleRepository.findOneForUpdateByNumberAndStatuses.mockResolvedValue({
         id: cattleId,
         status: CattleStatus.ACTIVE,
         number: 'N-SYNC',
@@ -781,7 +784,7 @@ describe('CattleService (transacciones y reglas de negocio)', () => {
     });
 
     it('mezcla failed y synced en el mismo batch', async () => {
-      cattleRepository.findOneForUpdateByNumber
+      cattleRepository.findOneForUpdateByNumberAndStatuses
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({
           id: cattleId,
