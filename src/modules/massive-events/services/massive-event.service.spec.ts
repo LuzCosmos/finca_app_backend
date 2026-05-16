@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { MassiveEventService } from './massive-event.service';
 import { MassiveEventRepository } from '../repositories/massive-event.repository';
@@ -7,6 +7,8 @@ import { AnimalSimpleEventRepository } from '../repositories/animal-simple-event
 import { CattleRepository } from 'src/modules/farm/repositories/cattle.repository';
 import { MassiveEvent } from '../entities/massive-events.entity';
 import { SimpleEvent } from '../entities/simple-event.entity';
+import { AnimalSimpleEvent } from '../entities/animal-simple-event.entity';
+import { CattleWeightHistoryRepository } from 'src/modules/farm/repositories/cattle-weight-history.repository';
 import { CreateMassiveEventDto } from '../dto/create-massive-event.dto';
 import { SyncMassiveEventDto } from '../dto/sync-massive-event.dto';
 import { SimpleEventType } from '../enums/simple-event-type.enum';
@@ -20,10 +22,19 @@ describe('MassiveEventService', () => {
     findAllByTenant: jest.Mock;
     createInstance: jest.Mock;
     saveWithManager: jest.Mock;
+    existsPurchaseReceptionForMassive: jest.Mock;
+    updateByIdWithManager: jest.Mock;
   };
-  let simpleEventRepo: { createInstance: jest.Mock; saveWithManager: jest.Mock };
-  let animalSimpleEventRepo: Record<string, never>;
+  let simpleEventRepo: {
+    createInstance: jest.Mock;
+    saveWithManager: jest.Mock;
+    deleteUnappliedByMassiveEvent: jest.Mock;
+    findByMassiveEvent: jest.Mock;
+    findByIds: jest.Mock;
+  };
+  let animalSimpleEventRepo: { findByMassiveEvent: jest.Mock };
   let cattleRepo: Record<string, never>;
+  let cattleWeightHistoryRepo: { findPreviousWeightsBeforeMassiveEvent: jest.Mock };
   let mockManager: Record<string, jest.Mock>;
 
   const tenantId = 'tenant-1';
@@ -43,13 +54,19 @@ describe('MassiveEventService', () => {
       findAllByTenant: jest.fn(),
       createInstance: jest.fn(),
       saveWithManager: jest.fn(),
+      existsPurchaseReceptionForMassive: jest.fn(),
+      updateByIdWithManager: jest.fn(),
     };
     simpleEventRepo = {
       createInstance: jest.fn(),
       saveWithManager: jest.fn(),
+      deleteUnappliedByMassiveEvent: jest.fn(),
+      findByMassiveEvent: jest.fn(),
+      findByIds: jest.fn(),
     };
-    animalSimpleEventRepo = {};
+    animalSimpleEventRepo = { findByMassiveEvent: jest.fn() };
     cattleRepo = {};
+    cattleWeightHistoryRepo = { findPreviousWeightsBeforeMassiveEvent: jest.fn() };
     const userRepo = { find: jest.fn().mockResolvedValue([]), findOne: jest.fn() };
 
     service = new MassiveEventService(
@@ -58,6 +75,7 @@ describe('MassiveEventService', () => {
       simpleEventRepo as unknown as SimpleEventRepository,
       animalSimpleEventRepo as unknown as AnimalSimpleEventRepository,
       cattleRepo as unknown as CattleRepository,
+      cattleWeightHistoryRepo as unknown as CattleWeightHistoryRepository,
       userRepo as never,
     );
   });
@@ -312,6 +330,194 @@ describe('MassiveEventService', () => {
       );
       expect(simpleEventRepo.saveWithManager).toHaveBeenCalled();
       expect(out.simpleEvents.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('findAppliedAnimalsSession', () => {
+    const openMassive = {
+      id: eventId,
+      idTenant: tenantId,
+      linkedToPurchaseReception: false,
+    } as unknown as MassiveEvent;
+
+    beforeEach(() => {
+      massiveEventRepo.findById.mockResolvedValue(openMassive);
+      massiveEventRepo.existsPurchaseReceptionForMassive.mockResolvedValue(false);
+    });
+
+    it('devuelve groups vacío sin consultar historial de peso', async () => {
+      animalSimpleEventRepo.findByMassiveEvent.mockResolvedValue([]);
+
+      const out = await service.findAppliedAnimalsSession(tenantId, eventId);
+
+      expect(out).toEqual({ groups: [] });
+      expect(cattleWeightHistoryRepo.findPreviousWeightsBeforeMassiveEvent).not.toHaveBeenCalled();
+    });
+
+    it('rellena previousWeight desde historial ajeno al masivo', async () => {
+      const cattleId = 'cattle-1';
+      animalSimpleEventRepo.findByMassiveEvent.mockResolvedValue([
+        {
+          id: 'ase-1',
+          idTenant: tenantId,
+          idMassiveEvent: eventId,
+          idSimpleEvent: 'se-1',
+          idAnimal: cattleId,
+          provisionalNumber: 'N-100',
+          data: { weight: 420 },
+          appliedAt: new Date('2025-06-01'),
+        } as AnimalSimpleEvent,
+      ]);
+      simpleEventRepo.findByIds.mockResolvedValue([
+        { id: 'se-1', type: SimpleEventType.WEIGHT } as SimpleEvent,
+      ]);
+      cattleWeightHistoryRepo.findPreviousWeightsBeforeMassiveEvent.mockResolvedValue(
+        new Map([[cattleId, 380]]),
+      );
+
+      const out = await service.findAppliedAnimalsSession(tenantId, eventId);
+
+      expect(cattleWeightHistoryRepo.findPreviousWeightsBeforeMassiveEvent).toHaveBeenCalledWith(
+        tenantId,
+        [cattleId],
+        eventId,
+      );
+      expect(out.groups).toHaveLength(1);
+      expect(out.groups[0].animalNumber).toBe('N-100');
+      expect(out.groups[0].previousWeight).toBe(380);
+    });
+
+    it('previousWeight null sin idAnimal (solo provisional)', async () => {
+      animalSimpleEventRepo.findByMassiveEvent.mockResolvedValue([
+        {
+          id: 'ase-2',
+          idTenant: tenantId,
+          idMassiveEvent: eventId,
+          idSimpleEvent: 'se-1',
+          provisionalNumber: 'PROV-1',
+          data: { weight: 300 },
+          appliedAt: new Date(),
+        } as AnimalSimpleEvent,
+      ]);
+      simpleEventRepo.findByIds.mockResolvedValue([
+        { id: 'se-1', type: SimpleEventType.WEIGHT } as SimpleEvent,
+      ]);
+      cattleWeightHistoryRepo.findPreviousWeightsBeforeMassiveEvent.mockResolvedValue(new Map());
+
+      const out = await service.findAppliedAnimalsSession(tenantId, eventId);
+
+      expect(cattleWeightHistoryRepo.findPreviousWeightsBeforeMassiveEvent).toHaveBeenCalledWith(
+        tenantId,
+        [],
+        eventId,
+      );
+      expect(out.groups[0].previousWeight).toBeNull();
+    });
+
+    it('previousWeight null si no hay historial previo', async () => {
+      const cattleId = 'cattle-2';
+      animalSimpleEventRepo.findByMassiveEvent.mockResolvedValue([
+        {
+          id: 'ase-3',
+          idTenant: tenantId,
+          idMassiveEvent: eventId,
+          idSimpleEvent: 'se-1',
+          idAnimal: cattleId,
+          provisionalNumber: 'N-200',
+          data: { weight: 410 },
+          appliedAt: new Date(),
+        } as AnimalSimpleEvent,
+      ]);
+      simpleEventRepo.findByIds.mockResolvedValue([
+        { id: 'se-1', type: SimpleEventType.WEIGHT } as SimpleEvent,
+      ]);
+      cattleWeightHistoryRepo.findPreviousWeightsBeforeMassiveEvent.mockResolvedValue(new Map());
+
+      const out = await service.findAppliedAnimalsSession(tenantId, eventId);
+
+      expect(out.groups[0].previousWeight).toBeNull();
+    });
+  });
+
+  describe('closeMassiveEvent', () => {
+    const openMassive = {
+      id: eventId,
+      idTenant: tenantId,
+      linkedToPurchaseReception: false,
+    } as unknown as MassiveEvent;
+
+    beforeEach(() => {
+      massiveEventRepo.findById.mockResolvedValue(openMassive);
+      massiveEventRepo.existsPurchaseReceptionForMassive.mockResolvedValue(false);
+      simpleEventRepo.deleteUnappliedByMassiveEvent.mockResolvedValue(0);
+    });
+
+    it('cierra cuando quedan simple events aplicados tras limpieza', async () => {
+      simpleEventRepo.findByMassiveEvent.mockResolvedValue([{ id: 'se-1' } as SimpleEvent]);
+
+      await service.closeMassiveEvent(tenantId, eventId);
+
+      expect(simpleEventRepo.deleteUnappliedByMassiveEvent).toHaveBeenCalled();
+      expect(massiveEventRepo.updateByIdWithManager).toHaveBeenCalledWith(
+        expect.anything(),
+        eventId,
+        tenantId,
+        { status: 'closed' },
+      );
+    });
+
+    it('422 string cuando no quedan simple events tras deleteUnapplied', async () => {
+      simpleEventRepo.findByMassiveEvent.mockResolvedValue([]);
+
+      try {
+        await service.closeMassiveEvent(tenantId, eventId);
+        fail('expected HttpException');
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        const he = e as HttpException;
+        expect(he.getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+        expect(he.getResponse()).toBe('No simple events applied');
+      }
+    });
+
+    it('422 con cuerpo { code } cuando está ligado a recepción de compra (flag)', async () => {
+      const linked = {
+        ...openMassive,
+        linkedToPurchaseReception: true,
+      } as unknown as MassiveEvent;
+      massiveEventRepo.findById.mockResolvedValue(linked);
+
+      try {
+        await service.closeMassiveEvent(tenantId, eventId);
+        fail('expected HttpException');
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        const he = e as HttpException;
+        expect(he.getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+        expect(he.getResponse()).toEqual(
+          expect.objectContaining({
+            code: 'MASSIVE_EVENT_FROM_PURCHASE_RECEPTION',
+          }),
+        );
+      }
+    });
+
+    it('422 con cuerpo { code } cuando existe recepción (repo)', async () => {
+      massiveEventRepo.existsPurchaseReceptionForMassive.mockResolvedValue(true);
+
+      try {
+        await service.closeMassiveEvent(tenantId, eventId);
+        fail('expected HttpException');
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        const he = e as HttpException;
+        expect(he.getStatus()).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+        expect(he.getResponse()).toEqual(
+          expect.objectContaining({
+            code: 'MASSIVE_EVENT_FROM_PURCHASE_RECEPTION',
+          }),
+        );
+      }
     });
   });
 });

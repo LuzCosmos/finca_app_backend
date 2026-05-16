@@ -16,6 +16,7 @@ describe('MassiveEventController', () => {
   let massiveEventService: {
     createMassiveEvent: jest.Mock;
     findByIdForMassiveEventsModuleOrFail: jest.Mock;
+    findWithSimpleEventsForMassiveEventsModuleOrFail: jest.Mock;
     findStandaloneListPaged: jest.Mock;
     findCattleByMassiveEvent: jest.Mock;
     closeMassiveEvent: jest.Mock;
@@ -37,6 +38,7 @@ describe('MassiveEventController', () => {
     massiveEventService = {
       createMassiveEvent: jest.fn(),
       findByIdForMassiveEventsModuleOrFail: jest.fn(),
+      findWithSimpleEventsForMassiveEventsModuleOrFail: jest.fn(),
       findStandaloneListPaged: jest.fn(),
       findCattleByMassiveEvent: jest.fn(),
       closeMassiveEvent: jest.fn(),
@@ -120,20 +122,25 @@ describe('MassiveEventController', () => {
         linkedToPurchaseReception: false,
         createdBy: 'user-1',
       } as MassiveEvent;
-      massiveEventService.findByIdForMassiveEventsModuleOrFail.mockResolvedValue(entity);
+      massiveEventService.findWithSimpleEventsForMassiveEventsModuleOrFail.mockResolvedValue(entity);
       massiveEventService.getUsernameForUser.mockResolvedValue('alice');
 
       const out = await controller.findOne(session, 'me-1');
 
-      expect(massiveEventService.findByIdForMassiveEventsModuleOrFail).toHaveBeenCalledWith('tenant-1', 'me-1');
+      expect(massiveEventService.findWithSimpleEventsForMassiveEventsModuleOrFail).toHaveBeenCalledWith(
+        'tenant-1',
+        'me-1',
+      );
       expect(massiveEventService.getUsernameForUser).toHaveBeenCalledWith('tenant-1', 'user-1');
       expect(out).toEqual(
         MassiveEventResponseDto.toResponseDto(entity, entity.simpleEvents ?? [], { createdByUsername: 'alice' }),
       );
     });
 
-    it('propaga errores de findByIdForMassiveEventsModuleOrFail', async () => {
-      massiveEventService.findByIdForMassiveEventsModuleOrFail.mockRejectedValue(new NotFoundException('not found'));
+    it('propaga errores de findWithSimpleEventsForMassiveEventsModuleOrFail', async () => {
+      massiveEventService.findWithSimpleEventsForMassiveEventsModuleOrFail.mockRejectedValue(
+        new NotFoundException('not found'),
+      );
 
       await expect(controller.findOne(session, 'missing')).rejects.toThrow(NotFoundException);
     });

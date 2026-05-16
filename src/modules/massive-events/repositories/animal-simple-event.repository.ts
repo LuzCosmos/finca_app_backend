@@ -40,6 +40,14 @@ export class AnimalSimpleEventRepository {
     return this.repository.find({ where: { idTenant, idSimpleEvent: In(simpleEventIds) } });
   }
 
+  /** Todos los eventos de animal aplicados en un evento masivo (sesión de edición / UI). */
+  async findByMassiveEvent(idTenant: string, idMassiveEvent: string): Promise<AnimalSimpleEvent[]> {
+    return this.repository.find({
+      where: { idTenant, idMassiveEvent },
+      order: { appliedAt: 'ASC' },
+    });
+  }
+
   async deleteById(idTenant: string, id: string): Promise<void> {
     await this.repository.delete({ idTenant, id });
   }

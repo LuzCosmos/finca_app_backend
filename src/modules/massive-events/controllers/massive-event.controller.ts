@@ -91,6 +91,18 @@ export class MassiveEventController {
     return this.massiveEventService.findCattleByMassiveEvent(sessionUser.tenant_id, idMassiveEvent);
   }
 
+  @Get(':id/applied-animals')
+  @ApiOperation({
+    summary: 'Animal simple events applied in this massive event, grouped by animal (session reload / edit)',
+  })
+  @ApiResponse({ status: 200, description: 'Grouped applied animals' })
+  @ApiResponse({ status: 404, description: 'Massive event not found' })
+  @ApiResponse({ status: 422, description: 'Massive event belongs to a purchase reception' })
+  @RequireAction('read')
+  async appliedAnimals(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string) {
+    return this.massiveEventService.findAppliedAnimalsSession(sessionUser.tenant_id, id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a massive event by ID (not available for purchase-reception-linked events)' })
   @ApiResponse({ status: 200, description: 'Massive event found', type: MassiveEventResponseDto })
@@ -102,7 +114,10 @@ export class MassiveEventController {
 
   @RequireAction('read')
   async findOne(@SessionUser() sessionUser: SessionUserDto, @Param('id') id: string) {
-    const massiveEvent = await this.massiveEventService.findByIdForMassiveEventsModuleOrFail(sessionUser.tenant_id, id);
+    const massiveEvent = await this.massiveEventService.findWithSimpleEventsForMassiveEventsModuleOrFail(
+      sessionUser.tenant_id,
+      id,
+    );
     const createdByUsername =
       massiveEvent.createdBy != null
         ? await this.massiveEventService.getUsernameForUser(sessionUser.tenant_id, massiveEvent.createdBy)

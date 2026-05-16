@@ -87,7 +87,8 @@ export class CattleService {
       var minimumMassiveEvents: MinimumMassiveEvents = {};
       const results: Cattle[] = [];
       for (const ev of events) {
-        const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, ev.cattleNumber, manager);
+        const statuses = [CattleStatus.ACTIVE, CattleStatus.SOLD];
+        const cattle = await this.cattleRepository.findOneForUpdateByNumberAndStatuses(idTenant, ev.cattleNumber, statuses, manager);
         if (!cattle) {
           continue;
         }
@@ -166,7 +167,8 @@ export class CattleService {
   ): Promise<ApplySimpleEventsResponseDto[]> {
     const massiveEvent = await this.massiveEventService.findWithSimpleEventsByIdOrFail(idTenant, idMassiveEvent, manager);
     if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
-    const cattleEntity = cattle ?? await this.cattleRepository.findOneForUpdateByNumber(idTenant, cattleNumber, manager);
+    const statuses = [CattleStatus.ACTIVE, CattleStatus.SOLD];
+    const cattleEntity = cattle ?? await this.cattleRepository.findOneForUpdateByNumberAndStatuses(idTenant, cattleNumber, statuses, manager);
     if (!cattleEntity) throw new NotFoundException(`Cattle ${cattleNumber} not found`);
     this.validateStatusForApplyEvents(cattleEntity.status);
     const createdEvents: ApplySimpleEventsResponseDto[] = [];
@@ -372,7 +374,8 @@ export class CattleService {
     return this.dataSource.transaction(async manager => {
       const results: SyncAnimalSimpleEventResultDto[] = [];
       for (const payload of events) {
-        const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, payload.cattleNumber, manager);
+        const statuses = [CattleStatus.ACTIVE, CattleStatus.SOLD];
+        const cattle = await this.cattleRepository.findOneForUpdateByNumberAndStatuses(idTenant, payload.cattleNumber, statuses, manager);
         if (!cattle) {
           results.push({
             id: payload.id,
@@ -799,7 +802,7 @@ export class CattleService {
 
   async search(idTenant: string, query: string): Promise<Cattle[]> {
     if (!query || query.trim().length === 0) return [];
-    const statuses = [CattleStatus.ACTIVE];
+    const statuses = [CattleStatus.ACTIVE, CattleStatus.SOLD];
     return this.cattleRepository.search(idTenant, query, statuses);
   }
 
