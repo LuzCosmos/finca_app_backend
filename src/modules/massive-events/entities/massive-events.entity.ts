@@ -9,8 +9,8 @@ export class MassiveEvent {
   @Column({ name: 'id_tenant', type: 'uuid' })
   idTenant: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  name?: string;
+  @Column({ type: 'varchar', length: 100, nullable: false })
+  name: string;
 
   @Column({ name: 'event_date', type: 'timestamp' })
   eventDate: Date;

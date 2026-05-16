@@ -68,6 +68,7 @@ describe('Flujo E2E autenticado: cattle + sync massive-events (opcional)', () =>
             {
               id: massiveId,
               idTenant: tenantId,
+              name: 'E2E sync evento',
               eventDate,
               status: 'open',
               createdBy: userId,
@@ -85,6 +86,7 @@ describe('Flujo E2E autenticado: cattle + sync massive-events (opcional)', () =>
 
       expect(one.status).toBe(200);
       expect(one.body.id).toBe(massiveId);
+      expect(one.body.name).toBe('E2E sync evento');
       expect(one.body.status).toBe('open');
     });
   });

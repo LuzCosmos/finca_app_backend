@@ -162,6 +162,7 @@ describe('MassiveEventService', () => {
       const dto: SyncMassiveEventDto = {
         id: 'sync-me-1',
         idTenant: 'otro-tenant',
+        name: 'Lote sync',
         eventDate: '2025-03-01',
         status: 'open',
       };
@@ -182,16 +183,45 @@ describe('MassiveEventService', () => {
           idTenant: tenantId,
           eventDate: expect.any(Date),
           status: 'open',
+          name: 'Lote sync',
         }),
       );
     });
 
+    it('si massive event ya existe actualiza name cuando cambia', async () => {
+      const existing = {
+        id: 'me-ex',
+        idTenant: tenantId,
+        name: 'Antiguo',
+        simpleEvents: [],
+      } as unknown as MassiveEvent;
+      mockManager.findOne.mockResolvedValueOnce(existing);
+      mockManager.save.mockResolvedValue({ ...existing, name: 'Nuevo' });
+      const dto: SyncMassiveEventDto = {
+        id: 'me-ex',
+        idTenant: tenantId,
+        name: 'Nuevo',
+        eventDate: '2025-01-01',
+        status: 'open',
+      };
+
+      const out = await service.syncMassiveEvents(tenantId, [dto]);
+
+      expect(out).toEqual([{ id: 'me-ex', status: 'synced' }]);
+      expect(massiveEventRepo.createInstance).not.toHaveBeenCalled();
+      expect(mockManager.save).toHaveBeenCalledWith(
+        MassiveEvent,
+        expect.objectContaining({ name: 'Nuevo' }),
+      );
+    });
+
     it('si massive event ya existe no crea ni guarda de nuevo el massive', async () => {
-      const existing = { id: 'me-ex', idTenant: tenantId, simpleEvents: [] } as unknown as MassiveEvent;
+      const existing = { id: 'me-ex', idTenant: tenantId, name: 'Igual', simpleEvents: [] } as unknown as MassiveEvent;
       mockManager.findOne.mockResolvedValueOnce(existing);
       const dto: SyncMassiveEventDto = {
         id: 'me-ex',
         idTenant: tenantId,
+        name: 'Igual',
         eventDate: '2025-01-01',
         status: 'open',
       };
@@ -213,6 +243,7 @@ describe('MassiveEventService', () => {
       const dto: SyncMassiveEventDto = {
         id: 'm1',
         idTenant: tenantId,
+        name: 'M1',
         eventDate: '2025-01-01',
         status: 'open',
         simpleEvents: [{ id: 's1', type: SimpleEventType.WEIGHT, isActive: false }],
@@ -239,6 +270,7 @@ describe('MassiveEventService', () => {
       const dto: SyncMassiveEventDto = {
         id: 'm-err',
         idTenant: tenantId,
+        name: 'Err',
         eventDate: '2025-01-01',
         status: 'open',
       };
@@ -256,12 +288,39 @@ describe('MassiveEventService', () => {
       const dto: SyncMassiveEventDto = {
         id: 'm-bad',
         idTenant: tenantId,
+        name: 'Bad',
         eventDate: '2025-01-01',
         status: 'open',
         simpleEvents: [{ id: 's-bad', type: SimpleEventType.WEIGHT, dataJson: '{bad' }],
       };
 
       await expect(service.syncMassiveEvents(tenantId, [dto])).rejects.toThrow();
+    });
+  });
+
+  describe('updateMassiveEventMetadata', () => {
+    it('actualiza name en masivo abierto autónomo', async () => {
+      const openMassive = {
+        id: eventId,
+        idTenant: tenantId,
+        name: 'Viejo',
+        status: 'open',
+        linkedToPurchaseReception: false,
+        simpleEvents: [],
+      } as unknown as MassiveEvent;
+      massiveEventRepo.findById.mockResolvedValue(openMassive);
+      massiveEventRepo.existsPurchaseReceptionForMassive.mockResolvedValue(false);
+      massiveEventRepo.updateByIdWithManager.mockResolvedValue(undefined);
+
+      const out = await service.updateMassiveEventMetadata(tenantId, eventId, { name: 'Nuevo' });
+
+      expect(out.name).toBe('Nuevo');
+      expect(massiveEventRepo.updateByIdWithManager).toHaveBeenCalledWith(
+        expect.anything(),
+        eventId,
+        tenantId,
+        { name: 'Nuevo' },
+      );
     });
   });
 
@@ -281,7 +340,7 @@ describe('MassiveEventService', () => {
       }));
       massiveEventRepo.saveWithManager.mockImplementation(async (_m, entity: MassiveEvent) => entity);
 
-      const dto: CreateMassiveEventDto = { eventDate: '2025-01-15' };
+      const dto: CreateMassiveEventDto = { eventDate: '2025-01-15', name: 'Lote A' };
 
       const out = await service.createMassiveEvent(tenantId, 'user-1', dto);
 
@@ -297,6 +356,7 @@ describe('MassiveEventService', () => {
           status: 'open',
           createdBy: 'user-1',
           eventDate: expect.any(Date),
+          name: 'Lote A',
         }),
       );
     });
@@ -315,6 +375,7 @@ describe('MassiveEventService', () => {
 
       const dto: CreateMassiveEventDto = {
         eventDate: '2025-06-01',
+        name: 'Con peso',
         simpleEvents: [{ type: SimpleEventType.WEIGHT, data: { kg: 400 } }],
       };
 
