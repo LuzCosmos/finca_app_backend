@@ -21,6 +21,7 @@ describe('MassiveEventController', () => {
     findCattleByMassiveEvent: jest.Mock;
     closeMassiveEvent: jest.Mock;
     syncMassiveEvents: jest.Mock;
+    updateMassiveEventMetadata: jest.Mock;
     getUsernameForUser: jest.Mock;
   };
 
@@ -43,6 +44,7 @@ describe('MassiveEventController', () => {
       findCattleByMassiveEvent: jest.fn(),
       closeMassiveEvent: jest.fn(),
       syncMassiveEvents: jest.fn(),
+      updateMassiveEventMetadata: jest.fn(),
       getUsernameForUser: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -64,6 +66,7 @@ describe('MassiveEventController', () => {
       const entity = {
         id: 'me-1',
         idTenant: 'tenant-1',
+        name: 'Lote A',
         status: 'open',
         eventDate: new Date('2025-06-01'),
         createdAt: new Date(),
@@ -72,7 +75,7 @@ describe('MassiveEventController', () => {
         linkedToPurchaseReception: false,
       } as MassiveEvent;
       massiveEventService.createMassiveEvent.mockResolvedValue(entity);
-      const dto: CreateMassiveEventDto = { eventDate: '2025-06-01' };
+      const dto: CreateMassiveEventDto = { eventDate: '2025-06-01', name: 'Lote A' };
 
       const out = await controller.create(session, dto);
 
@@ -84,6 +87,7 @@ describe('MassiveEventController', () => {
       const entity = {
         id: 'me-1',
         idTenant: 'tenant-1',
+        name: 'Lote A',
         status: 'open',
         eventDate: new Date('2025-06-01'),
         createdAt: new Date(),
@@ -93,7 +97,7 @@ describe('MassiveEventController', () => {
 
       massiveEventService.createMassiveEvent.mockResolvedValue(entity);
 
-      const dto: CreateMassiveEventDto = { eventDate: '2025-06-01' };
+      const dto: CreateMassiveEventDto = { eventDate: '2025-06-01', name: 'Lote A' };
 
       const out = await controller.create(session, dto);
 
@@ -101,7 +105,7 @@ describe('MassiveEventController', () => {
     });
 
     it('propaga errores de createMassiveEvent', async () => {
-      const dto: CreateMassiveEventDto = { eventDate: '2025-06-01' };
+      const dto: CreateMassiveEventDto = { eventDate: '2025-06-01', name: 'Lote A' };
 
       massiveEventService.createMassiveEvent.mockRejectedValue(new Error('db error'));
 
@@ -114,6 +118,7 @@ describe('MassiveEventController', () => {
       const entity = {
         id: 'me-1',
         idTenant: 'tenant-1',
+        name: 'Test',
         status: 'open',
         eventDate: new Date(),
         createdAt: new Date(),
@@ -183,6 +188,7 @@ describe('MassiveEventController', () => {
       const e1 = {
         id: 'a',
         idTenant: 'tenant-1',
+        name: 'A',
         status: 'open',
         eventDate: new Date(),
         createdAt: new Date(),
@@ -214,6 +220,7 @@ describe('MassiveEventController', () => {
       const entity = {
         id: 'me-1',
         idTenant: 'tenant-1',
+        name: 'Solo',
         status: 'open',
         eventDate: new Date(),
         createdAt: new Date(),
@@ -264,6 +271,7 @@ describe('MassiveEventController', () => {
         massiveEvents: [
           {
             id: 'me-local-1',
+            name: 'Lote sync',
             eventDate: '2025-01-01',
             status: 'open',
             simpleEvents: [],

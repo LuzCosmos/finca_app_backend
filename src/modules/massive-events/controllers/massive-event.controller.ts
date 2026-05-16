@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Put, Param, Body, UseGuards, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Param, Body, UseGuards, HttpCode, HttpStatus, Query } from '@nestjs/common';
 import { MassiveEventService } from '../services/massive-event.service';
-import { CreateMassiveEventDto } from '../dto/create-massive-event.dto';
+import { CreateMassiveEventDto, UpdateMassiveEventDto } from '../dto/create-massive-event.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody, ApiOkResponse } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -34,6 +34,7 @@ export class MassiveEventController {
         summary: 'Massive event with medication simple event',
         value: {
           eventDate: '2025-07-24',
+          name: 'Vacunación marzo',
           simpleEvents: [
             {
               type: 'medication',
@@ -127,6 +128,32 @@ export class MassiveEventController {
     });
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update massive event metadata (name)' })
+  @ApiResponse({ status: 200, description: 'Massive event updated', type: MassiveEventResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid name' })
+  @ApiResponse({ status: 404, description: 'Massive event not found' })
+  @ApiResponse({ status: 422, description: 'Closed or purchase reception' })
+  @RequireAction('update')
+  async updateMetadata(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Param('id') id: string,
+    @Body() dto: UpdateMassiveEventDto,
+  ) {
+    const massiveEvent = await this.massiveEventService.updateMassiveEventMetadata(
+      sessionUser.tenant_id,
+      id,
+      dto,
+    );
+    const createdByUsername =
+      massiveEvent.createdBy != null
+        ? await this.massiveEventService.getUsernameForUser(sessionUser.tenant_id, massiveEvent.createdBy)
+        : undefined;
+    return MassiveEventResponseDto.toResponseDto(massiveEvent, massiveEvent.simpleEvents ?? [], {
+      createdByUsername,
+    });
+  }
+
   @Put('close/:id')
   @ApiOperation({ summary: 'Close a massive event' })
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -152,6 +179,7 @@ export class MassiveEventController {
             {
               id: 'uuid-massive-1',
               idTenant: 'tenant-uuid',
+              name: 'Vacunación marzo',
               eventDate: '2025-07-24T00:00:00Z',
               status: 'open',
               createdBy: 'user-123',

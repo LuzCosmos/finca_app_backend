@@ -7,8 +7,11 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { SimpleEventType } from '../enums/simple-event-type.enum';
 
 export class SyncSimpleEventInputDto {
@@ -110,13 +113,16 @@ export class SyncMassiveEventDto {
   @IsString()
   updatedAt?: string;
 
-  @ApiPropertyOptional({
-    description: 'Optional display name for the massive event',
+  @ApiProperty({
+    description: 'Display name for the massive event (required, 1–100 characters)',
     example: 'Vacunación marzo',
   })
-  @IsOptional()
   @IsString()
-  name?: string;
+  @IsNotEmpty()
+  @MinLength(1)
+  @MaxLength(100)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  name: string;
 
   @ApiPropertyOptional({
     description: 'List of simpleEvents to synchronize',
