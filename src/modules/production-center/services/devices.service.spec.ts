@@ -36,6 +36,7 @@ describe('DevicesService', () => {
   let deviceRepository: {
     findByIdAndTenantId: jest.Mock;
     findByDevEuiAndTenantId: jest.Mock;
+    findAllForList: jest.Mock;
     create: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
@@ -128,6 +129,7 @@ describe('DevicesService', () => {
     deviceRepository = {
       findByIdAndTenantId: jest.fn(),
       findByDevEuiAndTenantId: jest.fn(),
+      findAllForList: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
@@ -719,6 +721,34 @@ describe('DevicesService', () => {
       await expect(service.existChirpstackApplicationId(applicationId)).rejects.toThrow(
         /Error validating application with Chirpstack/,
       );
+    });
+  });
+
+  describe('findAllListSummary', () => {
+    it('returns list items without keys, ordered from repository', async () => {
+      const row = {
+        ...device,
+        batteryStatus: '90%',
+        batteryUpdate: new Date(),
+        deviceProfile: { name: 'LW001 Profile' },
+      } as Device;
+      deviceRepository.findAllForList.mockResolvedValue([row]);
+
+      const result = await service.findAllListSummary(tenantId);
+
+      expect(deviceRepository.findAllForList).toHaveBeenCalledWith(tenantId);
+      expect(result).toEqual([
+        {
+          id: deviceId,
+          name: 'Sensor 1',
+          deveui: '0102030405060708',
+          isActive: true,
+          batteryStatus: '90%',
+          batteryUpdate: row.batteryUpdate,
+          deviceProfileName: 'LW001 Profile',
+        },
+      ]);
+      expect(result[0]).not.toHaveProperty('csAppKey');
     });
   });
 });

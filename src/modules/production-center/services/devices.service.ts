@@ -12,6 +12,8 @@ import * as ExcelJS from 'exceljs';
 import { DeviceProfile } from '../entities/device-profile.entity';
 import { promises as fs } from 'fs';
 import { EntityManager } from 'typeorm';
+import { DeviceListItemResponseDto } from '../dto/device-list-item-response.dto';
+import { mapDeviceToListItem } from '../mappers/device-list.mapper';
 
 @Injectable()
 export class DevicesService {
@@ -451,6 +453,11 @@ export class DevicesService {
       deveui: d.deveui,
       name: d.name,
     }));
+  }
+
+  async findAllListSummary(idTenant: string): Promise<DeviceListItemResponseDto[]> {
+    const rows = await this.deviceRepository.findAllForList(idTenant);
+    return rows.map(mapDeviceToListItem);
   }
 
   /**

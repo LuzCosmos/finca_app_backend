@@ -5,6 +5,7 @@ import { CreateDeviceDto } from '../dto/create-device.dto';
 import { UpdateDeviceDto } from '../dto/update-device.dto';
 import { DeviceResponseDto } from '../dto/device-response.dto';
 import { DeviceCatalogResponseDto } from '../dto/device-catalog-response.dto';
+import { DeviceListItemResponseDto } from '../dto/device-list-item-response.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
 import { RequireAction, RequireEntity, RequireModule } from '../../../common/application-permissions/application-permissions.decorator';
@@ -43,6 +44,16 @@ export class DevicesController {
   @RequireAction('list')
   async catalog(@SessionUser() sessionUser: SessionUserDto): Promise<DeviceCatalogResponseDto[]> {
     return await this.deviceService.findAllCatalog(sessionUser.tenant_id);
+  }
+
+  @Get('list-summary')
+  @ApiOperation({ summary: 'Listado resumido de dispositivos (sin claves)' })
+  @ApiResponse({ status: 200, description: 'Lista resumida', type: [DeviceListItemResponseDto] })
+  @RequireAction('list')
+  async listSummary(
+    @SessionUser() sessionUser: SessionUserDto,
+  ): Promise<DeviceListItemResponseDto[]> {
+    return await this.deviceService.findAllListSummary(sessionUser.tenant_id);
   }
 
   @Get(':deveui')

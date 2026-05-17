@@ -31,6 +31,15 @@ export class DeviceRepository {
     return await this.repository.find({ where: { idTenant } });
   }
 
+  /** Listado administrativo con perfil, ordenado por nombre. */
+  async findAllForList(idTenant: string): Promise<Device[]> {
+    return await this.repository.find({
+      where: { idTenant },
+      relations: ['deviceProfile'],
+      order: { name: 'ASC' },
+    });
+  }
+
   /**
    * Find a device by its ID
    * @param id - The ID of the device
