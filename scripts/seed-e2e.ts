@@ -7,6 +7,7 @@
  */
 import * as path from 'path';
 import * as fs from 'fs';
+import { randomUUID } from 'crypto';
 import * as dotenv from 'dotenv';
 import type { DataSource } from 'typeorm';
 
@@ -15,6 +16,72 @@ dotenv.config({ path: path.join(root, '.env') });
 const e2eEnvPath = path.join(root, 'test', '.env.e2e');
 if (fs.existsSync(e2eEnvPath)) {
   dotenv.config({ path: e2eEnvPath, override: true });
+}
+
+import {
+  E2E_LW001_SEED_PROFILE_COLUMN_B_NAME,
+  E2E_LW001_SEED_PROFILE_DEFAULT_NAME,
+} from '../test/helpers/e2e-lw001-seed.constants';
+
+const E2E_LW001_SEED_PROFILE_SPECS = [
+  {
+    name: E2E_LW001_SEED_PROFILE_DEFAULT_NAME,
+    description: 'Perfil por defecto import LW001 (herencia appKey/nwkKey con letra e en hex)',
+    csJoineui: '1234568b9d55e072',
+    csAppKey: '123456727a5c8160f8d2a1943eb7c65f',
+    csNwkKey: '000000027a5c8160f8d2a1943eb7c65f',
+  },
+  {
+    name: E2E_LW001_SEED_PROFILE_COLUMN_B_NAME,
+    description: 'Perfil columna B import LW001 (herencia appKey con letra e en hex)',
+    csJoineui: 'f1a4c38b9d88e072',
+    csAppKey: 'd4e9f3b27a5c8160f8d2a1943eb7c65f',
+    csNwkKey: '00000000000000000000000000000000',
+  },
+] as const;
+
+async function ensureE2eLw001DeviceProfiles(
+  dataSource: DataSource,
+  tenantId: string,
+): Promise<void> {
+  const { DeviceProfile } = await import('../src/modules/production-center/entities/device-profile.entity');
+  const repo = dataSource.getRepository(DeviceProfile);
+  const idChipstack =
+    process.env.E2E_CHIRPSTACK_DEVICE_PROFILE_ID?.trim() || randomUUID();
+  const csApplicationId =
+    process.env.E2E_CHIRPSTACK_APPLICATION_ID?.trim() || randomUUID();
+  const now = new Date();
+
+  for (const spec of E2E_LW001_SEED_PROFILE_SPECS) {
+    let profile = await repo.findOne({ where: { idTenant: tenantId, name: spec.name } });
+    if (profile) {
+      profile.description = spec.description;
+      profile.csJoineui = spec.csJoineui;
+      profile.csAppKey = spec.csAppKey;
+      profile.csNwkKey = spec.csNwkKey;
+      profile.updatedAt = now;
+      await repo.save(profile);
+    } else {
+      profile = repo.create({
+        idTenant: tenantId,
+        name: spec.name,
+        description: spec.description,
+        idChipstack,
+        csApplicationId,
+        csJoineui: spec.csJoineui,
+        csAppKey: spec.csAppKey,
+        csNwkKey: spec.csNwkKey,
+        fccId: 'E2E-FCC-LW001',
+        regions: 'US915',
+        model: 'LW001-BG PRO',
+        input: 'default',
+        createdAt: now,
+        updatedAt: now,
+      });
+      await repo.save(profile);
+    }
+    console.log(`seed:e2e: perfil LW001 "${spec.name}" → id=${profile.id}`);
+  }
 }
 
 async function ensureE2eLimitedManagerUser(
@@ -135,6 +202,7 @@ async function main(): Promise<void> {
 
     if (tenantId) {
       await ensureE2eLimitedManagerUser(dataSource, tenantId, hash);
+      await ensureE2eLw001DeviceProfiles(dataSource, tenantId);
     }
   } finally {
     await Promise.race([
@@ -144,11 +212,13 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .then(() => {
-    process.exit(process.exitCode ?? 0);
-  })
-  .catch((err) => {
-    console.error('seed:e2e:', err);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => {
+      process.exit(process.exitCode ?? 0);
+    })
+    .catch((err) => {
+      console.error('seed:e2e:', err);
+      process.exit(1);
+    });
+}
