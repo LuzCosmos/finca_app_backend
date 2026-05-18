@@ -1,0 +1,54 @@
+# Desarrollo local: simulador TCP + bridge.
+# El backend NestJS debe estar corriendo en el HOST antes de levantar esto.
+# En este proyecto el puerto publicado suele ser APP_PORT_EXTERNAL=23000 (ver finca_app_backend/.env).
+#
+# Uso:
+#   cp .env.example .env
+#   # Ajustar BRIDGE_AUTH_TOKEN (= SCALE_BRIDGE_AUTH_TOKEN del backend)
+#   docker compose up --build
+#
+# Pesa real en la LAN (sin simulador):
+#   docker compose up --build scale-bridge
+#   y en .env: SCALE_HOST=<IP de la pesa>
+
+services:
+  scale-simulator:
+    build: .
+    image: finca_app_scale_bridge:latest
+    command: ["node", "dist/simulator/tcp-scale-simulator.js"]
+    environment:
+      SIMULATOR_PORT: "10001"
+      SIM_STABLE_WEIGHT: "412.5"
+    ports:
+      - "${SCALE_PORT:-10001}:10001"
+    networks:
+      - finca_app_net
+    restart: unless-stopped
+
+  scale-bridge:
+    build: .
+    image: finca_app_scale_bridge:latest
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SCALE_HOST: ${SCALE_HOST:-scale-simulator}
+      SCALE_PORT: ${SCALE_PORT:-10001}
+      # host.docker.internal → máquina donde corre el backend (Docker Desktop Mac/Win/Linux con extra_hosts)
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://:23000/api/v1}
+      BRIDGE_AUTH_TOKEN: ${BRIDGE_AUTH_TOKEN:-change-me}
+      BRIDGE_DEVICE_ID: ${BRIDGE_DEVICE_ID:-default-scale}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - scale-simulator
+    networks:
+      - finca_app_net
+    restart: unless-stopped
+
+networks:
+  finca_app_net:
+    name: "${ENVIRONMENT}_finca_app_net"
+    driver: bridge
+    external: true

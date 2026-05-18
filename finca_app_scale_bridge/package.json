@@ -1,0 +1,26 @@
+{
+  "name": "finca_app_scale_bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local bridge: Rice Lake 920i TCP -> Finca App backend",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:simulator": "node dist/simulator/tcp-scale-simulator.js",
+    "dev": "ts-node src/index.ts",
+    "simulate": "ts-node src/simulator/tcp-scale-simulator.ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}
