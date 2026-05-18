@@ -21,7 +21,7 @@ if (fs.existsSync(e2eEnvPath)) {
 import {
   E2E_LW001_SEED_PROFILE_COLUMN_B_NAME,
   E2E_LW001_SEED_PROFILE_DEFAULT_NAME,
-} from '../test/helpers/e2e-lw001-seed.constants';
+} from './e2e-lw001-seed.constants';
 
 const E2E_LW001_SEED_PROFILE_SPECS = [
   {

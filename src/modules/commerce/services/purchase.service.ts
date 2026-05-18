@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +14,7 @@ import { Lot } from '../entities/lot.entity';
 import { Logger } from '@nestjs/common';
 import { PurchaseListQueryDto } from '../dto/purchase-list.query.dto';
 import { PurchaseListItemDto } from '../dto/purchase-list.item.dto';
+import { PurchaseStatus } from '../enums/purchase-status.enum';
 
 
 @Injectable()
@@ -78,10 +81,27 @@ export class PurchaseService {
     return this.purchaseRepository.save(existing);
   }
 
+  private async assertPurchaseEditable(purchase: Purchase, idTenant: string): Promise<void> {
+    if (purchase.status === PurchaseStatus.RECEIVED) {
+      throw new ConflictException('Purchase cannot be edited: already received');
+    }
+    const receivedCount = await this.purchaseRepository.countReceivedCattle(
+      purchase.id,
+      idTenant,
+    );
+    if (receivedCount > 0) {
+      throw new ConflictException('Purchase cannot be edited: reception already started');
+    }
+  }
+
   async updatePurchase(id: string, data: UpdatePurchaseDto, idTenant: string, updatedBy: string): Promise<Purchase> {
     const existing = await this.purchaseRepository.findById(id, idTenant);
     if (!existing) {
       throw new NotFoundException('Purchase not found');
+    }
+    await this.assertPurchaseEditable(existing, idTenant);
+    if (!data.lots?.length) {
+      throw new BadRequestException('At least one lot is required');
     }
 
     const queryRunner = this.dataSource.createQueryRunner();

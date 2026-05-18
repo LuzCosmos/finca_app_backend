@@ -113,3 +113,38 @@ export class UpdateLotCattleRequestDto {
 
 }
 
+/** Campos editables de una res ya recibida (sin cambiar número). */
+export class UpdateReceivedCattleDto {
+  @IsOptional()
+  @IsNumber()
+  receivedWeight?: number;
+
+  @IsOptional()
+  @IsString()
+  eartagLeft?: string;
+
+  @IsOptional()
+  @IsString()
+  eartagRight?: string;
+
+  @IsOptional()
+  @IsUUID()
+  idLot?: string;
+
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @IsOptional()
+  @IsString()
+  comments?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  hasHorn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  castrated?: boolean;
+}
+
