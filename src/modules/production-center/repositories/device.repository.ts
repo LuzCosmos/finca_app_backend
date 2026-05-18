@@ -83,6 +83,20 @@ export class DeviceRepository {
     return device;
   }
 
+  async findOptionalByDevEuiAndTenantId(
+    deveui: string,
+    idTenant: string,
+  ): Promise<Device | null> {
+    return await this.repository.findOne({ where: { deveui, idTenant } });
+  }
+
+  async findOptionalByNameAndTenantId(
+    name: string,
+    idTenant: string,
+  ): Promise<Device | null> {
+    return await this.repository.findOne({ where: { name, idTenant } });
+  }
+
   /**
    * Update a device by its ID
    * @param id - The ID of the device

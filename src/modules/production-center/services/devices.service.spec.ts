@@ -329,6 +329,17 @@ describe('DevicesService', () => {
       await expect(service.getDeviceFromChirpstack(device.deveui)).resolves.toBe(false);
     });
 
+    it('devuelve false ante NOT_FOUND de ChirpStack (gRPC code 5)', async () => {
+      httpGet.mockRejectedValue({
+        response: {
+          status: 404,
+          data: { code: 5, message: 'Object does not exist' },
+        },
+      });
+
+      await expect(service.getDeviceFromChirpstack(device.deveui)).resolves.toBe(false);
+    });
+
     it('lanza BadRequestException ante otros errores HTTP', async () => {
       httpGet.mockRejectedValue({
         response: { status: 500, data: { message: 'server error' } },
