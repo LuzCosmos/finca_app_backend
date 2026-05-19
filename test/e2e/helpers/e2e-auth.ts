@@ -1,6 +1,25 @@
 import { INestApplication } from '@nestjs/common';
+import axios from 'axios';
 import request from 'supertest';
 import { App } from 'supertest/types';
+
+const CHIRPSTACK_KEY_PLACEHOLDERS = new Set([
+  'CHIRPSTACK_API_KEY',
+  'change-me',
+  'your-api-key',
+]);
+
+/** API key de ChirpStack usable (no placeholder de plantilla). */
+export function isChirpstackApiKeyUsable(key: string | undefined): boolean {
+  const trimmed = key?.trim() ?? '';
+  if (!trimmed || trimmed.length < 32) {
+    return false;
+  }
+  if (CHIRPSTACK_KEY_PLACEHOLDERS.has(trimmed)) {
+    return false;
+  }
+  return true;
+}
 
 /** `E2E_USERNAME`, `E2E_PASSWORD` y `E2E_COMPANY_USERNAME` definidos (no vacíos). */
 export function hasE2eAuthConfigured(): boolean {
@@ -8,6 +27,59 @@ export function hasE2eAuthConfigured(): boolean {
   const password = process.env.E2E_PASSWORD;
   const company_username = process.env.E2E_COMPANY_USERNAME?.trim();
   return !!(username && password && company_username);
+}
+
+/**
+ * Import LW001 E2E que llama a ChirpStack (alta real).
+ * Activo si hay `CHIRPSTACK_API_URL` y `CHIRPSTACK_API_KEY` en test/.env.e2e (y credenciales E2E).
+ * Desactivar explícitamente con `E2E_LW001_IMPORT_CHIRPSTACK=0`.
+ */
+export function hasE2eLw001ImportChirpstackConfigured(): boolean {
+  if (!hasE2eAuthConfigured()) {
+    return false;
+  }
+  if (process.env.E2E_LW001_IMPORT_CHIRPSTACK === '0') {
+    return false;
+  }
+  const url = process.env.CHIRPSTACK_API_URL?.trim();
+  const key = process.env.CHIRPSTACK_API_KEY?.trim();
+  return !!(url && isChirpstackApiKeyUsable(key));
+}
+
+/**
+ * Comprueba que ChirpStack acepta el token (GET aplicación configurada en E2E).
+ * Usar antes del E2E de persistencia LW001.
+ */
+export async function isChirpstackReachableWithConfiguredKey(): Promise<boolean> {
+  const baseUrl = process.env.CHIRPSTACK_API_URL?.trim().replace(/\/$/, '');
+  const key = process.env.CHIRPSTACK_API_KEY?.trim();
+  const applicationId = process.env.E2E_CHIRPSTACK_APPLICATION_ID?.trim();
+  if (!baseUrl || !isChirpstackApiKeyUsable(key) || !applicationId) {
+    return false;
+  }
+  try {
+    const response = await axios.get(`${baseUrl}/api/applications/${applicationId}`, {
+      headers: {
+        accept: 'application/json',
+        'Grpc-Metadata-Authorization': `Bearer ${key}`,
+      },
+      validateStatus: () => true,
+      timeout: 8000,
+    });
+    return response.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+/** Alta real en ChirpStack: requiere UUIDs de perfil y aplicación existentes en ChirpStack. */
+export function hasE2eLw001ImportChirpstackPersistConfigured(): boolean {
+  if (!hasE2eLw001ImportChirpstackConfigured()) {
+    return false;
+  }
+  const profileId = process.env.E2E_CHIRPSTACK_DEVICE_PROFILE_ID?.trim();
+  const applicationId = process.env.E2E_CHIRPSTACK_APPLICATION_ID?.trim();
+  return !!(profileId && applicationId);
 }
 
 /** Admin E2E + usuario limitado (MANAGER) para test 403, mismos company / tenant. */

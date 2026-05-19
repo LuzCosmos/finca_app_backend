@@ -22,6 +22,14 @@ export class UpdateDeviceDto {
   idDeviceProfile?: string;
 
   @ApiProperty({
+    description: 'ID del perfil de dispositivo en ChirpStack (deviceProfile.idChipstack)',
+    required: false,
+  })
+  @IsUUID()
+  @IsOptional()
+  idChirpstackProfile?: string;
+
+  @ApiProperty({
     description: 'Nombre del dispositivo',
     example: 'Sensor de temperatura #1',
     required: false,

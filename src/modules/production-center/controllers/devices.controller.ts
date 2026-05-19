@@ -1,19 +1,21 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, UseGuards, UploadedFile, UseInterceptors, HttpCode, HttpStatus } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Body, Put, Param, Delete, UseGuards, UploadedFile, UseInterceptors, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody, } from '@nestjs/swagger';
 import { DevicesService } from '../services/devices.service';
 import { CreateDeviceDto } from '../dto/create-device.dto';
 import { UpdateDeviceDto } from '../dto/update-device.dto';
 import { DeviceResponseDto } from '../dto/device-response.dto';
 import { DeviceCatalogResponseDto } from '../dto/device-catalog-response.dto';
+import { DeviceListItemResponseDto } from '../dto/device-list-item-response.dto';
+import { ImportDevicesResultDto } from '../dto/import-devices-result.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from '../../../common/application-permissions/application-permissions.guard';
 import { RequireAction, RequireEntity, RequireModule } from '../../../common/application-permissions/application-permissions.decorator';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import * as ExcelJS from 'exceljs';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { ImportLw001Reason } from '../import-lw001/import-lw001.constants';
 
 
 @ApiTags('Devices')
@@ -43,6 +45,16 @@ export class DevicesController {
   @RequireAction('list')
   async catalog(@SessionUser() sessionUser: SessionUserDto): Promise<DeviceCatalogResponseDto[]> {
     return await this.deviceService.findAllCatalog(sessionUser.tenant_id);
+  }
+
+  @Get('list-summary')
+  @ApiOperation({ summary: 'Listado resumido de dispositivos (sin claves)' })
+  @ApiResponse({ status: 200, description: 'Lista resumida', type: [DeviceListItemResponseDto] })
+  @RequireAction('list')
+  async listSummary(
+    @SessionUser() sessionUser: SessionUserDto,
+  ): Promise<DeviceListItemResponseDto[]> {
+    return await this.deviceService.findAllListSummary(sessionUser.tenant_id);
   }
 
   @Get(':deveui')
@@ -90,38 +102,58 @@ export class DevicesController {
         },
       }),
       fileFilter: (req, file, cb) => {
-        if (!file.originalname.match(/\.(xlsx)$/)) {
-          return cb(new Error('Solo archivos .xlsx permitidos'), false);
+        if (!file.originalname.match(/\.(xlsx|xls|csv)$/i)) {
+          return cb(
+            new BadRequestException(ImportLw001Reason.UNSUPPORTED_FILE_FORMAT),
+            false,
+          );
         }
         cb(null, true);
       },
     }),
   )
-  @ApiOperation({ summary: 'Importar archivo Excel (.xlsx)' })
+  @ApiOperation({
+    summary: 'Importación masiva LW001-BG PRO (.xlsx, .xls, .csv)',
+    description:
+      'Plantilla fila 1 (orden fijo): devEui, idDeviceProfile, joineui, appKey. Solo devEui es obligatorio en archivo por fila. Si idDeviceProfile, joineui o appKey faltan en la fila, se toman del perfil resuelto: UUID en columna B si existe; si no, deviceProfileId del formulario. joineui/appKey vacíos heredan cs_joineui/cs_app_key de ese perfil. En .xlsx/.xls con varias hojas, se importan todas las que tengan datos (cabecera LW001 en fila 1 de cada hoja; hojas vacías se omiten).',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
-    description: 'Archivo Excel + datos',
+    description: 'Archivo LW001 + perfil por defecto opcional',
     schema: {
       type: 'object',
       required: ['file'],
       properties: {
         deviceProfileId: {
           type: 'string',
+          description:
+            'UUID de perfil por defecto cuando alguna fila tiene columna idDeviceProfile vacía',
           example: '12345e8d-926c-800c-bff5-490e7f8c6051',
         },
         file: {
-          description: 'Archivo Excel, tiene este orden de columnas: devEui, deviceName, deviceProfileId, description, joinEui, nwkKey, tags, variables. Los valores mandatorios son: devEui y deviceName. Si no se envía deviceProfileId en el excel, se debe enviar en el body de la petición. Si no se envía joinEui, nwkKey se tomarán del deviceProfile.', 
+          description:
+            'Columnas A–D: devEui, idDeviceProfile, joineui, appKey (cabeceras exactas en fila 1)',
           type: 'string',
           format: 'binary',
         },
       },
     },
   })
-  @HttpCode(HttpStatus.CREATED)
-  @ApiResponse({ status: 201, description: 'Archivo procesado correctamente' })
-  async importarExcel(@UploadedFile() file: Express.Multer.File, @Body() body: { deviceProfileId: string }, @SessionUser() sessionUser: SessionUserDto) {
-    const result = await this.deviceService.importDevicesFromExcel(file, sessionUser.tenant_id, body.deviceProfileId);
-    return result;
+  @HttpCode(HttpStatus.OK)
+  @ApiResponse({ status: 200, description: 'Resumen de importación', type: ImportDevicesResultDto })
+  async importarExcel(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { deviceProfileId?: string },
+    @SessionUser() sessionUser: SessionUserDto,
+  ): Promise<ImportDevicesResultDto> {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+    return await this.deviceService.importDevicesFromExcel(
+      file,
+      sessionUser.tenant_id,
+      body.deviceProfileId,
+    );
   }
 
 } 

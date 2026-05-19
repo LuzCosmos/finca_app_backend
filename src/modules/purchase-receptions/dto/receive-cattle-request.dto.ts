@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, IsUUID, IsNumber, IsDateString, IsBoolean, IsInt, Min, Max } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUUID, IsNumber, IsDateString, IsBoolean, IsInt, Min, Max, ValidateIf } from 'class-validator';
 
 export class ReceiveCattleRequestDto {
   @IsUUID()
@@ -111,5 +111,88 @@ export class UpdateLotCattleRequestDto {
   @IsUUID()
   idCattle: string;
 
+}
+
+/** Campos editables de una res ya recibida (mismos que alta, excepto `number` e `idSimpleEvents`). */
+export class UpdateReceivedCattleDto {
+  @IsOptional()
+  @IsNumber()
+  receivedWeight?: number;
+
+  @IsOptional()
+  @IsString()
+  eartagLeft?: string;
+
+  @IsOptional()
+  @IsString()
+  eartagRight?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null)
+  @IsUUID()
+  idLot?: string | null;
+
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  characteristics?: string[];
+
+  @IsOptional()
+  @IsString()
+  comments?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  hasHorn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  castrated?: boolean;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null)
+  @IsUUID()
+  idDevice?: string | null;
+
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsDateString()
+  birthDateAprx?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(8)
+  milkTeethCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(8)
+  permanentTeethCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  milkTeethWear?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  permanentTeethWear?: number;
+
+  @IsOptional()
+  @IsDateString()
+  dentalEvaluationDate?: string;
 }
 

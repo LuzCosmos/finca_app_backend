@@ -31,6 +31,15 @@ export class DeviceRepository {
     return await this.repository.find({ where: { idTenant } });
   }
 
+  /** Listado administrativo con perfil, ordenado por nombre. */
+  async findAllForList(idTenant: string): Promise<Device[]> {
+    return await this.repository.find({
+      where: { idTenant },
+      relations: ['deviceProfile'],
+      order: { name: 'ASC' },
+    });
+  }
+
   /**
    * Find a device by its ID
    * @param id - The ID of the device
@@ -72,6 +81,20 @@ export class DeviceRepository {
       throw new NotFoundException(`Device with DevEUI ${deveui} not found`);
     }
     return device;
+  }
+
+  async findOptionalByDevEuiAndTenantId(
+    deveui: string,
+    idTenant: string,
+  ): Promise<Device | null> {
+    return await this.repository.findOne({ where: { deveui, idTenant } });
+  }
+
+  async findOptionalByNameAndTenantId(
+    name: string,
+    idTenant: string,
+  ): Promise<Device | null> {
+    return await this.repository.findOne({ where: { name, idTenant } });
   }
 
   /**
