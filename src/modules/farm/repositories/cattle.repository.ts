@@ -96,6 +96,7 @@ export class CattleRepository {
     const qb = repo
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.device', 'd')
+      .leftJoinAndSelect('c.cattleCharacteristics', 'cc')
       .where('c.idTenant = :idTenant', { idTenant })
       .andWhere('c.idPurchase = :idPurchase', { idPurchase })
       .andWhere('c.idLot IS NULL');
@@ -118,6 +119,7 @@ export class CattleRepository {
     const qb = repo
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.device', 'd')
+      .leftJoinAndSelect('c.cattleCharacteristics', 'cc')
       .where('c.idTenant = :idTenant', { idTenant })
       .andWhere('c.idLot = :idLot', { idLot })
     qb.addSelect(
