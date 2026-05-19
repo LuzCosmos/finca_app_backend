@@ -8,6 +8,7 @@ import { PurchaseReception } from '../entities/purchase-reception.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
 import { MassiveEvent } from '../../massive-events/entities/massive-events.entity'
 import { SimpleEventResponseDto } from 'src/modules/massive-events/dto/simple-event-response.dto';
+import { formatDateYmd } from '../utils/reception-date-format.util';
 
 export class AnimalSimpleEventReceptionResponseDto {
 
@@ -99,12 +100,6 @@ export class CattleReceptionResponseDto {
   appliedEvents: AnimalSimpleEventReceptionResponseDto[];
 
   static toResponseDto(entity: Cattle, appliedEvents: AnimalSimpleEvent[]): CattleReceptionResponseDto {
-    const formatYmd = (d: Date) => {
-      const y = d.getUTCFullYear();
-      const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
-      const da = String(d.getUTCDate()).padStart(2, '0');
-      return `${y}-${mo}-${da}`;
-    };
     return {
       id: entity.id,
       number: entity.number,
@@ -123,14 +118,14 @@ export class CattleReceptionResponseDto {
       characteristics: (entity.cattleCharacteristics ?? []).map(
         (cc) => cc.characteristic as unknown as string,
       ),
-      birthDateAprx: entity.birthDateAprx ? formatYmd(entity.birthDateAprx) : undefined,
+      birthDateAprx: formatDateYmd(entity.birthDateAprx as Date | string | null),
       milkTeethCount: entity.milkTeethCount ?? undefined,
       permanentTeethCount: entity.permanentTeethCount ?? undefined,
       milkTeethWear: entity.milkTeethWear ?? undefined,
       permanentTeethWear: entity.permanentTeethWear ?? undefined,
-      dentalEvaluationDate: entity.dentalEvaluationDate
-        ? formatYmd(entity.dentalEvaluationDate)
-        : undefined,
+      dentalEvaluationDate: formatDateYmd(
+        entity.dentalEvaluationDate as Date | string | null,
+      ),
       appliedEvents: appliedEvents.map(AnimalSimpleEventReceptionResponseDto.toResponseDto),
     };
   }

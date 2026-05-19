@@ -48,6 +48,37 @@ describe('CattleReceptionResponseDto', () => {
     expect(dto.appliedEvents).toEqual([]);
   });
 
+  it('formatea fechas cuando vienen como string desde la BD', () => {
+    const entity = {
+      id: 'c-str',
+      number: '99',
+      sysNumber: '2001',
+      receivedWeight: 310,
+      idDevice: null,
+      device: undefined,
+      eartagLeft: null,
+      eartagRight: null,
+      idLot: 'lot-1',
+      color: CattleColor.BLACK,
+      comments: null,
+      hasHorn: false,
+      castrated: false,
+      gender: CattleGender.MALE,
+      cattleCharacteristics: [],
+      birthDateAprx: '2019-06-01',
+      dentalEvaluationDate: '2025-02-10',
+      milkTeethCount: null,
+      permanentTeethCount: null,
+      milkTeethWear: null,
+      permanentTeethWear: null,
+    } as unknown as Cattle;
+
+    const dto = CattleReceptionResponseDto.toResponseDto(entity, []);
+
+    expect(dto.birthDateAprx).toBe('2019-06-01');
+    expect(dto.dentalEvaluationDate).toBe('2025-02-10');
+  });
+
   it('omite campos opcionales cuando son null', () => {
     const entity = {
       id: 'c-2',
