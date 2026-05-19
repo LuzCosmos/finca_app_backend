@@ -247,13 +247,17 @@ export class DevicesService {
   async updateWithDevice(device: Device, updateDeviceDto: UpdateDeviceDto, manager?: EntityManager): Promise<Device> {
     this.logger.debug(`log_device 1: Updating device ${device.deveui} with device tags: ${JSON.stringify(updateDeviceDto)}`);
     try {
-
-      const deviceChirpstack = await this.updateDeviceInChirpstack(device.deveui, updateDeviceDto, device);
-      if (!deviceChirpstack) {
-        this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
-        throw new BadRequestException(`Error updating device in Chirpstack`);
+      if (device.idChirpstackProfile != null) {
+        const deviceChirpstack = await this.updateDeviceInChirpstack(device.deveui, updateDeviceDto, device);
+        if (!deviceChirpstack) {
+          this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
+          throw new BadRequestException(`Error updating device in Chirpstack`);
+        }
+        this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
+      } else {
+        this.logger.debug(`log_device 2.1: Device ${device.deveui} has no Chirpstack profile`);
       }
-      this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
+      this.logger.debug(`log_device 2: Device ${device.deveui} has no Chirpstack profile`);
       const deviceUpdated = await this.deviceRepository.update(device.id, updateDeviceDto, manager);
       if (!deviceUpdated) {
         this.logger.debug(`log_device 4: Error updating device ${device.deveui}`);
@@ -261,7 +265,6 @@ export class DevicesService {
       }
       this.logger.debug(`log_device 5: Device updated: ${deviceUpdated.id}`);
       return deviceUpdated;
-
     } catch (error) {
       const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || 'Unknown error');
       this.logger.error(`log_device 6: Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${errorMsg}`);

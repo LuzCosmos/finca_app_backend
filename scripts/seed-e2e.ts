@@ -21,7 +21,8 @@ if (fs.existsSync(e2eEnvPath)) {
 import {
   E2E_LW001_SEED_PROFILE_COLUMN_B_NAME,
   E2E_LW001_SEED_PROFILE_DEFAULT_NAME,
-} from '../test/helpers/e2e-lw001-seed.constants';
+} from './e2e-lw001-seed.constants';
+import { ensureE2eReceptionPurchaseFixture } from './e2e-reception-seed';
 
 const E2E_LW001_SEED_PROFILE_SPECS = [
   {
@@ -201,8 +202,18 @@ async function main(): Promise<void> {
     }
 
     if (tenantId) {
+      const adminUser = await userRepo.findOne({
+        where: { tenantId, username },
+      });
       await ensureE2eLimitedManagerUser(dataSource, tenantId, hash);
       await ensureE2eLw001DeviceProfiles(dataSource, tenantId);
+      if (adminUser) {
+        await ensureE2eReceptionPurchaseFixture(app, tenantId, adminUser.id);
+      } else {
+        console.warn(
+          `seed:e2e: usuario admin "${username}" no encontrado; omitiendo semilla de recepción.`,
+        );
+      }
     }
   } finally {
     await Promise.race([

@@ -7,7 +7,7 @@ import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { ReceptionsService } from '../services/receptions.service';
 import { ReceptionResponseDto } from '../dto/reception-response.dto';
-import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
+import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto, UpdateReceivedCattleDto } from '../dto/receive-cattle-request.dto';
 import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
 import { Cattle, CattleStatus } from 'src/modules/farm/entities/cattle.entity';
 import { Device } from 'src/modules/production-center/entities/device.entity';
@@ -156,6 +156,23 @@ export class ReceptionController {
       dto);
   }
 
+  @Patch('received-cattle/:idCattle')
+  @ApiOperation({ summary: 'Update received cattle data during reception' })
+  @HttpCode(HttpStatus.OK)
+  @ApiResponse({ status: 200, description: 'Cattle updated successfully', type: Cattle })
+  @RequireAction('update')
+  async updateReceivedCattle(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Param('idCattle') idCattle: string,
+    @Body() dto: UpdateReceivedCattleDto,
+  ): Promise<Cattle> {
+    return this.receptionsService.updateReceivedCattle(
+      sessionUser.tenant_id,
+      idCattle,
+      dto,
+      sessionUser.sub,
+    );
+  }
 
   @Get('next-number/:number')
   @ApiOperation({ summary: 'Get the next number for a reception' })
