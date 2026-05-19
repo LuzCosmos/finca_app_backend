@@ -56,10 +56,55 @@ export class CattleReceptionResponseDto {
   @ApiProperty({ example: '5678', description: 'Arete/Caravana derecha del animal' })
   eartagRight?: string;
 
+  @ApiPropertyOptional({ format: 'uuid', description: 'ID del lote asignado' })
+  idLot?: string;
+
+  @ApiPropertyOptional({ example: 'BLACK', description: 'Color del animal' })
+  color?: string;
+
+  @ApiPropertyOptional({ example: 'Observaciones', description: 'Comentarios' })
+  comments?: string;
+
+  @ApiPropertyOptional({ example: true, description: 'Tiene cuernos' })
+  hasHorn?: boolean;
+
+  @ApiPropertyOptional({ example: false, description: 'Está castrado' })
+  castrated?: boolean;
+
+  @ApiPropertyOptional({ example: 'MALE', description: 'Género' })
+  gender?: string;
+
+  @ApiPropertyOptional({ example: ['SPOTTED'], description: 'Características físicas' })
+  characteristics?: string[];
+
+  @ApiPropertyOptional({ example: '2020-05-01', description: 'Fecha de nacimiento aproximada' })
+  birthDateAprx?: string;
+
+  @ApiPropertyOptional({ example: 4, description: 'Incisivos de leche' })
+  milkTeethCount?: number;
+
+  @ApiPropertyOptional({ example: 0, description: 'Incisivos permanentes' })
+  permanentTeethCount?: number;
+
+  @ApiPropertyOptional({ example: 2, description: 'Desgaste leche (0–5)' })
+  milkTeethWear?: number;
+
+  @ApiPropertyOptional({ example: 0, description: 'Desgaste permanentes (0–5)' })
+  permanentTeethWear?: number;
+
+  @ApiPropertyOptional({ example: '2025-01-15', description: 'Fecha evaluación dental' })
+  dentalEvaluationDate?: string;
+
   @ApiProperty({ example: [{ id: '1234', type: 'weight', data: { kg: 420 }, appliedAt: '2025-01-01' }], description: 'Eventos simples aplicados' })
   appliedEvents: AnimalSimpleEventReceptionResponseDto[];
 
   static toResponseDto(entity: Cattle, appliedEvents: AnimalSimpleEvent[]): CattleReceptionResponseDto {
+    const formatYmd = (d: Date) => {
+      const y = d.getUTCFullYear();
+      const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const da = String(d.getUTCDate()).padStart(2, '0');
+      return `${y}-${mo}-${da}`;
+    };
     return {
       id: entity.id,
       number: entity.number,
@@ -69,6 +114,23 @@ export class CattleReceptionResponseDto {
       deviceName: entity.device?.name ?? '-',
       eartagLeft: entity.eartagLeft ?? undefined,
       eartagRight: entity.eartagRight ?? undefined,
+      idLot: entity.idLot ?? undefined,
+      color: entity.color ?? undefined,
+      comments: entity.comments ?? undefined,
+      hasHorn: entity.hasHorn,
+      castrated: entity.castrated,
+      gender: entity.gender,
+      characteristics: (entity.cattleCharacteristics ?? []).map(
+        (cc) => cc.characteristic as unknown as string,
+      ),
+      birthDateAprx: entity.birthDateAprx ? formatYmd(entity.birthDateAprx) : undefined,
+      milkTeethCount: entity.milkTeethCount ?? undefined,
+      permanentTeethCount: entity.permanentTeethCount ?? undefined,
+      milkTeethWear: entity.milkTeethWear ?? undefined,
+      permanentTeethWear: entity.permanentTeethWear ?? undefined,
+      dentalEvaluationDate: entity.dentalEvaluationDate
+        ? formatYmd(entity.dentalEvaluationDate)
+        : undefined,
       appliedEvents: appliedEvents.map(AnimalSimpleEventReceptionResponseDto.toResponseDto),
     };
   }
