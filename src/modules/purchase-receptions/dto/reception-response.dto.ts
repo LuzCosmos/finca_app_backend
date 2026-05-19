@@ -8,13 +8,27 @@ import { PurchaseReception } from '../entities/purchase-reception.entity';
 import { Purchase } from '../../commerce/entities/purchase.entity';
 import { MassiveEvent } from '../../massive-events/entities/massive-events.entity'
 import { SimpleEventResponseDto } from 'src/modules/massive-events/dto/simple-event-response.dto';
+import { SimpleEventType } from 'src/modules/massive-events/enums/simple-event-type.enum';
 import { formatDateYmd } from '../utils/reception-date-format.util';
 
 export class AnimalSimpleEventReceptionResponseDto {
 
-  @ApiProperty({ format: 'uuid', description: 'ID del evento simple' })
+  @ApiProperty({ format: 'uuid', description: 'ID del evento simple aplicado' })
   @IsUUID()
   id: string;
+
+  @ApiProperty({ format: 'uuid', description: 'ID de la definición del evento simple' })
+  @IsUUID()
+  idSimpleEvent: string;
+
+  @ApiPropertyOptional({
+    example: SimpleEventType.CASTRATION,
+    enum: SimpleEventType,
+    description: 'Tipo de evento simple',
+  })
+  @IsOptional()
+  @IsEnum(SimpleEventType)
+  type?: SimpleEventType;
 
   @ApiProperty({ example: { kg: 420 }, description: 'Datos del evento' })
   data: any;
@@ -22,9 +36,14 @@ export class AnimalSimpleEventReceptionResponseDto {
   @ApiProperty({ example: '2025-01-01', description: 'Fecha de aplicación' })
   appliedAt: string;
 
-  static toResponseDto(entity: AnimalSimpleEvent): AnimalSimpleEventReceptionResponseDto {
+  static toResponseDto(
+    entity: AnimalSimpleEvent,
+    typeBySimpleEventId: Record<string, SimpleEventType>,
+  ): AnimalSimpleEventReceptionResponseDto {
     return {
       id: entity.id,
+      idSimpleEvent: entity.idSimpleEvent,
+      type: typeBySimpleEventId[entity.idSimpleEvent],
       data: entity.data,
       appliedAt: entity.appliedAt.toISOString(),
     };
@@ -99,7 +118,11 @@ export class CattleReceptionResponseDto {
   @ApiProperty({ example: [{ id: '1234', type: 'weight', data: { kg: 420 }, appliedAt: '2025-01-01' }], description: 'Eventos simples aplicados' })
   appliedEvents: AnimalSimpleEventReceptionResponseDto[];
 
-  static toResponseDto(entity: Cattle, appliedEvents: AnimalSimpleEvent[]): CattleReceptionResponseDto {
+  static toResponseDto(
+    entity: Cattle,
+    appliedEvents: AnimalSimpleEvent[],
+    typeBySimpleEventId: Record<string, SimpleEventType> = {},
+  ): CattleReceptionResponseDto {
     return {
       id: entity.id,
       number: entity.number,
@@ -126,7 +149,9 @@ export class CattleReceptionResponseDto {
       dentalEvaluationDate: formatDateYmd(
         entity.dentalEvaluationDate as Date | string | null,
       ),
-      appliedEvents: appliedEvents.map(AnimalSimpleEventReceptionResponseDto.toResponseDto),
+      appliedEvents: appliedEvents.map((e) =>
+        AnimalSimpleEventReceptionResponseDto.toResponseDto(e, typeBySimpleEventId),
+      ),
     };
   }
 }
@@ -157,10 +182,21 @@ export class LotReceptionResponseDto {
   @ApiProperty({ type: [CattleReceptionResponseDto], description: 'List of cattle involved in this lot' })
   cattle: CattleReceptionResponseDto[];
 
-  static toResponseDto(entity: Lot, lotCattle: Cattle[], appliedEvents: Record<string, AnimalSimpleEvent[]>): LotReceptionResponseDto {
+  static toResponseDto(
+    entity: Lot,
+    lotCattle: Cattle[],
+    appliedEvents: Record<string, AnimalSimpleEvent[]>,
+    typeBySimpleEventId: Record<string, SimpleEventType> = {},
+  ): LotReceptionResponseDto {
     var cattles: CattleReceptionResponseDto[] = [];
     for (const c of lotCattle) {
-      cattles.push(CattleReceptionResponseDto.toResponseDto(c, appliedEvents[c.id]));
+      cattles.push(
+        CattleReceptionResponseDto.toResponseDto(
+          c,
+          appliedEvents[c.id],
+          typeBySimpleEventId,
+        ),
+      );
     }
     return {
       id: entity.id,
@@ -271,9 +307,21 @@ export class PurchaseReceptionResponseDto {
     var purchaseCattleCount = 0;
     var purchaseTotalWeight = 0;
 
+    const typeBySimpleEventId: Record<string, SimpleEventType> = {};
+    for (const se of massiveEvent.simpleEvents ?? []) {
+      typeBySimpleEventId[se.id] = se.type;
+    }
+
     var responseLots: LotReceptionResponseDto[] = [];
     for (const l of lots) {
-      responseLots.push(LotReceptionResponseDto.toResponseDto(l, lotCattle[l.id], appliedEvents));
+      responseLots.push(
+        LotReceptionResponseDto.toResponseDto(
+          l,
+          lotCattle[l.id],
+          appliedEvents,
+          typeBySimpleEventId,
+        ),
+      );
       receivedCattleCount += l.receivedCattleCount;
       receivedTotalWeight += l.receivedTotalWeight;
       purchaseCattleCount += l.purchasedCattleCount;
@@ -281,7 +329,13 @@ export class PurchaseReceptionResponseDto {
     }
     var responseCattle: CattleReceptionResponseDto[] = [];
     for (const c of cattle) {
-      responseCattle.push(CattleReceptionResponseDto.toResponseDto(c, appliedEvents[c.id]));
+      responseCattle.push(
+        CattleReceptionResponseDto.toResponseDto(
+          c,
+          appliedEvents[c.id],
+          typeBySimpleEventId,
+        ),
+      );
       receivedCattleCount += 1;
       receivedTotalWeight += c.receivedWeight;
     }

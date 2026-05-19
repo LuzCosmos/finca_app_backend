@@ -1,8 +1,31 @@
-import { CattleReceptionResponseDto } from './reception-response.dto';
+import {
+  AnimalSimpleEventReceptionResponseDto,
+  CattleReceptionResponseDto,
+} from './reception-response.dto';
+import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
+import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 import { Cattle, CattleStatus } from '../../farm/entities/cattle.entity';
 import { CattleGender } from '../../farm/enums/cattle-gender.enum';
 import { CattleColor } from '../../farm/enums/cattle-color.enum';
 import { BirthDateAprxSource } from '../../farm/enums/birth-date-aprx-source.enum';
+
+describe('AnimalSimpleEventReceptionResponseDto', () => {
+  it('incluye type de castración desde el mapa de simple events', () => {
+    const applied = {
+      id: 'ase-1',
+      idSimpleEvent: 'se-castration',
+      data: null,
+      appliedAt: new Date('2025-06-01T10:00:00.000Z'),
+    } as AnimalSimpleEvent;
+
+    const dto = AnimalSimpleEventReceptionResponseDto.toResponseDto(applied, {
+      'se-castration': SimpleEventType.CASTRATION,
+    });
+
+    expect(dto.type).toBe(SimpleEventType.CASTRATION);
+    expect(dto.idSimpleEvent).toBe('se-castration');
+  });
+});
 
 describe('CattleReceptionResponseDto', () => {
   it('mapea campos editables para precargar diálogo de corrección', () => {
