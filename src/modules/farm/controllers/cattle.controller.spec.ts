@@ -291,8 +291,9 @@ describe('CattleController', () => {
   });
 
   describe('applyEventsToSingleCattle', () => {
-    it('delega en applyMultipleSimpleEventsByNumber_transaction', async () => {
-      const applied = {
+    const validBody = {
+      applied: {
+        cattleNumber: 'C-001',
         idMassiveEvent: 'me-1',
         events: [
           {
@@ -301,52 +302,81 @@ describe('CattleController', () => {
             idSimpleEvent: 'se-1',
           },
         ],
-      };
+      },
+    };
 
+    it('delega en applyMultipleSimpleEventsByNumber_transaction con cattleNumber en body', async () => {
       const result = [{ id: 'ase-1' }];
       cattleService.applyMultipleSimpleEventsByNumber_transaction.mockResolvedValue(result);
 
-      const out = await controller.applyEventsToSingleCattle(session, 'C-001', applied);
+      const out = await controller.applyEventsToSingleCattle(session, validBody);
 
       expect(cattleService.applyMultipleSimpleEventsByNumber_transaction).toHaveBeenCalledWith(
         'tenant-1',
         'user-1',
         'C-001',
         'me-1',
-        applied.events,
+        validBody.applied.events,
       );
       expect(out).toBe(result);
     });
 
-    it('applyEventsToSingleCattle propaga errores del service', async () => {
-      const applied = {
-        idMassiveEvent: 'me-1',
-        events: [],
-      };
+    it('aplica trim a cattleNumber antes del lookup', async () => {
+      cattleService.applyMultipleSimpleEventsByNumber_transaction.mockResolvedValue([]);
 
+      await controller.applyEventsToSingleCattle(session, {
+        applied: {
+          ...validBody.applied,
+          cattleNumber: '  N-100  ',
+        },
+      });
+
+      expect(cattleService.applyMultipleSimpleEventsByNumber_transaction).toHaveBeenCalledWith(
+        'tenant-1',
+        'user-1',
+        'N-100',
+        'me-1',
+        validBody.applied.events,
+      );
+    });
+
+    it('acepta cattleNumber con barra (sin path param)', async () => {
+      cattleService.applyMultipleSimpleEventsByNumber_transaction.mockResolvedValue([]);
+
+      await controller.applyEventsToSingleCattle(session, {
+        applied: {
+          ...validBody.applied,
+          cattleNumber: 'LOTE/42',
+        },
+      });
+
+      expect(cattleService.applyMultipleSimpleEventsByNumber_transaction).toHaveBeenCalledWith(
+        'tenant-1',
+        'user-1',
+        'LOTE/42',
+        'me-1',
+        validBody.applied.events,
+      );
+    });
+
+    it('applyEventsToSingleCattle propaga errores del service', async () => {
       cattleService.applyMultipleSimpleEventsByNumber_transaction.mockRejectedValue(
         new Error('apply error'),
       );
 
       await expect(
-        controller.applyEventsToSingleCattle(session, 'C-001', applied),
+        controller.applyEventsToSingleCattle(session, validBody),
       ).rejects.toThrow('apply error');
     });
 
-    it('applyEventsToSingleCattle lanza BadRequestException si applied no viene', async () => {
+    it('lanza BadRequestException si cattleNumber queda vacío tras trim', async () => {
       await expect(
-        controller.applyEventsToSingleCattle(session, 'C-001', undefined as never),
-      ).rejects.toThrow(BadRequestException);
-
-      expect(cattleService.applyMultipleSimpleEventsByNumber_transaction).not.toHaveBeenCalled();
-    });
-
-    it('applyEventsToSingleCattle lanza BadRequestException si events no es array', async () => {
-      await expect(
-        controller.applyEventsToSingleCattle(session, 'C-001', {
-          idMassiveEvent: 'me-1',
-          events: undefined,
-        } as never),
+        controller.applyEventsToSingleCattle(session, {
+          applied: {
+            ...validBody.applied,
+            cattleNumber: '   ',
+          },
+        }),
       ).rejects.toThrow(BadRequestException);
 
       expect(cattleService.applyMultipleSimpleEventsByNumber_transaction).not.toHaveBeenCalled();
