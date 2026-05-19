@@ -383,6 +383,7 @@ describe('DevicesService.importDevicesFromExcel (LW001)', () => {
     expect(createDeviceSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         idDeviceProfile: rowProfileId,
+        idChirpstackProfile: rowProfile.idChipstack,
         csJoineui: rowProfile.csJoineui,
         csAppKey: rowProfile.csAppKey,
       }),
@@ -417,6 +418,7 @@ describe('DevicesService.importDevicesFromExcel (LW001)', () => {
     expect(createDeviceSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         idDeviceProfile: profileId,
+        idChirpstackProfile: profile.idChipstack,
         csJoineui: profile.csJoineui,
         csAppKey: profile.csAppKey,
       }),
@@ -488,5 +490,59 @@ describe('DevicesService.importDevicesFromExcel (LW001)', () => {
     expect(result.created).toBe(0);
     expect(result.updated).toBe(1);
     expect(result.warnings[0].reason).toBe(ImportLw001Reason.DEVEUI_ALREADY_EXISTS_UPDATED);
+  });
+
+  it('update import sets idChirpstackProfile from resolved device profile', async () => {
+    const deveui = '0102030405060708';
+    deviceRepository.findOptionalByDevEuiAndTenantId.mockResolvedValue({
+      id: 'dev-existing',
+      deveui,
+      description: '',
+      variables: {},
+    } as never);
+    const updateSpy = jest
+      .spyOn(service, 'updateWithDevice')
+      .mockResolvedValue({ id: 'dev-existing', deveui } as never);
+    mockFileBuffer(
+      buildImportFile([], 'xlsx'),
+      [
+        ['devEui', 'idDeviceProfile', 'joineui', 'appKey'],
+        [deveui, '', '', ''],
+      ],
+      'xlsx',
+    );
+
+    await service.importDevicesFromExcel(buildImportFile([], 'xlsx'), tenantId, profileId);
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        idDeviceProfile: profileId,
+        idChirpstackProfile: profile.idChipstack,
+      }),
+    );
+  });
+
+  it('returns CHIRPSTACK_PROFILE_ID_REQUIRED when profile has no idChipstack', async () => {
+    deviceProfileRepository.findOptionalByIdAndTenant.mockResolvedValue({
+      ...profile,
+      idChipstack: '',
+    });
+    mockFileBuffer(
+      buildImportFile([], 'xlsx'),
+      [
+        ['devEui', 'idDeviceProfile', 'joineui', 'appKey'],
+        ['0102030405060708', '', '', ''],
+      ],
+      'xlsx',
+    );
+
+    const result = await service.importDevicesFromExcel(
+      buildImportFile([], 'xlsx'),
+      tenantId,
+      profileId,
+    );
+
+    expect(result.errors[0].reason).toBe(ImportLw001Reason.CHIRPSTACK_PROFILE_ID_REQUIRED);
   });
 });
