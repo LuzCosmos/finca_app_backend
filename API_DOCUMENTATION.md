@@ -133,7 +133,7 @@ docker compose up -d
 - `GET /api/v1/cattle/basic-info` — Info básica
 - `GET /api/v1/cattle/basic` — Info básica paginada con cursor
 - `GET /api/v1/cattle/simple-events/:id` — Eventos simples por ganado
-- `POST /api/v1/cattle/apply-events/:cattleNumber` — Aplicar eventos a un ganado
+- `POST /api/v1/cattle/apply-events` — Aplicar eventos a un ganado (`applied.cattleNumber` en body)
 - `POST /api/v1/cattle/apply-simple-events` — Aplicar eventos a múltiples ganados
 - `POST /api/v1/cattle/sync-cattle-simple-event` — Sincronización offline
 - `POST /api/v1/cattle/import` — Importar ganado (Excel)

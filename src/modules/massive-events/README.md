@@ -6,7 +6,7 @@ Documentación de producto: [`finca_app_docs/features/04-massive-events-module.m
 
 ## Cliente móvil (2026-05)
 
-La app móvil opera **online-only** para evento masivo: usa `POST /massive-events`, `POST /simple-events`, `POST /cattle/apply-events/:cattleNumber`, `PUT /massive-events/close/:id`, etc.
+La app móvil opera **online-only** para evento masivo: usa `POST /massive-events`, `POST /simple-events`, `POST /cattle/apply-events` (body: `applied.cattleNumber`), `PUT /massive-events/close/:id`, etc.
 
 Los endpoints de sincronización por lote **no son consumidos por móvil** en esta fase (se mantienen para una futura reactivación offline):
 
