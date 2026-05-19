@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { ReceptionsService } from './receptions.service';
 import { PurchaseReceptionRepository } from '../repositories/purchase-reception.repository';
@@ -19,7 +19,13 @@ import { ColorCharacteristicsService } from '../../farm/services/color-character
 import { LotService } from 'src/modules/commerce/services/lot.service';
 import { Device } from 'src/modules/production-center/entities/device.entity';
 import { MassiveEvent } from 'src/modules/massive-events/entities/massive-events.entity';
-import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
+import {
+  ReceiveCattleRequestDto,
+  UpdateLotCattleRequestDto,
+  UpdateReceivedCattleDto,
+} from '../dto/receive-cattle-request.dto';
+import { BirthDateAprxSource } from '../../farm/enums/birth-date-aprx-source.enum';
+import { CattleGender } from '../../farm/enums/cattle-gender.enum';
 import { Cattle, CattleStatus } from '../../farm/entities/cattle.entity';
 import { Lot } from 'src/modules/commerce/entities/lot.entity';
 import { WeightContext } from '../../farm/entities/cattle-weight-history.entity';
@@ -51,7 +57,7 @@ describe('ReceptionsService', () => {
   let providerRepo: { findById: jest.Mock };
   let configurationsService: { getTenantConfiguration: jest.Mock; updateTenantConfiguration: jest.Mock };
   let cattleWeightHistoryRepo: { createWithManager: jest.Mock };
-  let cattleCharacteristicRepository: { attachMany: jest.Mock };
+  let cattleCharacteristicRepository: { attachMany: jest.Mock; replaceAll: jest.Mock };
   let cattleDeviceHistoryRepository: {
     unassignDeviceByidDevice: jest.Mock;
     assignDeviceToCattle: jest.Mock;
@@ -62,6 +68,7 @@ describe('ReceptionsService', () => {
     applyMultipleSimpleEventsByNumber_manager: jest.Mock;
     mergeReceiveCattleBirthAndDentition: jest.Mock;
     recordAgeHistoryFromSavedCattle: jest.Mock;
+    findByAnyEartag: jest.Mock;
   };
 
   const tenantId = 'tenant-1';
@@ -127,7 +134,7 @@ describe('ReceptionsService', () => {
       updateTenantConfiguration: jest.fn(),
     };
     cattleWeightHistoryRepo = { createWithManager: jest.fn() };
-    cattleCharacteristicRepository = { attachMany: jest.fn() };
+    cattleCharacteristicRepository = { attachMany: jest.fn(), replaceAll: jest.fn() };
     cattleDeviceHistoryRepository = {
       unassignDeviceByidDevice: jest.fn(),
       assignDeviceToCattle: jest.fn(),
@@ -138,6 +145,7 @@ describe('ReceptionsService', () => {
       applyMultipleSimpleEventsByNumber_manager: jest.fn(),
       mergeReceiveCattleBirthAndDentition: jest.fn().mockReturnValue({}),
       recordAgeHistoryFromSavedCattle: jest.fn().mockResolvedValue(undefined),
+      findByAnyEartag: jest.fn().mockResolvedValue(null),
     };
 
     service = buildService();
@@ -520,6 +528,337 @@ describe('ReceptionsService', () => {
         expect.not.arrayContaining([expect.objectContaining({ type: SimpleEventType.WEIGHT })]),
         mockManager,
         savedCattle,
+      );
+    });
+  });
+
+  describe('updateReceivedCattle', () => {
+    const cattleId = 'cattle-1';
+    const baseCattle = (): Cattle =>
+      ({
+        id: cattleId,
+        idTenant: tenantId,
+        idPurchase: purchaseId,
+        idLot: 'lot-old',
+        receivedWeight: 300,
+        lastWeight: 300,
+        purchaseWeight: 280,
+        purchasePrice: 560,
+        eartagLeft: 'L-1',
+        eartagRight: 'R-1',
+        hasHorn: false,
+        castrated: false,
+        gender: CattleGender.MALE,
+        color: 'BLACK',
+        comments: 'orig',
+        idDevice: null,
+        birthDateAprx: null,
+        birthDateAprxSource: null,
+        milkTeethCount: null,
+        permanentTeethCount: null,
+        milkTeethWear: null,
+        permanentTeethWear: null,
+        dentalEvaluationDate: null,
+        dentitionTableVersion: null,
+      }) as Cattle;
+
+    beforeEach(() => {
+      purchaseRepo.findById.mockResolvedValue({ id: purchaseId });
+      cattleRepo.saveWithManager.mockImplementation(async (_m, c) => c);
+    });
+
+    it('lanza NotFoundException si el cattle no existe', async () => {
+      cattleRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.updateReceivedCattle(tenantId, cattleId, { receivedWeight: 400 }, userId),
+      ).rejects.toThrow(new NotFoundException('Cattle not found'));
+    });
+
+    it('lanza ConflictException si no está vinculado a compra', async () => {
+      cattleRepo.findById.mockResolvedValue({
+        ...baseCattle(),
+        idPurchase: null,
+      } as unknown as Cattle);
+      await expect(
+        service.updateReceivedCattle(tenantId, cattleId, { receivedWeight: 400 }, userId),
+      ).rejects.toThrow(
+        new ConflictException('Animal is not linked to a purchase reception'),
+      );
+    });
+
+    it('lanza NotFoundException si la compra no existe', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      purchaseRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.updateReceivedCattle(tenantId, cattleId, { receivedWeight: 400 }, userId),
+      ).rejects.toThrow(new NotFoundException('Purchase not found'));
+    });
+
+    it('flujo feliz: actualiza peso, flags, género, color y comentarios', async () => {
+      const cattle = baseCattle();
+      cattleRepo.findById.mockResolvedValue(cattle);
+      const dto: UpdateReceivedCattleDto = {
+        receivedWeight: 410,
+        hasHorn: true,
+        castrated: true,
+        gender: CattleGender.FEMALE,
+        color: 'WHITE',
+        comments: '  corregido  ',
+      };
+
+      const saved = await service.updateReceivedCattle(tenantId, cattleId, dto, userId);
+
+      expect(saved.receivedWeight).toBe(410);
+      expect(saved.lastWeight).toBe(410);
+      expect(saved.hasHorn).toBe(true);
+      expect(saved.castrated).toBe(true);
+      expect(saved.gender).toBe(CattleGender.FEMALE);
+      expect(saved.color).toBe('WHITE');
+      expect(saved.comments).toBe('corregido');
+      expect(cattleRepo.saveWithManager).toHaveBeenCalled();
+    });
+
+    it('reemplaza características cuando se envían', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        { characteristics: ['SPOTTED', 'BELLY_WHITE'] },
+        userId,
+      );
+      expect(cattleCharacteristicRepository.replaceAll).toHaveBeenCalledWith(
+        cattleId,
+        tenantId,
+        ['SPOTTED', 'BELLY_WHITE'],
+        mockManager,
+      );
+    });
+
+    it('asigna dispositivo y desasigna de otros cattle', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        { idDevice: 'dev-9' },
+        userId,
+      );
+      expect(cattleDeviceHistoryRepository.unassignDeviceByidDevice).toHaveBeenCalled();
+      expect(cattleRepo.unsetDevice).toHaveBeenCalledWith(tenantId, 'dev-9', mockManager);
+      expect(cattleRepo.saveWithManager).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining({ idDevice: 'dev-9' }),
+      );
+    });
+
+    it('permite quitar dispositivo con idDevice null', async () => {
+      const cattle = { ...baseCattle(), idDevice: 'dev-old' } as Cattle;
+      cattleRepo.findById.mockResolvedValue(cattle);
+      await service.updateReceivedCattle(tenantId, cattleId, { idDevice: null }, userId);
+      expect(cattleDeviceHistoryRepository.unassignDeviceByidDevice).not.toHaveBeenCalled();
+      expect(cattleRepo.saveWithManager).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining({ idDevice: null }),
+      );
+    });
+
+    it('lanza BadRequestException si el lote no pertenece a la compra', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      lotRepo.findById.mockResolvedValue({
+        id: 'lot-x',
+        idPurchase: 'other-purchase',
+      } as Lot);
+      await expect(
+        service.updateReceivedCattle(
+          tenantId,
+          cattleId,
+          { idLot: 'lot-x' },
+          userId,
+        ),
+      ).rejects.toThrow(new BadRequestException('Lot does not belong to this purchase'));
+    });
+
+    it('cambia de lote y recalcula lote nuevo y anterior', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      lotRepo.findById.mockResolvedValue({
+        id: 'lot-new',
+        idPurchase: purchaseId,
+        averageWeight: 390,
+        pricePerKg: 2.5,
+      } as Lot);
+
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        { idLot: 'lot-new' },
+        userId,
+      );
+
+      expect(lotService.UpdateLotDataAfterReception).toHaveBeenCalledWith(
+        tenantId,
+        'lot-new',
+        mockManager,
+      );
+      expect(lotService.UpdateLotDataAfterReception).toHaveBeenCalledWith(
+        tenantId,
+        'lot-old',
+        mockManager,
+      );
+    });
+
+    it('permite dejar la res sin lote (idLot null)', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      await service.updateReceivedCattle(tenantId, cattleId, { idLot: null }, userId);
+      expect(cattleRepo.saveWithManager).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining({ idLot: null }),
+      );
+      expect(lotService.UpdateLotDataAfterReception).toHaveBeenCalledWith(
+        tenantId,
+        'lot-old',
+        mockManager,
+      );
+    });
+
+    it('recalcula lote actual al cambiar solo peso', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        { receivedWeight: 320 },
+        userId,
+      );
+      expect(lotService.UpdateLotDataAfterReception).toHaveBeenCalledWith(
+        tenantId,
+        'lot-old',
+        mockManager,
+      );
+    });
+
+    it('lanza ConflictException si arete pertenece a otra res activa', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      cattleService.findByAnyEartag.mockResolvedValue({
+        id: 'other-cattle',
+        status: CattleStatus.ACTIVE,
+      } as Cattle);
+      await expect(
+        service.updateReceivedCattle(
+          tenantId,
+          cattleId,
+          { eartagLeft: 'DUPE-1' },
+          userId,
+        ),
+      ).rejects.toThrow(/Eartag DUPE-1/);
+    });
+
+    it('permite conservar el mismo arete de la res actual', async () => {
+      const cattle = baseCattle();
+      cattleRepo.findById.mockResolvedValue(cattle);
+      cattleService.findByAnyEartag.mockResolvedValue(cattle);
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        { eartagLeft: 'L-1' },
+        userId,
+      );
+      expect(cattleRepo.saveWithManager).toHaveBeenCalled();
+    });
+
+    it('limpia arete vacío a null', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        { eartagLeft: '   ' },
+        userId,
+      );
+      expect(cattleRepo.saveWithManager).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining({ eartagLeft: null }),
+      );
+    });
+
+    it('aplica dentición completa vía mergeReceiveCattleBirthAndDentition', async () => {
+      cattleRepo.findById.mockResolvedValue(baseCattle());
+      const patch = {
+        birthDateAprx: new Date('2020-01-01'),
+        birthDateAprxSource: BirthDateAprxSource.DENTITION,
+        milkTeethCount: 4,
+        permanentTeethCount: 0,
+        milkTeethWear: 2,
+        permanentTeethWear: 0,
+        dentalEvaluationDate: new Date('2025-01-10'),
+        dentitionTableVersion: 'sapa2014-v1',
+      };
+      cattleService.mergeReceiveCattleBirthAndDentition.mockReturnValue(patch);
+
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        {
+          milkTeethCount: 4,
+          permanentTeethCount: 0,
+          milkTeethWear: 2,
+          permanentTeethWear: 0,
+          dentalEvaluationDate: '2025-01-10',
+        },
+        userId,
+      );
+
+      expect(cattleService.mergeReceiveCattleBirthAndDentition).toHaveBeenCalled();
+      expect(cattleService.recordAgeHistoryFromSavedCattle).toHaveBeenCalled();
+      expect(cattleRepo.saveWithManager).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining(patch),
+      );
+    });
+
+    it('fecha manual limpia campos de dentición', async () => {
+      const cattle = {
+        ...baseCattle(),
+        milkTeethCount: 4,
+        permanentTeethCount: 0,
+      } as Cattle;
+      cattleRepo.findById.mockResolvedValue(cattle);
+
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        { birthDateAprx: '2019-06-01' },
+        userId,
+      );
+
+      expect(cattleRepo.saveWithManager).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining({
+          birthDateAprx: new Date('2019-06-01'),
+          birthDateAprxSource: BirthDateAprxSource.MANUAL,
+          milkTeethCount: null,
+          permanentTeethCount: null,
+        }),
+      );
+    });
+
+    it('birthDateAprx null limpia edad y dentición', async () => {
+      cattleRepo.findById.mockResolvedValue({
+        ...baseCattle(),
+        birthDateAprx: new Date('2018-01-01'),
+        milkTeethCount: 2,
+      } as Cattle);
+
+      await service.updateReceivedCattle(
+        tenantId,
+        cattleId,
+        { birthDateAprx: null },
+        userId,
+      );
+
+      expect(cattleRepo.saveWithManager).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining({
+          birthDateAprx: null,
+          birthDateAprxSource: null,
+          milkTeethCount: null,
+        }),
       );
     });
   });
