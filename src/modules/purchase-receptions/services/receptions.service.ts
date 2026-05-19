@@ -4,8 +4,8 @@ import { PurchaseReceptionRepository } from '../repositories/purchase-reception.
 import { PurchaseReceptionResponseDto } from '../dto/reception-response.dto';
 import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 import { PurchaseReception } from '../entities/purchase-reception.entity';
-import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto, UpdateReceivedCattleDto } from '../dto/receive-cattle-request.dto';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { MassiveEventRepository } from 'src/modules/massive-events/repositories/massive-event.repository';
 import { EntityManager } from 'typeorm';
@@ -332,6 +332,105 @@ export class ReceptionsService {
   async nextNumber(idTenant: string, number: string): Promise<string> {
     return this.ds.transaction(async manager => {
       return await this.cattleRepo.getSuggestNextNumber(idTenant, number, manager);
+    });
+  }
+
+  private async assertEartagAvailableForUpdate(
+    idTenant: string,
+    eartag: string | null | undefined,
+    excludeCattleId: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    const trimmed = eartag?.trim();
+    if (!trimmed) return;
+    const existing = await this.cattleService.findByAnyEartag(idTenant, trimmed, manager);
+    if (
+      existing &&
+      existing.id !== excludeCattleId &&
+      (existing.status === CattleStatus.ACTIVE || existing.status === CattleStatus.LOST)
+    ) {
+      throw new ConflictException(`Eartag ${trimmed} is already assigned to another animal`);
+    }
+  }
+
+  async updateReceivedCattle(
+    idTenant: string,
+    idCattle: string,
+    dto: UpdateReceivedCattleDto,
+    idCurrentUser: string,
+  ): Promise<Cattle> {
+    return this.ds.transaction(async manager => {
+      const cattle = await this.cattleRepo.findById(idTenant, idCattle, manager);
+      if (!cattle) {
+        throw new NotFoundException('Cattle not found');
+      }
+      if (!cattle.idPurchase) {
+        throw new ConflictException('Animal is not linked to a purchase reception');
+      }
+      const purchase = await this.purchaseRepo.findById(cattle.idPurchase, idTenant, manager);
+      if (!purchase) {
+        throw new NotFoundException('Purchase not found');
+      }
+
+      const oldLotId = cattle.idLot;
+
+      if (dto.receivedWeight !== undefined) {
+        cattle.receivedWeight = dto.receivedWeight;
+        cattle.lastWeight = dto.receivedWeight;
+      }
+      if (dto.eartagLeft !== undefined) {
+        await this.assertEartagAvailableForUpdate(
+          idTenant,
+          dto.eartagLeft,
+          cattle.id,
+          manager,
+        );
+        cattle.eartagLeft = dto.eartagLeft?.trim() || null;
+      }
+      if (dto.eartagRight !== undefined) {
+        await this.assertEartagAvailableForUpdate(
+          idTenant,
+          dto.eartagRight,
+          cattle.id,
+          manager,
+        );
+        cattle.eartagRight = dto.eartagRight?.trim() || null;
+      }
+      if (dto.idLot !== undefined) {
+        const lot = await this.lotRepo.findById(idTenant, dto.idLot, manager);
+        if (!lot || lot.idPurchase !== cattle.idPurchase) {
+          throw new BadRequestException('Lot does not belong to this purchase');
+        }
+        cattle.idLot = dto.idLot;
+        cattle.purchaseWeight = lot.averageWeight ?? cattle.purchaseWeight;
+        cattle.purchasePrice =
+          (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
+      }
+      if (dto.color !== undefined) {
+        cattle.color = dto.color as Cattle['color'];
+      }
+      if (dto.comments !== undefined) {
+        cattle.comments = dto.comments?.trim() || null;
+      }
+      if (dto.hasHorn !== undefined) {
+        cattle.hasHorn = dto.hasHorn;
+      }
+      if (dto.castrated !== undefined) {
+        cattle.castrated = dto.castrated;
+      }
+
+      const saved = await this.cattleRepo.saveWithManager(manager, cattle);
+
+      if (dto.idLot !== undefined && dto.idLot !== oldLotId) {
+        await this.lotService.UpdateLotDataAfterReception(idTenant, dto.idLot, manager);
+        if (oldLotId) {
+          await this.lotService.UpdateLotDataAfterReception(idTenant, oldLotId, manager);
+        }
+      } else if (dto.receivedWeight !== undefined && saved.idLot) {
+        await this.lotService.UpdateLotDataAfterReception(idTenant, saved.idLot, manager);
+      }
+
+      return saved;
     });
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Purchase } from '../entities/purchase.entity';
+import { Cattle } from '../../farm/entities/cattle.entity';
 import { PurchaseListQueryDto } from '../dto/purchase-list.query.dto';
 import { PurchaseListItemDto } from '../dto/purchase-list.item.dto';
 
@@ -45,6 +46,12 @@ export class PurchaseRepository {
 
   async deleteById(id: string, idTenant: string): Promise<void> {
     await this.repository.delete({ id, idTenant });
+  }
+
+  async countReceivedCattle(idPurchase: string, idTenant: string): Promise<number> {
+    return this.dataSource.getRepository(Cattle).count({
+      where: { idPurchase, idTenant },
+    });
   }
 
   async listPaged(tenantId: string, q: PurchaseListQueryDto, page: number, limit: number) {
