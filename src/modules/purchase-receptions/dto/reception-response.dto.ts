@@ -244,7 +244,7 @@ export class PurchaseReceptionResponseDto {
   @IsString()
   purchaseStatus: string;
 
-  @ApiProperty({ format: 'uuid', description: 'ID del proveedor (provider) a la cual se asocia la recepción' })
+  @ApiProperty({ format: 'uuid', description: 'ID del proveedor de la compra (FK id_provider)' })
   @IsUUID()
   providerId!: string;
 
@@ -263,7 +263,7 @@ export class PurchaseReceptionResponseDto {
   @IsOptional() @IsDateString()
   purchaseDate: string;
 
-  @ApiProperty({ example: 'Ganadería El Porvenir', description: 'Name of the provider of the purchase' })
+  @ApiProperty({ example: 'Ganadería El Porvenir', description: 'Nombre del proveedor de la compra' })
   purchaseProviderName: string;
 
   @ApiPropertyOptional({
@@ -298,7 +298,10 @@ export class PurchaseReceptionResponseDto {
   @ApiProperty({ example: 840.5, description: 'Total weight (kg) of cattle purchased in the lot' })
   purchaseTotalWeight: number;
 
-  static toResponseDto(entity: PurchaseReception, purchase: Purchase, providerName: string,
+  static toResponseDto(
+    entity: PurchaseReception,
+    purchase: Purchase,
+    providerName: string,
     lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
     appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent,
   ): PurchaseReceptionResponseDto {
@@ -373,11 +376,26 @@ export class ReceptionResponseDto {
     };
   }
 
-  static toResponseDto_optional(entity: PurchaseReception, purchase: Purchase, providerName: string,
-    lots: Lot[], lotCattle: Record<string, Cattle[]>, cattle: Cattle[],
-    appliedEvents: Record<string, AnimalSimpleEvent[]>, massiveEvent: MassiveEvent): ReceptionResponseDto {
-
-    var receptionInfo = PurchaseReceptionResponseDto.toResponseDto(entity, purchase, providerName, lots, lotCattle, cattle, appliedEvents, massiveEvent);
+  static toResponseDto_optional(
+    entity: PurchaseReception,
+    purchase: Purchase,
+    providerName: string,
+    lots: Lot[],
+    lotCattle: Record<string, Cattle[]>,
+    cattle: Cattle[],
+    appliedEvents: Record<string, AnimalSimpleEvent[]>,
+    massiveEvent: MassiveEvent,
+  ): ReceptionResponseDto {
+    var receptionInfo = PurchaseReceptionResponseDto.toResponseDto(
+      entity,
+      purchase,
+      providerName,
+      lots,
+      lotCattle,
+      cattle,
+      appliedEvents,
+      massiveEvent,
+    );
     return {
       reception: receptionInfo
     };

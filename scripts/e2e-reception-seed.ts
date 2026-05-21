@@ -10,7 +10,10 @@ import {
   E2E_RECEPTION_SEED_EARTAG_DUPLICATE,
 } from './e2e-reception-seed.constants';
 import { ReceiveCattleRequestDto } from '../src/modules/purchase-receptions/dto/receive-cattle-request.dto';
-import { Provider, ProviderType } from '../src/modules/commerce/entities/provider.entity';
+import {
+  BusinessPartner,
+  BusinessPartnerRole,
+} from '../src/modules/commerce/entities/business-partner.entity';
 import { Purchase } from '../src/modules/commerce/entities/purchase.entity';
 import { Lot } from '../src/modules/commerce/entities/lot.entity';
 import { Cattle, CattleStatus } from '../src/modules/farm/entities/cattle.entity';
@@ -18,7 +21,7 @@ import { CattleGender } from '../src/modules/farm/enums/cattle-gender.enum';
 import { CattleColor } from '../src/modules/farm/enums/cattle-color.enum';
 
 export interface E2eReceptionSeedSnapshot {
-  providerId: string;
+  businessPartnerId: string;
   purchaseId: string;
   lotId: string;
   cattleInLotId: string;
@@ -26,26 +29,26 @@ export interface E2eReceptionSeedSnapshot {
   cattleEartagHolderId: string;
 }
 
-async function ensureProvider(
+async function ensureBusinessPartner(
   dataSource: DataSource,
   tenantId: string,
-): Promise<Provider> {
-  const repo = dataSource.getRepository(Provider);
-  let provider = await repo.findOne({
+): Promise<BusinessPartner> {
+  const repo = dataSource.getRepository(BusinessPartner);
+  let businessPartner = await repo.findOne({
     where: { idTenant: tenantId, nit: E2E_RECEPTION_PROVIDER_NIT },
   });
-  if (provider) {
-    provider.name = E2E_RECEPTION_PROVIDER_NAME;
-    return repo.save(provider);
+  if (businessPartner) {
+    businessPartner.name = E2E_RECEPTION_PROVIDER_NAME;
+    return repo.save(businessPartner);
   }
-  provider = repo.create({
+  businessPartner = repo.create({
     idTenant: tenantId,
     name: E2E_RECEPTION_PROVIDER_NAME,
     nit: E2E_RECEPTION_PROVIDER_NIT,
-    type: ProviderType.PROVIDER,
+    type: BusinessPartnerRole.PROVIDER,
     address: 'E2E Reception Address',
   });
-  return repo.save(provider);
+  return repo.save(businessPartner);
 }
 
 async function findPurchaseBySeedLot(
@@ -67,7 +70,7 @@ async function findPurchaseBySeedLot(
 async function ensurePurchaseWithLot(
   dataSource: DataSource,
   tenantId: string,
-  providerId: string,
+  businessPartnerId: string,
   userId: string,
 ): Promise<{ purchase: Purchase; lot: Lot }> {
   const existing = await findPurchaseBySeedLot(dataSource, tenantId);
@@ -80,7 +83,7 @@ async function ensurePurchaseWithLot(
 
   const purchase = purchaseRepo.create({
     idTenant: tenantId,
-    idProvider: providerId,
+    idProvider: businessPartnerId,
     purchaseDate: new Date('2025-06-01'),
     totalCattle: 10,
     totalWeight: 3500,
@@ -191,11 +194,11 @@ export async function ensureE2eReceptionPurchaseFixture(
   );
   const receptionsService = app.get(ReceptionsService);
 
-  const provider = await ensureProvider(dataSource, tenantId);
+  const businessPartner = await ensureBusinessPartner(dataSource, tenantId);
   const { purchase, lot } = await ensurePurchaseWithLot(
     dataSource,
     tenantId,
-    provider.id,
+    businessPartner.id,
     userId,
   );
 
@@ -247,7 +250,7 @@ export async function ensureE2eReceptionPurchaseFixture(
   );
 
   const snapshot: E2eReceptionSeedSnapshot = {
-    providerId: provider.id,
+    businessPartnerId: businessPartner.id,
     purchaseId: purchase.id,
     lotId: lot.id,
     cattleInLotId,

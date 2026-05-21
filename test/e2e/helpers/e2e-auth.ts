@@ -92,6 +92,16 @@ export function hasE2eLimited403Configured(): boolean {
   return !!(u && p);
 }
 
+/** Usuario FARM_WORKER (sin COMMERCE) para test 403 en `business_partners`. */
+export function hasE2eFarmWorker403Configured(): boolean {
+  if (!hasE2eAuthConfigured()) {
+    return false;
+  }
+  const u = process.env.E2E_FARM_WORKER_USERNAME?.trim();
+  const p = process.env.E2E_FARM_WORKER_PASSWORD;
+  return !!(u && p);
+}
+
 export async function loginE2eViaPassword(app: INestApplication<App>): Promise<{
   access_token: string;
   refresh_token: string;
@@ -162,6 +172,48 @@ export async function loginE2eLimitedViaPassword(app: INestApplication<App>): Pr
   }
   if (!user?.tenant_id || !user?.id) {
     throw new Error('E2E login limitado: respuesta sin user.tenant_id o user.id');
+  }
+
+  return {
+    access_token,
+    refresh_token,
+    user: { tenant_id: user.tenant_id, id: user.id },
+  };
+}
+
+/** Login como FARM_WORKER (sin módulo COMMERCE / business_partners). */
+export async function loginE2eFarmWorkerViaPassword(app: INestApplication<App>): Promise<{
+  access_token: string;
+  refresh_token: string;
+  user: { tenant_id: string; id: string };
+}> {
+  const username = process.env.E2E_FARM_WORKER_USERNAME?.trim();
+  const password = process.env.E2E_FARM_WORKER_PASSWORD;
+  const company_username = process.env.E2E_COMPANY_USERNAME?.trim();
+  if (!username || !password || !company_username) {
+    throw new Error(
+      'E2E: definir E2E_FARM_WORKER_USERNAME, E2E_FARM_WORKER_PASSWORD y E2E_COMPANY_USERNAME',
+    );
+  }
+
+  const res = await request(app.getHttpServer()).post('/api/v1/auth/login').send({
+    username,
+    password,
+    company_username,
+  });
+
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`E2E login farm worker falló (${res.status}): ${JSON.stringify(res.body)}`);
+  }
+
+  const access_token = res.body?.access_token;
+  const refresh_token = res.body?.refresh_token;
+  const user = res.body?.user;
+  if (typeof access_token !== 'string' || typeof refresh_token !== 'string') {
+    throw new Error('E2E login farm worker: respuesta sin tokens');
+  }
+  if (!user?.tenant_id || !user?.id) {
+    throw new Error('E2E login farm worker: respuesta sin user.tenant_id o user.id');
   }
 
   return {
