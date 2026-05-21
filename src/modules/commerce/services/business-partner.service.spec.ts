@@ -129,6 +129,33 @@ describe('BusinessPartnerService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('requires extraConfig.sales.minWeightKg for BUYER', async () => {
+      businessPartnerRepository.findByNit.mockResolvedValue(null);
+
+      await expect(
+        service.createBusinessPartner({
+          name: 'Comprador',
+          nit: '900999886',
+          type: BusinessPartnerRole.BUYER,
+          idTenant: tenantId,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('creates BUYER with extraConfig', async () => {
+      businessPartnerRepository.findByNit.mockResolvedValue(null);
+
+      const result = await service.createBusinessPartner({
+        name: 'Comprador Con Min',
+        nit: '900999885',
+        type: BusinessPartnerRole.BUYER,
+        idTenant: tenantId,
+        extraConfig: { sales: { minWeightKg: 310 } },
+      });
+
+      expect(result.extraConfig).toEqual({ sales: { minWeightKg: 310 } });
+    });
   });
 
   describe('findByNit', () => {

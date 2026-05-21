@@ -11,6 +11,8 @@ import { BusinessPartnerRepository } from '../repositories/business-partner.repo
 import { BusinessPartner } from '../entities/business-partner.entity';
 import { Contact } from '../entities/contact.entity';
 import { CreateBusinessPartnerDto } from '../dto/create-business-partner.dto';
+import { BusinessPartnerRole } from '../entities/business-partner.entity';
+import { validateAndNormalizeExtraConfig } from '../utils/business-partner-extra-config.util';
 
 @Injectable()
 export class BusinessPartnerService {
@@ -41,6 +43,10 @@ export class BusinessPartnerService {
       return existing;
     }
 
+    const extraConfig = validateAndNormalizeExtraConfig(data.type, data.extraConfig, {
+      requireForBuyer: true,
+    });
+
     return await this.dataSource.manager.transaction(async (transactionalEntityManager) => {
       let contactPersonId: string | undefined;
 
@@ -69,6 +75,7 @@ export class BusinessPartnerService {
         type: data.type!,
         address: data.address,
         contactPersonId,
+        extraConfig,
       });
 
       return await businessPartnerRepo.save(businessPartner);
@@ -127,7 +134,11 @@ export class BusinessPartnerService {
     return filtered;
   }
 
-  async updateById(id: string, idTenant: string, data: Partial<BusinessPartner>): Promise<void> {
+  async updateById(
+    id: string,
+    idTenant: string,
+    data: Partial<BusinessPartner> & { extraConfig?: CreateBusinessPartnerDto['extraConfig'] },
+  ): Promise<void> {
     const existing = await this.findById(id, idTenant);
     if (data.nit && data.nit !== existing.nit) {
       const existingByNit = await this.businessPartnerRepository.findByNit(data.nit, idTenant);
@@ -135,12 +146,35 @@ export class BusinessPartnerService {
         throw new ConflictException('NIT already exists for this tenant');
       }
     }
-    await this.businessPartnerRepository.updateById(existing.id, idTenant, data);
+
+    const patch = this.buildUpdatePatch(existing.type, data);
+    await this.businessPartnerRepository.updateById(existing.id, idTenant, patch);
   }
 
-  async updateByNit(nit: string, idTenant: string, data: Partial<BusinessPartner>): Promise<void> {
+  async updateByNit(
+    nit: string,
+    idTenant: string,
+    data: Partial<BusinessPartner> & { extraConfig?: CreateBusinessPartnerDto['extraConfig'] },
+  ): Promise<void> {
     const existing = await this.findByNit(nit, idTenant);
-    await this.businessPartnerRepository.updateByNit(existing.nit, idTenant, data);
+    const patch = this.buildUpdatePatch(existing.type, data);
+    await this.businessPartnerRepository.updateByNit(existing.nit, idTenant, patch);
+  }
+
+  private buildUpdatePatch(
+    type: BusinessPartnerRole,
+    data: Partial<BusinessPartner> & { extraConfig?: CreateBusinessPartnerDto['extraConfig'] },
+  ): Partial<BusinessPartner> {
+    const { extraConfig: extraConfigDto, ...rest } = data;
+    const patch: Partial<BusinessPartner> = { ...rest };
+
+    if (extraConfigDto !== undefined) {
+      patch.extraConfig = validateAndNormalizeExtraConfig(type, extraConfigDto, {
+        requireForBuyer: false,
+      });
+    }
+
+    return patch;
   }
 
   async deleteById(id: string, idTenant: string): Promise<void> {

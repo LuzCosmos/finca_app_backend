@@ -75,6 +75,7 @@ describe('Commerce / business-partners (e2e)', () => {
           name: 'E2E Business Partner',
           nit: uniqueNit,
           type: 'BUYER',
+          extraConfig: { sales: { minWeightKg: 320 } },
         });
 
       expect(createRes.status).toBe(201);
@@ -82,6 +83,7 @@ describe('Commerce / business-partners (e2e)', () => {
         name: 'E2E Business Partner',
         nit: uniqueNit,
         type: 'BUYER',
+        extraConfig: { sales: { minWeightKg: 320 } },
       });
       expect(createRes.body.id).toBeDefined();
 
