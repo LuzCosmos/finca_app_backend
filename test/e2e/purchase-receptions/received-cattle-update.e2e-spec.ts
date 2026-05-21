@@ -12,6 +12,7 @@ import {
 import {
   E2E_RECEPTION_SEED_EARTAG_DUPLICATE,
   resolveE2eReceptionSeedFromApp,
+  restoreE2eReceptionCattleFixtures,
 } from '../../helpers/e2e-reception-seed';
 
 const e2eAuthReady = hasE2eAuthConfigured();
@@ -54,6 +55,8 @@ describe('Purchase receptions / received-cattle (e2e)', () => {
           'E2E: semilla de recepción no encontrada. Ejecute: npm run seed:e2e',
         );
       }
+      const dataSource = app.get(DataSource);
+      await restoreE2eReceptionCattleFixtures(dataSource, tenantId, seed);
     });
 
     it('404 si el cattle no existe', async () => {

@@ -3,14 +3,18 @@ import { DataSource } from 'typeorm';
 import type { E2eReceptionSeedSnapshot } from '../../scripts/e2e-reception-seed';
 import {
   E2E_RECEPTION_CATTLE_EARTAG_HOLDER_NUMBER,
+  E2E_RECEPTION_CATTLE_IN_LOT_EARTAG_LEFT,
+  E2E_RECEPTION_CATTLE_IN_LOT_EARTAG_RIGHT,
   E2E_RECEPTION_CATTLE_IN_LOT_NUMBER,
+  E2E_RECEPTION_CATTLE_UNASSIGNED_EARTAG_LEFT,
   E2E_RECEPTION_CATTLE_UNASSIGNED_NUMBER,
   E2E_RECEPTION_LOT_NUMBER,
   E2E_RECEPTION_PROVIDER_NIT,
+  E2E_RECEPTION_SEED_EARTAG_DUPLICATE,
 } from './e2e-reception-seed.constants';
 import { Provider } from '../../src/modules/commerce/entities/provider.entity';
 import { Lot } from '../../src/modules/commerce/entities/lot.entity';
-import { Cattle } from '../../src/modules/farm/entities/cattle.entity';
+import { Cattle, CattleStatus } from '../../src/modules/farm/entities/cattle.entity';
 
 export type { E2eReceptionSeedSnapshot };
 export { E2E_RECEPTION_SEED_EARTAG_DUPLICATE } from './e2e-reception-seed.constants';
@@ -63,4 +67,43 @@ export async function resolveE2eReceptionSeedFromApp(
 ): Promise<E2eReceptionSeedSnapshot | null> {
   const dataSource = app.get(DataSource);
   return resolveE2eReceptionSeed(dataSource, tenantId);
+}
+
+/**
+ * Restaura aretes y estado ACTIVE de las res E2E de recepción (idempotente tras ventas u otros E2E).
+ */
+export async function restoreE2eReceptionCattleFixtures(
+  dataSource: DataSource,
+  tenantId: string,
+  reception: E2eReceptionSeedSnapshot,
+): Promise<void> {
+  const repo = dataSource.getRepository(Cattle);
+
+  const inLot = await repo.findOne({
+    where: { id: reception.cattleInLotId, idTenant: tenantId },
+  });
+  if (inLot) {
+    inLot.eartagLeft = E2E_RECEPTION_CATTLE_IN_LOT_EARTAG_LEFT;
+    inLot.eartagRight = E2E_RECEPTION_CATTLE_IN_LOT_EARTAG_RIGHT;
+    inLot.status = CattleStatus.ACTIVE;
+    await repo.save(inLot);
+  }
+
+  const holder = await repo.findOne({
+    where: { id: reception.cattleEartagHolderId, idTenant: tenantId },
+  });
+  if (holder) {
+    holder.eartagLeft = E2E_RECEPTION_SEED_EARTAG_DUPLICATE;
+    holder.status = CattleStatus.ACTIVE;
+    await repo.save(holder);
+  }
+
+  const unassigned = await repo.findOne({
+    where: { id: reception.cattleUnassignedId, idTenant: tenantId },
+  });
+  if (unassigned) {
+    unassigned.eartagLeft = E2E_RECEPTION_CATTLE_UNASSIGNED_EARTAG_LEFT;
+    unassigned.status = CattleStatus.ACTIVE;
+    await repo.save(unassigned);
+  }
 }

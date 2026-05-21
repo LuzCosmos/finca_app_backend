@@ -177,6 +177,39 @@ describe('SalesService', () => {
       );
     });
 
+    it('rejects duplicate cattle in another sale via assertCattleCanBeAddedToSale', async () => {
+      mockSaleLock(existingSale);
+      manager.find.mockResolvedValueOnce([existingDetail]);
+      manager.findOne
+        .mockResolvedValueOnce({
+          id: 'other-cattle',
+          idTenant: tenantId,
+          status: CattleStatus.ACTIVE,
+        } as Cattle);
+
+      const otherDetailQb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({ id: 'other-detail', saleId: 'other-sale' }),
+      };
+      manager.createQueryBuilder.mockReturnValueOnce(otherDetailQb);
+
+      const dto = baseUpdateDto();
+      dto.details = [
+        {
+          cattleId: 'other-cattle',
+          cattleNumber: '200',
+          measuredWeight: 300,
+          calculatedPrice: 1500,
+          isApproved: true,
+        },
+      ] as UpdateSaleDto['details'];
+
+      await expect(service.update(tenantId, saleId, dto)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
     it('reverts cattle when approved detail changes to rejected', async () => {
       mockSaleLock(existingSale);
       manager.find.mockResolvedValueOnce([existingDetail]);
