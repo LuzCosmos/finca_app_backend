@@ -1,5 +1,7 @@
-import { IsOptional, IsString, Length } from 'class-validator';
+import { IsOptional, IsString, Length, ValidateNested } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { BusinessPartnerExtraConfigDto } from './business-partner-extra-config.dto';
 
 export class UpdateBusinessPartnerDto {
   @ApiPropertyOptional({ example: 'Ganadería El Porvenir', description: 'Business partner name' })
@@ -13,4 +15,13 @@ export class UpdateBusinessPartnerDto {
   @IsOptional()
   @Length(5, 20)
   nit?: string;
+
+  @ApiPropertyOptional({
+    description: 'Role-specific settings (sales.minWeightKg for BUYER)',
+    example: { sales: { minWeightKg: 350 } },
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BusinessPartnerExtraConfigDto)
+  extraConfig?: BusinessPartnerExtraConfigDto;
 }

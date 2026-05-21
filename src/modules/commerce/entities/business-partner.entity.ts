@@ -53,6 +53,9 @@ export class BusinessPartner {
   @JoinColumn({ name: 'contact_person_id' })
   contactPerson: Contact;
 
+  @Column({ name: 'extra_config', type: 'jsonb', nullable: true })
+  extraConfig: { sales?: { minWeightKg: number } } | null;
+
   @CreateDateColumn()
   created_at: Date;
 

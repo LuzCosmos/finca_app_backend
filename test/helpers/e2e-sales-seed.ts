@@ -39,6 +39,7 @@ export async function resolveE2eSalesSeed(
       name: 'E2E Buyer',
       nit: E2E_SALES_BUYER_NIT,
       type: BusinessPartnerRole.BUYER,
+      extraConfig: { sales: { minWeightKg: 300 } },
     });
     buyer = await businessPartnerRepo.save(buyer);
   }

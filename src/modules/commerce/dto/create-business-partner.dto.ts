@@ -1,6 +1,8 @@
-import { IsNotEmpty, IsString, Length, IsOptional, IsEmail, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsString, Length, IsOptional, IsEmail, IsEnum, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { BusinessPartnerRole } from '../entities/business-partner.entity';
+import { BusinessPartnerExtraConfigDto } from './business-partner-extra-config.dto';
 
 export class CreateBusinessPartnerDto {
   @ApiProperty({ example: 'Ganadería La Ponderosa', description: 'Business partner name' })
@@ -44,4 +46,13 @@ export class CreateBusinessPartnerDto {
   @IsEmail()
   @IsOptional()
   email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Role-specific settings (sales.minWeightKg required for BUYER)',
+    example: { sales: { minWeightKg: 350 } },
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BusinessPartnerExtraConfigDto)
+  extraConfig?: BusinessPartnerExtraConfigDto;
 }
