@@ -57,7 +57,7 @@ export class PurchaseRepository {
   async listPaged(tenantId: string, q: PurchaseListQueryDto, page: number, limit: number) {
     const { from, to, provider, status = 'all' } = q;
     const qb = this.repository.createQueryBuilder('p')
-      .leftJoin('providers', 'prov', 'prov.id = p.id_provider')
+      .leftJoin('business_partners', 'bp', 'bp.id = p.id_provider')
       // lot_agg
       .leftJoin(
         qb1 => qb1
@@ -87,12 +87,12 @@ export class PurchaseRepository {
 
     if (from) qb.andWhere('p.purchase_date >= :from', { from });
     if (to) qb.andWhere('p.purchase_date <= :to', { to });
-    if (provider) qb.andWhere('prov.name ILIKE :prov', { prov: `%${provider}%` });
+    if (provider) qb.andWhere('bp.name ILIKE :bp', { bp: `%${provider}%` });
 
     qb.select([
       'p.id AS id',
       'p.purchase_date AS "purchaseDate"',
-      'prov.name AS "providerName"',
+      'bp.name AS "providerName"',
       'p.status AS "status"',
       'COALESCE(lot_agg.total_cattle, 0) AS "totalCattle"',
       'COALESCE(lot_agg.total_weight, 0) AS "totalWeight"',

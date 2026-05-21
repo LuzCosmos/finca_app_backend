@@ -1,8 +1,17 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Unique, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Unique,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { IsNotEmpty } from 'class-validator';
 import { Contact } from './contact.entity';
 
-export enum ProviderType {
+export enum BusinessPartnerRole {
   BUYER = 'BUYER',
   TRANSPORTER = 'TRANSPORTER',
   VET = 'VET',
@@ -11,8 +20,8 @@ export enum ProviderType {
 }
 
 @Unique(['nit', 'idTenant'])
-@Entity('providers')
-export class Provider {
+@Entity('business_partners')
+export class BusinessPartner {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -28,10 +37,11 @@ export class Provider {
 
   @Column({
     type: 'enum',
-    enum: ProviderType,
-    default: ProviderType.OTHER,
+    enum: BusinessPartnerRole,
+    enumName: 'business_partner_roles_enum',
+    default: BusinessPartnerRole.OTHER,
   })
-  type: ProviderType;
+  type: BusinessPartnerRole;
 
   @Column({ length: 255, nullable: true })
   address: string;
@@ -48,5 +58,4 @@ export class Provider {
 
   @UpdateDateColumn()
   updated_at: Date;
-
 }

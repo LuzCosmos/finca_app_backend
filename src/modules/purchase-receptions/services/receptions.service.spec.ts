@@ -9,7 +9,7 @@ import { CattleService } from 'src/modules/farm/services/cattle.service';
 import { CattleRepository } from 'src/modules/farm/repositories/cattle.repository';
 import { AnimalSimpleEventRepository } from 'src/modules/massive-events/repositories/animal-simple-event.repository';
 import { SimpleEventRepository } from 'src/modules/massive-events/repositories/simple-event.repository';
-import { ProviderRepository } from '../../commerce/repositories/provider.repository';
+import { BusinessPartnerRepository } from '../../commerce/repositories/business-partner.repository';
 import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
 import { CattleWeightHistoryRepository } from '../../farm/repositories/cattle-weight-history.repository';
 import { CattleCharacteristicRepository } from '../../farm/repositories/cattle-characteristic.repository';
@@ -54,7 +54,7 @@ describe('ReceptionsService', () => {
   };
   let animalSimpleEventRepo: { findByCattle: jest.Mock };
   let simpleEventRepo: { findByMassiveEvent: jest.Mock; findByIds: jest.Mock };
-  let providerRepo: { findById: jest.Mock };
+  let businessPartnerRepo: { findById: jest.Mock };
   let configurationsService: { getTenantConfiguration: jest.Mock; updateTenantConfiguration: jest.Mock };
   let cattleWeightHistoryRepo: { createWithManager: jest.Mock };
   let cattleCharacteristicRepository: { attachMany: jest.Mock; replaceAll: jest.Mock };
@@ -93,7 +93,7 @@ describe('ReceptionsService', () => {
       cattleRepo as unknown as CattleRepository,
       animalSimpleEventRepo as unknown as AnimalSimpleEventRepository,
       simpleEventRepo as unknown as SimpleEventRepository,
-      providerRepo as unknown as ProviderRepository,
+      businessPartnerRepo as unknown as BusinessPartnerRepository,
       configurationsService as unknown as ConfigurationsService,
       cattleWeightHistoryRepo as unknown as CattleWeightHistoryRepository,
       cattleCharacteristicRepository as unknown as CattleCharacteristicRepository,
@@ -128,7 +128,7 @@ describe('ReceptionsService', () => {
     };
     animalSimpleEventRepo = { findByCattle: jest.fn() };
     simpleEventRepo = { findByMassiveEvent: jest.fn(), findByIds: jest.fn() };
-    providerRepo = { findById: jest.fn() };
+    businessPartnerRepo = { findById: jest.fn() };
     configurationsService = {
       getTenantConfiguration: jest.fn(),
       updateTenantConfiguration: jest.fn(),
@@ -229,7 +229,7 @@ describe('ReceptionsService', () => {
         receivedAt: new Date('2025-06-02'),
         nextCattleNumber: null,
       }));
-      providerRepo.findById.mockResolvedValue({ name: 'Provider SA' });
+      businessPartnerRepo.findById.mockResolvedValue({ name: 'Provider SA' });
       lotRepo.findByPurchaseId.mockResolvedValue([]);
       cattleRepo.findByIdLot.mockResolvedValue([]);
       cattleRepo.findByIdPurchaseWithoutLot.mockResolvedValue([]);
@@ -259,7 +259,7 @@ describe('ReceptionsService', () => {
       prRepo.findByPurchase.mockResolvedValue(reception);
       massiveEventRepo.findById.mockResolvedValue(massive);
       simpleEventRepo.findByMassiveEvent.mockResolvedValue([]);
-      providerRepo.findById.mockResolvedValue({ name: 'P' });
+      businessPartnerRepo.findById.mockResolvedValue({ name: 'P' });
       lotRepo.findByPurchaseId.mockResolvedValue([]);
       cattleRepo.findByIdLot.mockResolvedValue([]);
       cattleRepo.findByIdPurchaseWithoutLot.mockResolvedValue([]);
@@ -288,7 +288,7 @@ describe('ReceptionsService', () => {
       prRepo.findByPurchase.mockResolvedValue(reception);
       massiveEventRepo.findById.mockResolvedValue(massive);
       simpleEventRepo.findByMassiveEvent.mockResolvedValue([]);
-      providerRepo.findById.mockResolvedValue(null);
+      businessPartnerRepo.findById.mockResolvedValue(null);
 
       await expect(service.findOrCreateReceptionByIdPurchase(tenantId, purchaseId, userId)).rejects.toThrow(
         NotFoundException,

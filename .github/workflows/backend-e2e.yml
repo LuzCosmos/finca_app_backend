@@ -81,6 +81,8 @@ jobs:
           E2E_PASSWORD: 'E2E_ci_Password123!'
           E2E_LIMITED_USERNAME: e2e_limited
           E2E_LIMITED_PASSWORD: 'E2E_ci_Limited123!'
+          E2E_FARM_WORKER_USERNAME: e2e_farm_worker
+          E2E_FARM_WORKER_PASSWORD: 'E2E_ci_FarmWorker123!'
           E2E_TENANT_NAME: E2E CI Tenant
           E2E_ADMIN_EMAIL: e2e-ci@example.invalid
         run: npm run seed:e2e
@@ -103,5 +105,7 @@ jobs:
           E2E_PASSWORD: 'E2E_ci_Password123!'
           E2E_LIMITED_USERNAME: e2e_limited
           E2E_LIMITED_PASSWORD: 'E2E_ci_Limited123!'
+          E2E_FARM_WORKER_USERNAME: e2e_farm_worker
+          E2E_FARM_WORKER_PASSWORD: 'E2E_ci_FarmWorker123!'
           E2E_REQUIRE_AUTH: 'true'
         run: npm run test:e2e

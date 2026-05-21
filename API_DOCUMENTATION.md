@@ -175,16 +175,16 @@ docker compose up -d
 - `PUT /api/v1/sales/:id` — Actualizar venta
 
 ### Commerce — Providers
-- `POST /api/v1/providers` — Crear proveedor
-- `GET /api/v1/providers` — Listar proveedores
-- `GET /api/v1/providers/search` — Buscar por nombre
-- `GET /api/v1/providers/search/by-nit` — Buscar por NIT
-- `GET /api/v1/providers/:id` — Obtener por ID
-- `GET /api/v1/providers/nit/:nit` — Obtener por NIT
-- `PUT /api/v1/providers/:id` — Actualizar por ID
-- `PUT /api/v1/providers/nit/:nit` — Actualizar por NIT
-- `DELETE /api/v1/providers/:id` — Eliminar por ID
-- `DELETE /api/v1/providers/nit/:nit` — Eliminar por NIT
+- `POST /api/v1/business-partners` — Crear tercero comercial
+- `GET /api/v1/business-partners` — Listar terceros comerciales
+- `GET /api/v1/business-partners/search` — Buscar por nombre
+- `GET /api/v1/business-partners/search/by-nit` — Buscar por NIT
+- `GET /api/v1/business-partners/:id` — Obtener por ID
+- `GET /api/v1/business-partners/nit/:nit` — Obtener por NIT
+- `PUT /api/v1/business-partners/:id` — Actualizar por ID
+- `PUT /api/v1/business-partners/nit/:nit` — Actualizar por NIT
+- `DELETE /api/v1/business-partners/:id` — Eliminar por ID
+- `DELETE /api/v1/business-partners/nit/:nit` — Eliminar por NIT
 
 ### Commerce — Lots
 - `GET /api/v1/lots/:id` — Obtener lote por ID
