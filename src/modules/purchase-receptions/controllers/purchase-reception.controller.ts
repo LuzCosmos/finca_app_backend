@@ -117,7 +117,7 @@ export class ReceptionController {
           birthDateAprx: '2024-01-15',
           gender: 'gender_enum',
           comments: 'Initial reception check completed.', // Optional
-          idProvider: 'uuid-provider-123', // Optional
+          idProvider: 'uuid-provider-123',
           idSimpleEvents: ['uuid-simple-event-1', 'uuid-simple-event-2'] // Optional
         }
       }

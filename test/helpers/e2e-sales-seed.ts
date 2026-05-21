@@ -1,11 +1,14 @@
 import { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { Provider, ProviderType } from '../../src/modules/commerce/entities/provider.entity';
+import {
+  BusinessPartner,
+  BusinessPartnerRole,
+} from '../../src/modules/commerce/entities/business-partner.entity';
 import { SaleDetail } from '../../src/modules/commerce/entities/sale-detail.entity';
 import { Cattle, CattleStatus } from '../../src/modules/farm/entities/cattle.entity';
 import { resolveE2eReceptionSeed } from './e2e-reception-seed';
 
-/** Máx. 20 caracteres (`providers.nit` varchar(20)). */
+/** Máx. 20 caracteres (`business_partners.nit` varchar(20)). */
 export const E2E_SALES_BUYER_NIT = 'E2E-BUYER-NIT';
 
 export type E2eSalesSeedSnapshot = {
@@ -26,18 +29,18 @@ export async function resolveE2eSalesSeed(
     return null;
   }
 
-  let buyer = await dataSource.getRepository(Provider).findOne({
+  let buyer = await dataSource.getRepository(BusinessPartner).findOne({
     where: { idTenant: tenantId, nit: E2E_SALES_BUYER_NIT },
   });
   if (!buyer) {
-    const providerRepo = dataSource.getRepository(Provider);
-    buyer = providerRepo.create({
+    const businessPartnerRepo = dataSource.getRepository(BusinessPartner);
+    buyer = businessPartnerRepo.create({
       idTenant: tenantId,
       name: 'E2E Buyer',
       nit: E2E_SALES_BUYER_NIT,
-      type: ProviderType.BUYER,
+      type: BusinessPartnerRole.BUYER,
     });
-    buyer = await providerRepo.save(buyer);
+    buyer = await businessPartnerRepo.save(buyer);
   }
 
   const cattleRepo = dataSource.getRepository(Cattle);

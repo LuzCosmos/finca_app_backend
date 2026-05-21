@@ -18,7 +18,7 @@ import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-e
 import { PurchaseRepository } from 'src/modules/commerce/repositories/purchase.repository';
 import { Cattle, CattleStatus } from '../../farm/entities/cattle.entity';
 import { BirthDateAprxSource } from '../../farm/enums/birth-date-aprx-source.enum';
-import { ProviderRepository } from '../../commerce/repositories/provider.repository';
+import { BusinessPartnerRepository } from '../../commerce/repositories/business-partner.repository';
 import { CattleService } from 'src/modules/farm/services/cattle.service';
 import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
 import { CattleWeightHistory, WeightContext } from '../../farm/entities/cattle-weight-history.entity';
@@ -47,7 +47,7 @@ export class ReceptionsService {
     private readonly cattleRepo: CattleRepository,
     private readonly animalSimpleEventRepo: AnimalSimpleEventRepository,
     private readonly simpleEventRepo: SimpleEventRepository,
-    private readonly providerRepo: ProviderRepository,
+    private readonly businessPartnerRepo: BusinessPartnerRepository,
     private readonly configurationsService: ConfigurationsService,
     private readonly cattleWeightHistoryRepo: CattleWeightHistoryRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
@@ -104,9 +104,13 @@ export class ReceptionsService {
           massiveEvent.simpleEvents = await this.simpleEventRepo.findByMassiveEvent(idTenant, massiveEvent.id, manager);
         }
       }
-      var provider = await this.providerRepo.findById(purchase!.idProvider, idTenant, manager);
-      if (!provider) {
-        throw new NotFoundException('Provider not found');
+      var businessPartner = await this.businessPartnerRepo.findById(
+        purchase!.idProvider,
+        idTenant,
+        manager,
+      );
+      if (!businessPartner) {
+        throw new NotFoundException('Business partner not found');
       }
       var lots = await this.lotRepo.findByPurchaseId(idPurchase, idTenant, manager);
       var lotCattle: Record<string, Cattle[]> = {};
@@ -124,7 +128,16 @@ export class ReceptionsService {
         var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(idTenant, c.id, manager);
         appliedEvents[c.id] = animalSimpleEvents;
       }
-      return PurchaseReceptionResponseDto.toResponseDto(reception, purchase!, provider.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
+      return PurchaseReceptionResponseDto.toResponseDto(
+        reception,
+        purchase!,
+        businessPartner.name,
+        lots,
+        lotCattle,
+        cattle,
+        appliedEvents,
+        massiveEvent,
+      );
     });
     return reception;
   }

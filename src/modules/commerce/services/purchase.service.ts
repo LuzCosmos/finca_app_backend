@@ -193,7 +193,7 @@ export class PurchaseService {
     const items: PurchaseListItemDto[] = rows.map((r) => ({
       id: r.id,
       purchaseDate: new Date(r.purchaseDate).toISOString(),
-      providerName: r.providerName ?? null, // DTO permite null
+      providerName: r.providerName ?? null,
       totalCattle: Number(r.totalCattle ?? 0),
       totalWeight: Number(r.totalWeight ?? 0),
       receivedCattle: Number(r.receivedCattle ?? 0),

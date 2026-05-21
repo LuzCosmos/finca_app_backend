@@ -12,7 +12,7 @@ import {
   E2E_RECEPTION_PROVIDER_NIT,
   E2E_RECEPTION_SEED_EARTAG_DUPLICATE,
 } from './e2e-reception-seed.constants';
-import { Provider } from '../../src/modules/commerce/entities/provider.entity';
+import { BusinessPartner } from '../../src/modules/commerce/entities/business-partner.entity';
 import { Lot } from '../../src/modules/commerce/entities/lot.entity';
 import { Cattle, CattleStatus } from '../../src/modules/farm/entities/cattle.entity';
 
@@ -27,10 +27,10 @@ export async function resolveE2eReceptionSeed(
   dataSource: DataSource,
   tenantId: string,
 ): Promise<E2eReceptionSeedSnapshot | null> {
-  const provider = await dataSource.getRepository(Provider).findOne({
+  const businessPartner = await dataSource.getRepository(BusinessPartner).findOne({
     where: { idTenant: tenantId, nit: E2E_RECEPTION_PROVIDER_NIT },
   });
-  if (!provider) return null;
+  if (!businessPartner) return null;
 
   const lot = await dataSource.getRepository(Lot).findOne({
     where: { idTenant: tenantId, lotNumber: E2E_RECEPTION_LOT_NUMBER },
@@ -52,7 +52,7 @@ export async function resolveE2eReceptionSeed(
   }
 
   return {
-    providerId: provider.id,
+    businessPartnerId: businessPartner.id,
     purchaseId: lot.idPurchase,
     lotId: lot.id,
     cattleInLotId: cattleInLot.id,
