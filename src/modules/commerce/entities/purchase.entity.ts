@@ -2,7 +2,6 @@ import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
   ManyToOne, OneToMany, JoinColumn
 } from 'typeorm';
-import { Provider } from './provider.entity';
 import { User } from '../../employee-management/entities/user.entity';
 import { Lot } from './lot.entity';
 import { Cattle } from '../../farm/entities/cattle.entity';

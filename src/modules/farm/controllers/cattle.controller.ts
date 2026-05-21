@@ -36,12 +36,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ApplySimpleEventsDto } from '../../massive-events/dto/apply-simple-events.dto';
+import { ApplyEventsToCattleRequestDto } from '../../massive-events/dto/apply-events-to-cattle.dto';
 import { AnimalSimpleEventRepository } from '../../massive-events/repositories/animal-simple-event.repository';
 import { SyncAnimalSimpleEventRequestDto, SyncAnimalSimpleEventResponseDto } from '../../massive-events/dto/sync-animal-simple-event.dto';
 import { PreviewBirthFromDentitionDto } from '../dto/preview-birth-from-dentition.dto';
 import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
-import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
-
 @ApiTags('Cattle')
 @ApiBearerAuth('access-token')
 @Controller('cattle')
@@ -219,73 +218,50 @@ export class CattleController {
     await this.cattleService.remove(sessionUser.tenant_id, id);
   }
 
-  @Post('apply-events/:cattleNumber')
+  @Post('apply-events')
   @ApiOperation({ summary: 'Apply multiple simple events to a single cattle by number' })
   @ApiResponse({ status: 200, description: 'Events applied successfully', type: [AnimalSimpleEvent] })
+  @ApiResponse({ status: 400, description: 'Invalid request body' })
   @ApiResponse({ status: 404, description: 'Cattle {cattleNumber} not found / Device {deveui} not found' })
   @ApiResponse({ status: 500, description: 'Unexpected error during application process' })
   @RequireAction('update')
   @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        idMassiveEvent: { type: 'string' },
-        events: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              type: { type: 'string', enum: ['weight', 'eartag', 'tracker', 'brand', 'castration', 'medication'] },
-              data: { type: 'object' },
-              appliedBy: { type: 'string' },
-              idSimpleEvent: { type: 'string' }
-            }
-          }
-        }
-      }
-    },
+    type: ApplyEventsToCattleRequestDto,
     examples: {
       example1: {
         summary: 'Apply multiple events to only one cattle',
         value: {
           applied: {
+            cattleNumber: 'N-100',
             idMassiveEvent: 'uuid-massive-event-1',
             events: [
               { type: 'weight', data: { weight: 350.58 }, idSimpleEvent: 'uuid-simple-event-1' },
               { type: 'eartag', data: { eartagLeft: 'ET-789', eartagRight: 'ET-790' }, idSimpleEvent: 'uuid-simple-event-2' },
               { type: 'tracker', data: { tracker_deveui: 'a173ecf6ffe3abcd' }, idSimpleEvent: 'uuid-simple-event-3' },
               { type: 'castration', data: {}, idSimpleEvent: 'uuid-simple-event-4' },
-              { type: 'medication', data: { medicationName: "Antrimizin NF 85 mg", dosage: "1.2 mg/kg", route: "oral", lot: "LOT-2025" }, idSimpleEvent: 'uuid-simple-event-5' },
-              { type: 'medication', data: { medicationName: "Boldenona 50 mg", dosage: "1 mL/90 Kg", route: "Intramuscular profunda", lot: "LOT-2025" }, idSimpleEvent: 'uuid-simple-event-6' },
-              { type: 'brand', data: { idBrand: "abc123" }, idSimpleEvent: 'uuid-simple-event-7' }
-            ]
-          }
-        }
-      }
-    }
+              { type: 'medication', data: { medicationName: 'Antrimizin NF 85 mg', dosage: '1.2 mg/kg', route: 'oral', lot: 'LOT-2025' }, idSimpleEvent: 'uuid-simple-event-5' },
+              { type: 'brand', data: { idBrand: 'abc123' }, idSimpleEvent: 'uuid-simple-event-7' },
+            ],
+          },
+        },
+      },
+    },
   })
   async applyEventsToSingleCattle(
     @SessionUser() sessionUser: SessionUserDto,
-    @Param('cattleNumber') cattleNumber: string,
-    @Body('applied') applied: {
-      idMassiveEvent: string;
-      events: Array<{
-        type: SimpleEventType;
-        data: any;
-        appliedBy?: string;
-        idSimpleEvent: string;
-      }>
-    }
+    @Body() body: ApplyEventsToCattleRequestDto,
   ) {
-    if (!applied || !applied.idMassiveEvent || !Array.isArray(applied.events)) {
-      throw new BadRequestException('Invalid applied payload');
+    const applied = body.applied;
+    const cattleNumber = applied.cattleNumber.trim();
+    if (!cattleNumber) {
+      throw new BadRequestException('cattleNumber is required');
     }
     const appliedEvents = await this.cattleService.applyMultipleSimpleEventsByNumber_transaction(
       sessionUser.tenant_id,
       sessionUser.sub,
       cattleNumber,
       applied.idMassiveEvent,
-      applied.events
+      applied.events,
     );
     this.logger.debug(`log_cattle 1: Applied events: ${appliedEvents}`);
     return appliedEvents;

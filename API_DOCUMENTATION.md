@@ -133,7 +133,7 @@ docker compose up -d
 - `GET /api/v1/cattle/basic-info` — Info básica
 - `GET /api/v1/cattle/basic` — Info básica paginada con cursor
 - `GET /api/v1/cattle/simple-events/:id` — Eventos simples por ganado
-- `POST /api/v1/cattle/apply-events/:cattleNumber` — Aplicar eventos a un ganado
+- `POST /api/v1/cattle/apply-events` — Aplicar eventos a un ganado (`applied.cattleNumber` en body)
 - `POST /api/v1/cattle/apply-simple-events` — Aplicar eventos a múltiples ganados
 - `POST /api/v1/cattle/sync-cattle-simple-event` — Sincronización offline
 - `POST /api/v1/cattle/import` — Importar ganado (Excel)
@@ -175,16 +175,16 @@ docker compose up -d
 - `PUT /api/v1/sales/:id` — Actualizar venta
 
 ### Commerce — Providers
-- `POST /api/v1/providers` — Crear proveedor
-- `GET /api/v1/providers` — Listar proveedores
-- `GET /api/v1/providers/search` — Buscar por nombre
-- `GET /api/v1/providers/search/by-nit` — Buscar por NIT
-- `GET /api/v1/providers/:id` — Obtener por ID
-- `GET /api/v1/providers/nit/:nit` — Obtener por NIT
-- `PUT /api/v1/providers/:id` — Actualizar por ID
-- `PUT /api/v1/providers/nit/:nit` — Actualizar por NIT
-- `DELETE /api/v1/providers/:id` — Eliminar por ID
-- `DELETE /api/v1/providers/nit/:nit` — Eliminar por NIT
+- `POST /api/v1/business-partners` — Crear tercero comercial
+- `GET /api/v1/business-partners` — Listar terceros comerciales
+- `GET /api/v1/business-partners/search` — Buscar por nombre
+- `GET /api/v1/business-partners/search/by-nit` — Buscar por NIT
+- `GET /api/v1/business-partners/:id` — Obtener por ID
+- `GET /api/v1/business-partners/nit/:nit` — Obtener por NIT
+- `PUT /api/v1/business-partners/:id` — Actualizar por ID
+- `PUT /api/v1/business-partners/nit/:nit` — Actualizar por NIT
+- `DELETE /api/v1/business-partners/:id` — Eliminar por ID
+- `DELETE /api/v1/business-partners/nit/:nit` — Eliminar por NIT
 
 ### Commerce — Lots
 - `GET /api/v1/lots/:id` — Obtener lote por ID

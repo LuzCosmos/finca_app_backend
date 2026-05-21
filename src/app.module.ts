@@ -12,6 +12,7 @@ import { CommerceModule } from 'src/modules/commerce/commerce.module';
 import { join } from 'path';
 import { ReceptionModule } from 'src/modules/purchase-receptions/reception.module';
 import { ConfigurationModule } from 'src/modules/configurations/configuration.module';
+import { ReportsModule } from 'src/modules/reports/reports.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -43,6 +44,7 @@ import { AppService } from './app.service';
     CommerceModule,
     ReceptionModule,
     ConfigurationModule,
+    ReportsModule,
     MqttModule,
     HardwareModule,
   ],

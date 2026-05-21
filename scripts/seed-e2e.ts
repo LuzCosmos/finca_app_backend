@@ -1,6 +1,7 @@
 /**
  * Semilla idempotente para tests E2E: tenant con permisos SYS_ADMIN + usuario de login.
  * Opcional: usuario **MANAGER** (`E2E_LIMITED_*`) sin módulo FARM para E2E **403**.
+ * Opcional: usuario **FARM_WORKER** (`E2E_FARM_WORKER_*`) sin módulo COMMERCE para E2E **403** en `business_partners`.
  *
  * Prioridad de env: carga `.env` y luego `test/.env.e2e` (override), igual que Jest E2E.
  * Requiere Postgres con migraciones aplicadas (o `migrationsRun: true` al arrancar Nest) y Redis accesible.
@@ -21,7 +22,8 @@ if (fs.existsSync(e2eEnvPath)) {
 import {
   E2E_LW001_SEED_PROFILE_COLUMN_B_NAME,
   E2E_LW001_SEED_PROFILE_DEFAULT_NAME,
-} from '../test/helpers/e2e-lw001-seed.constants';
+} from './e2e-lw001-seed.constants';
+import { ensureE2eReceptionPurchaseFixture } from './e2e-reception-seed';
 
 const E2E_LW001_SEED_PROFILE_SPECS = [
   {
@@ -138,6 +140,76 @@ async function ensureE2eLimitedManagerUser(
   );
 }
 
+async function ensureE2eFarmWorkerUser(
+  dataSource: DataSource,
+  tenantId: string,
+  hash: (pw: string, rounds: number) => Promise<string>,
+): Promise<void> {
+  const farmWorkerUser = process.env.E2E_FARM_WORKER_USERNAME?.trim();
+  const farmWorkerPassword = process.env.E2E_FARM_WORKER_PASSWORD;
+  if (!farmWorkerUser || !farmWorkerPassword) {
+    return;
+  }
+
+  const { User } = await import('../src/modules/employee-management/entities/user.entity');
+  const { Role } = await import('../src/modules/employee-management/entities/role.entity');
+  const { ModuleEntity } = await import('../src/modules/employee-management/entities/module.entity');
+  const { RoleModulePermission } = await import(
+    '../src/modules/employee-management/entities/role-module-permission.entity'
+  );
+  const roleRepo = dataSource.getRepository(Role);
+  const userRepo = dataSource.getRepository(User);
+  const moduleRepo = dataSource.getRepository(ModuleEntity);
+  const permRepo = dataSource.getRepository(RoleModulePermission);
+
+  const farmWorkerRole = await roleRepo.findOne({ where: { code: 'FARM_WORKER' } });
+  if (!farmWorkerRole) {
+    console.warn('seed:e2e: rol FARM_WORKER no encontrado; omitiendo usuario sin COMMERCE.');
+    return;
+  }
+
+  const commerceModule = await moduleRepo.findOne({ where: { code: 'COMMERCE' } });
+  if (commerceModule) {
+    await permRepo.delete({
+      tenant_id: tenantId,
+      id_role: farmWorkerRole.id,
+      id_module: commerceModule.id,
+    });
+  }
+
+  const email =
+    process.env.E2E_FARM_WORKER_EMAIL?.trim() ||
+    `e2e-farm-worker+${farmWorkerUser.replace(/[^a-zA-Z0-9]/g, '')}@example.invalid`;
+
+  let user = await userRepo.findOne({
+    where: { tenantId, username: farmWorkerUser },
+    relations: ['roles'],
+  });
+
+  const pwdHash = await hash(farmWorkerPassword, 10);
+
+  if (user) {
+    user.password = pwdHash;
+    user.roles = [farmWorkerRole];
+    await userRepo.save(user);
+  } else {
+    user = userRepo.create({
+      username: farmWorkerUser,
+      password: pwdHash,
+      email,
+      firstName: process.env.E2E_FARM_WORKER_FIRST_NAME?.trim() || 'E2E',
+      lastName: process.env.E2E_FARM_WORKER_LAST_NAME?.trim() || 'FarmWorker',
+      tenantId,
+      roles: [farmWorkerRole],
+      active: true,
+    });
+    await userRepo.save(user);
+  }
+  console.log(
+    `seed:e2e: usuario "${farmWorkerUser}" (FARM_WORKER, sin COMMERCE/business_partners) listo para tests 403.`,
+  );
+}
+
 async function main(): Promise<void> {
   const company = process.env.E2E_COMPANY_USERNAME?.trim();
   const username = process.env.E2E_USERNAME?.trim();
@@ -201,8 +273,19 @@ async function main(): Promise<void> {
     }
 
     if (tenantId) {
+      const adminUser = await userRepo.findOne({
+        where: { tenantId, username },
+      });
       await ensureE2eLimitedManagerUser(dataSource, tenantId, hash);
+      await ensureE2eFarmWorkerUser(dataSource, tenantId, hash);
       await ensureE2eLw001DeviceProfiles(dataSource, tenantId);
+      if (adminUser) {
+        await ensureE2eReceptionPurchaseFixture(app, tenantId, adminUser.id);
+      } else {
+        console.warn(
+          `seed:e2e: usuario admin "${username}" no encontrado; omitiendo semilla de recepción.`,
+        );
+      }
     }
   } finally {
     await Promise.race([

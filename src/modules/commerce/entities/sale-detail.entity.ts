@@ -5,11 +5,13 @@ import {
     ManyToOne,
     JoinColumn,
     CreateDateColumn,
+    Index,
 } from 'typeorm';
 import { Sale } from './sale.entity';
 import { Cattle } from '../../farm/entities/cattle.entity';
 
 @Entity('sale_details')
+@Index('UQ_sale_details_id_tenant_cattle_id', ['idTenant', 'cattleId'], { unique: true })
 export class SaleDetail {
     @PrimaryGeneratedColumn('uuid')
     id: string;

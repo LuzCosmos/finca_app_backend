@@ -11,3 +11,4 @@ env/
 coverage
 npm-debug.log
 test/
+finca_app_scale_bridge/

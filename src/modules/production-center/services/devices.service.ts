@@ -99,6 +99,7 @@ export class DevicesService {
     } else {
       createDeviceDto.csNwkKey = deviceProfile.csNwkKey;
     }
+    createDeviceDto.idChirpstackProfile = deviceProfile.idChipstack;
     return await this.createDevice(createDeviceDto, deviceProfile, deviceChirpstack, deviceKeys);
   }
 
@@ -247,13 +248,30 @@ export class DevicesService {
   async updateWithDevice(device: Device, updateDeviceDto: UpdateDeviceDto, manager?: EntityManager): Promise<Device> {
     this.logger.debug(`log_device 1: Updating device ${device.deveui} with device tags: ${JSON.stringify(updateDeviceDto)}`);
     try {
-
-      const deviceChirpstack = await this.updateDeviceInChirpstack(device.deveui, updateDeviceDto, device);
-      if (!deviceChirpstack) {
-        this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
-        throw new BadRequestException(`Error updating device in Chirpstack`);
+      const chirpstackProfileId = await this.resolveChirpstackProfileIdForUpdate(
+        device,
+        updateDeviceDto,
+      );
+      if (chirpstackProfileId) {
+        if (!updateDeviceDto.idChirpstackProfile) {
+          updateDeviceDto.idChirpstackProfile = chirpstackProfileId;
+        }
+        const deviceChirpstack = await this.updateDeviceInChirpstack(
+          device.deveui,
+          updateDeviceDto,
+          device,
+          chirpstackProfileId,
+        );
+        if (!deviceChirpstack) {
+          this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
+          throw new BadRequestException(`Error updating device in Chirpstack`);
+        }
+        this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
+      } else {
+        this.logger.debug(
+          `log_device 2.1: Device ${device.deveui} skipped ChirpStack update (no id_chirpstack_profile resoluble)`,
+        );
       }
-      this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
       const deviceUpdated = await this.deviceRepository.update(device.id, updateDeviceDto, manager);
       if (!deviceUpdated) {
         this.logger.debug(`log_device 4: Error updating device ${device.deveui}`);
@@ -261,7 +279,6 @@ export class DevicesService {
       }
       this.logger.debug(`log_device 5: Device updated: ${deviceUpdated.id}`);
       return deviceUpdated;
-
     } catch (error) {
       const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || 'Unknown error');
       this.logger.error(`log_device 6: Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${errorMsg}`);
@@ -278,7 +295,12 @@ export class DevicesService {
    * @param updateDeviceDto - The device to update
    * @returns True if the device was updated, false otherwise
    */
-  async updateDeviceInChirpstack(deveui: string, updateDeviceDto: UpdateDeviceDto, device: Device): Promise<boolean> {
+  async updateDeviceInChirpstack(
+    deveui: string,
+    updateDeviceDto: UpdateDeviceDto,
+    device: Device,
+    chirpstackProfileId: string,
+  ): Promise<boolean> {
     const deviceChirpstack: ChirpstackDeviceUpdateInterface = {}
     if (updateDeviceDto.csApplicationId) {
       deviceChirpstack.applicationId = updateDeviceDto.csApplicationId;
@@ -291,11 +313,7 @@ export class DevicesService {
     if (updateDeviceDto.deveui) {
       deviceChirpstack.devEui = updateDeviceDto.deveui;
     }
-    if (updateDeviceDto.idDeviceProfile) {
-      deviceChirpstack.deviceProfileId = updateDeviceDto.idDeviceProfile;
-    } else {
-      deviceChirpstack.deviceProfileId = device.idChirpstackProfile;
-    }
+    deviceChirpstack.deviceProfileId = chirpstackProfileId;
     /*if (updateDeviceDto.isDisabled) {
       deviceChirpstack.isDisabled = updateDeviceDto.isDisabled;
     }*/
@@ -598,6 +616,17 @@ export class DevicesService {
       return;
     }
 
+    if (!profile.idChipstack?.trim()) {
+      result.errors.push(
+        this.buildImportIssueForLw001Row(
+          ImportLw001Reason.CHIRPSTACK_PROFILE_ID_REQUIRED,
+          row,
+          normalizedDeveui,
+        ),
+      );
+      return;
+    }
+
     const joinEui = this.resolveLw001JoinEui(row, profile, result);
     if (joinEui === undefined) {
       return;
@@ -803,6 +832,7 @@ export class DevicesService {
     const createDeviceDto: CreateDeviceDto = {
       idTenant,
       idDeviceProfile: profile.id,
+      idChirpstackProfile: profile.idChipstack,
       deveui,
       name,
       description: '',
@@ -851,6 +881,7 @@ export class DevicesService {
   ): Promise<Device> {
     const updateDeviceDto: UpdateDeviceDto = {
       idDeviceProfile: profile.id,
+      idChirpstackProfile: profile.idChipstack,
       deveui,
       name,
       description: device.description ?? '',
@@ -863,6 +894,29 @@ export class DevicesService {
       updatedAt: new Date(),
     };
     return await this.updateWithDevice(device, updateDeviceDto);
+  }
+
+  /**
+   * UUID de perfil ChirpStack para PUT /api/devices: explícito en DTO, idChipstack del
+   * device_profile si cambia idDeviceProfile, o el valor ya persistido en el dispositivo.
+   */
+  private async resolveChirpstackProfileIdForUpdate(
+    device: Device,
+    updateDeviceDto: UpdateDeviceDto,
+  ): Promise<string | null> {
+    const explicit = updateDeviceDto.idChirpstackProfile?.trim();
+    if (explicit) {
+      return explicit;
+    }
+    const tenantProfileId = updateDeviceDto.idDeviceProfile?.trim();
+    if (tenantProfileId) {
+      const profile = await this.deviceProfileRepository.findOptionalByIdAndTenant(
+        tenantProfileId,
+        device.idTenant,
+      );
+      return profile?.idChipstack?.trim() || null;
+    }
+    return device.idChirpstackProfile?.trim() || null;
   }
 
   private buildImportIssue(

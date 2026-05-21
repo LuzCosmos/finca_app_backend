@@ -1,9 +1,11 @@
-import { IsNotEmpty, IsString, Length, IsOptional, IsEmail, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsString, Length, IsOptional, IsEmail, IsEnum, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ProviderType } from '../entities/provider.entity';
+import { Type } from 'class-transformer';
+import { BusinessPartnerRole } from '../entities/business-partner.entity';
+import { BusinessPartnerExtraConfigDto } from './business-partner-extra-config.dto';
 
-export class CreateProviderDto {
-  @ApiProperty({ example: 'Ganadería La Ponderosa', description: 'Provider name' })
+export class CreateBusinessPartnerDto {
+  @ApiProperty({ example: 'Ganadería La Ponderosa', description: 'Business partner name' })
   @IsString()
   @IsNotEmpty()
   @Length(3, 150)
@@ -15,10 +17,10 @@ export class CreateProviderDto {
   @Length(5, 20)
   nit: string;
 
-  @ApiPropertyOptional({ example: 'BUYER', enum: ProviderType, description: 'Provider type' })
-  @IsEnum(ProviderType)
+  @ApiPropertyOptional({ example: 'BUYER', enum: BusinessPartnerRole, description: 'Business partner role' })
+  @IsEnum(BusinessPartnerRole)
   @IsNotEmpty()
-  type: ProviderType;
+  type: BusinessPartnerRole;
 
   @ApiPropertyOptional({ example: 'Calle 123 #45-67', description: 'Address' })
   @IsString()
@@ -44,4 +46,13 @@ export class CreateProviderDto {
   @IsEmail()
   @IsOptional()
   email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Role-specific settings (sales.minWeightKg required for BUYER)',
+    example: { sales: { minWeightKg: 350 } },
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BusinessPartnerExtraConfigDto)
+  extraConfig?: BusinessPartnerExtraConfigDto;
 }

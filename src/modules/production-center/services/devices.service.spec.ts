@@ -41,7 +41,10 @@ describe('DevicesService', () => {
     update: jest.Mock;
     remove: jest.Mock;
   };
-  let deviceProfileRepository: { findOne: jest.Mock };
+  let deviceProfileRepository: {
+    findOne: jest.Mock;
+    findOptionalByIdAndTenant: jest.Mock;
+  };
   let httpGet: jest.Mock;
   let httpPost: jest.Mock;
   let httpPut: jest.Mock;
@@ -134,7 +137,10 @@ describe('DevicesService', () => {
       update: jest.fn(),
       remove: jest.fn(),
     };
-    deviceProfileRepository = { findOne: jest.fn() };
+    deviceProfileRepository = {
+      findOne: jest.fn(),
+      findOptionalByIdAndTenant: jest.fn(),
+    };
     httpGet = jest.fn();
     httpPost = jest.fn();
     httpPut = jest.fn();
@@ -211,6 +217,7 @@ describe('DevicesService', () => {
 
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
+          idChirpstackProfile: deviceProfile.idChipstack,
           csJoineui: deviceProfile.csJoineui,
           csApplicationId: deviceProfile.csApplicationId,
           csAppKey: deviceProfile.csAppKey,
@@ -429,6 +436,7 @@ describe('DevicesService', () => {
         device.deveui,
         updateDto,
         device,
+        chirpstackProfileId,
       );
       expect(deviceRepository.update).toHaveBeenCalledWith(device.id, updateDto, undefined);
       expect(result).toBe(updated);
@@ -442,6 +450,43 @@ describe('DevicesService', () => {
       await service.updateWithDevice(device, updateDto, manager);
 
       expect(deviceRepository.update).toHaveBeenCalledWith(device.id, updateDto, manager);
+    });
+
+    it('omite ChirpStack si no hay id_chirpstack_profile resoluble', async () => {
+      const deviceSinChirpstack = { ...device, idChirpstackProfile: null as unknown as string };
+      const dtoSinChirpstack: UpdateDeviceDto = { name: 'solo BD', tags: { local: '1' } };
+      const chirpstackSpy = jest.spyOn(service, 'updateDeviceInChirpstack');
+      deviceRepository.update.mockResolvedValue(deviceSinChirpstack);
+
+      await service.updateWithDevice(deviceSinChirpstack, dtoSinChirpstack);
+
+      expect(chirpstackSpy).not.toHaveBeenCalled();
+      expect(deviceRepository.update).toHaveBeenCalledWith(
+        deviceSinChirpstack.id,
+        dtoSinChirpstack,
+        undefined,
+      );
+    });
+
+    it('usa idChipstack del perfil cuando el DTO cambia idDeviceProfile', async () => {
+      const deviceSinChirpstack = { ...device, idChirpstackProfile: null as unknown as string };
+      deviceProfileRepository.findOptionalByIdAndTenant.mockResolvedValue(deviceProfile);
+      const chirpstackSpy = jest.spyOn(service, 'updateDeviceInChirpstack').mockResolvedValue(true);
+      deviceRepository.update.mockResolvedValue(device);
+
+      await service.updateWithDevice(deviceSinChirpstack, {
+        idDeviceProfile: profileId,
+      });
+
+      expect(chirpstackSpy).toHaveBeenCalledWith(
+        device.deveui,
+        expect.objectContaining({
+          idDeviceProfile: profileId,
+          idChirpstackProfile: chirpstackProfileId,
+        }),
+        deviceSinChirpstack,
+        chirpstackProfileId,
+      );
     });
 
     it('lanza BadRequestException si updateDeviceInChirpstack devuelve false', async () => {
@@ -486,7 +531,12 @@ describe('DevicesService', () => {
       };
       const callSpy = jest.spyOn(service, 'callUpdateDeviceInChirpstack').mockResolvedValue(true);
 
-      const result = await service.updateDeviceInChirpstack(device.deveui, updateDto, device);
+      const result = await service.updateDeviceInChirpstack(
+        device.deveui,
+        updateDto,
+        device,
+        chirpstackProfileId,
+      );
 
       expect(result).toBe(true);
       expect(callSpy).toHaveBeenCalledWith(
@@ -506,7 +556,7 @@ describe('DevicesService', () => {
       const updateDto: UpdateDeviceDto = { tags: { event: 'simple' } };
       const callSpy = jest.spyOn(service, 'callUpdateDeviceInChirpstack').mockResolvedValue(true);
 
-      await service.updateDeviceInChirpstack(device.deveui, updateDto, device);
+      await service.updateDeviceInChirpstack(device.deveui, updateDto, device, chirpstackProfileId);
 
       expect(callSpy).toHaveBeenCalledWith(
         device.deveui,
