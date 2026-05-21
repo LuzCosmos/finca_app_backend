@@ -2,7 +2,10 @@ import type { INestApplicationContext } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import {
   E2E_RECEPTION_CATTLE_EARTAG_HOLDER_NUMBER,
+  E2E_RECEPTION_CATTLE_IN_LOT_EARTAG_LEFT,
+  E2E_RECEPTION_CATTLE_IN_LOT_EARTAG_RIGHT,
   E2E_RECEPTION_CATTLE_IN_LOT_NUMBER,
+  E2E_RECEPTION_CATTLE_UNASSIGNED_EARTAG_LEFT,
   E2E_RECEPTION_CATTLE_UNASSIGNED_NUMBER,
   E2E_RECEPTION_LOT_NUMBER,
   E2E_RECEPTION_PROVIDER_NAME,
@@ -122,6 +125,59 @@ async function findCattleByNumber(
   });
 }
 
+async function findCattleByEartag(
+  dataSource: DataSource,
+  tenantId: string,
+  eartag: string,
+): Promise<Cattle | null> {
+  return dataSource
+    .getRepository(Cattle)
+    .createQueryBuilder('c')
+    .where('c.idTenant = :idTenant', { idTenant })
+    .andWhere('(c.eartagLeft = :eartag OR c.eartagRight = :eartag)', { eartag })
+    .getOne();
+}
+
+async function reconcileSeedCattle(
+  dataSource: DataSource,
+  existing: Cattle,
+  spec: {
+    number: string;
+    idLot?: string;
+    eartagLeft?: string;
+    eartagRight?: string;
+  },
+): Promise<string> {
+  const repo = dataSource.getRepository(Cattle);
+  let changed = false;
+
+  if (existing.number !== spec.number) {
+    existing.number = spec.number;
+    changed = true;
+  }
+  if (existing.status !== CattleStatus.ACTIVE) {
+    existing.status = CattleStatus.ACTIVE;
+    changed = true;
+  }
+  if (spec.idLot !== undefined && existing.idLot !== spec.idLot) {
+    existing.idLot = spec.idLot ?? null;
+    changed = true;
+  }
+  if (spec.eartagLeft !== undefined && existing.eartagLeft !== spec.eartagLeft) {
+    existing.eartagLeft = spec.eartagLeft;
+    changed = true;
+  }
+  if (spec.eartagRight !== undefined && existing.eartagRight !== spec.eartagRight) {
+    existing.eartagRight = spec.eartagRight;
+    changed = true;
+  }
+
+  if (changed) {
+    await repo.save(existing);
+  }
+  return existing.id;
+}
+
 async function ensureReceivedCattle(
   receptionsService: {
     receiveCattle_Transaction: (
@@ -142,13 +198,24 @@ async function ensureReceivedCattle(
     receivedWeight?: number;
   },
 ): Promise<string> {
-  const existing = await findCattleByNumber(dataSource, tenantId, spec.number);
-  if (
-    existing &&
-    (existing.status === CattleStatus.ACTIVE ||
-      existing.status === CattleStatus.LOST)
-  ) {
-    return existing.id;
+  const existingByNumber = await findCattleByNumber(dataSource, tenantId, spec.number);
+  if (existingByNumber) {
+    return reconcileSeedCattle(dataSource, existingByNumber, spec);
+  }
+
+  for (const eartag of [spec.eartagLeft, spec.eartagRight].filter(
+    (v): v is string => !!v,
+  )) {
+    const existingByEartag = await findCattleByEartag(dataSource, tenantId, eartag);
+    if (existingByEartag) {
+      const numberOwner = await findCattleByNumber(dataSource, tenantId, spec.number);
+      if (numberOwner && numberOwner.id !== existingByEartag.id) {
+        throw new Error(
+          `seed:e2e: número ${spec.number} y arete ${eartag} pertenecen a res distintas (${numberOwner.id} vs ${existingByEartag.id})`,
+        );
+      }
+      return reconcileSeedCattle(dataSource, existingByEartag, spec);
+    }
   }
 
   const receivedWeight = spec.receivedWeight ?? 320;
@@ -217,8 +284,8 @@ export async function ensureE2eReceptionPurchaseFixture(
     {
       number: E2E_RECEPTION_CATTLE_IN_LOT_NUMBER,
       idLot: lot.id,
-      eartagLeft: 'E2E-REC-L-001',
-      eartagRight: 'E2E-REC-R-001',
+      eartagLeft: E2E_RECEPTION_CATTLE_IN_LOT_EARTAG_LEFT,
+      eartagRight: E2E_RECEPTION_CATTLE_IN_LOT_EARTAG_RIGHT,
       receivedWeight: 325,
     },
   );
@@ -231,7 +298,7 @@ export async function ensureE2eReceptionPurchaseFixture(
     purchase.id,
     {
       number: E2E_RECEPTION_CATTLE_UNASSIGNED_NUMBER,
-      eartagLeft: 'E2E-REC-L-002',
+      eartagLeft: E2E_RECEPTION_CATTLE_UNASSIGNED_EARTAG_LEFT,
       receivedWeight: 310,
     },
   );

@@ -4,7 +4,12 @@ import { App } from 'supertest/types';
 import { randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
 import { createE2eApplication } from '../helpers/e2e-bootstrap';
-import { hasE2eAuthConfigured, loginE2eViaPassword } from '../helpers/e2e-auth';
+import {
+  hasE2eAuthConfigured,
+  hasE2eLimited403Configured,
+  loginE2eLimitedViaPassword,
+  loginE2eViaPassword,
+} from '../helpers/e2e-auth';
 import { Cattle } from '../../../src/modules/farm/entities/cattle.entity';
 import { CattleGender } from '../../../src/modules/farm/enums/cattle-gender.enum';
 import { Location } from '../../../src/modules/farm/entities/location.entity';
@@ -13,6 +18,53 @@ import { DeviceProfile } from '../../../src/modules/production-center/entities/d
 
 const e2eAuthReady = hasE2eAuthConfigured();
 const describeE2eAuth = e2eAuthReady ? describe : describe.skip;
+const e2eLimitedReady = hasE2eAuthConfigured() && hasE2eLimited403Configured();
+const it403 = e2eLimitedReady ? it : it.skip;
+const skipHint403 =
+  'omitido: defina E2E_LIMITED_USERNAME y E2E_LIMITED_PASSWORD en test/.env.e2e (tras npm run seed:e2e)';
+
+describe('Locations latest per cattle — permisos (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeAll(async () => {
+    app = await createE2eApplication();
+  });
+
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  it('GET /api/v1/locations/latest/cattle sin Bearer responde 401', () => {
+    return request(app.getHttpServer())
+      .get('/api/v1/locations/latest/cattle')
+      .expect(401);
+  });
+
+  describe('403 sin permiso FARM/locations', () => {
+    it('avisos: requisitos de la prueba HTTP 403 (MANAGER sin módulo FARM)', () => {
+      if (!e2eLimitedReady) {
+        // eslint-disable-next-line no-console -- aviso intencional cuando el caso HTTP 403 está en it.skip
+        console.warn(`[e2e] ${skipHint403}`);
+      }
+      expect(true).toBe(true);
+    });
+
+    it403(
+      e2eLimitedReady
+        ? 'GET /api/v1/locations/latest/cattle con Bearer MANAGER (sin FARM) responde 403'
+        : `GET /api/v1/locations/latest/cattle con Bearer MANAGER (sin FARM) responde 403 — ${skipHint403}`,
+      async () => {
+        const { access_token } = await loginE2eLimitedViaPassword(app);
+
+        const res = await request(app.getHttpServer())
+          .get('/api/v1/locations/latest/cattle')
+          .set('Authorization', `Bearer ${access_token}`);
+
+        expect(res.status).toBe(403);
+      },
+    );
+  });
+});
 
 describeE2eAuth('Locations latest per cattle (e2e)', () => {
   let app: INestApplication<App>;
