@@ -9,7 +9,11 @@ const server = net.createServer((socket) => {
   console.log(`[simulator] client connected`);
   const interval = setInterval(() => {
     tick += 1;
-    const noise = (tick % 8 < 3) ? (Math.random() - 0.5) * 4 : 0;
+    if (tick % 17 === 0) {
+      socket.write('??? INVALID_FRAME\r\n');
+      return;
+    }
+    const noise = tick % 8 < 3 ? (Math.random() - 0.5) * 4 : 0;
     const w = (stableWeight + noise).toFixed(2);
     socket.write(`${w} kg\r\n`);
   }, 500);

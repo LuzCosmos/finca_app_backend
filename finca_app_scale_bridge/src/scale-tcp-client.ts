@@ -2,6 +2,7 @@ import * as net from 'net';
 import { ScaleFrameParser } from './scale-frame-parser';
 import { ScaleStabilityDetector } from './scale-stability-detector';
 import { ScaleBackendPublisher } from './scale-backend-publisher';
+import { normalizeWeightToKg } from './scale-weight-unit';
 
 export interface ScaleTcpClientOptions {
   host: string;
@@ -87,15 +88,17 @@ export class ScaleTcpClient {
     const frames = this.options.parser.pushChunk(chunk);
     for (const frame of frames) {
       if (frame.weight == null) continue;
+      const normalized = normalizeWeightToKg(frame.weight, frame.unit);
+      if (normalized.weight == null) continue;
       const stability = this.options.stability.add({
-        weight: frame.weight,
-        unit: frame.unit ?? 'kg',
+        weight: normalized.weight,
+        unit: normalized.unit ?? 'kg',
       });
       try {
         await this.options.publisher.publish({
           rawFrame: frame.rawFrame,
-          weight: frame.weight,
-          unit: frame.unit,
+          weight: normalized.weight,
+          unit: normalized.unit,
           isStable: stability.isStable,
           stabilityReason: stability.reason,
         });
