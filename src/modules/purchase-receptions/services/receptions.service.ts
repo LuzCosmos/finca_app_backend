@@ -4,8 +4,8 @@ import { PurchaseReceptionRepository } from '../repositories/purchase-reception.
 import { PurchaseReceptionResponseDto } from '../dto/reception-response.dto';
 import { SimpleEventType } from '../../massive-events/enums/simple-event-type.enum';
 import { PurchaseReception } from '../entities/purchase-reception.entity';
-import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto, UpdateReceivedCattleDto } from '../dto/receive-cattle-request.dto';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { MassiveEventRepository } from 'src/modules/massive-events/repositories/massive-event.repository';
 import { EntityManager } from 'typeorm';
@@ -17,7 +17,8 @@ import { SimpleEventRepository } from 'src/modules/massive-events/repositories/s
 import { AnimalSimpleEvent } from '../../massive-events/entities/animal-simple-event.entity';
 import { PurchaseRepository } from 'src/modules/commerce/repositories/purchase.repository';
 import { Cattle, CattleStatus } from '../../farm/entities/cattle.entity';
-import { ProviderRepository } from '../../commerce/repositories/provider.repository';
+import { BirthDateAprxSource } from '../../farm/enums/birth-date-aprx-source.enum';
+import { BusinessPartnerRepository } from '../../commerce/repositories/business-partner.repository';
 import { CattleService } from 'src/modules/farm/services/cattle.service';
 import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
 import { CattleWeightHistory, WeightContext } from '../../farm/entities/cattle-weight-history.entity';
@@ -46,7 +47,7 @@ export class ReceptionsService {
     private readonly cattleRepo: CattleRepository,
     private readonly animalSimpleEventRepo: AnimalSimpleEventRepository,
     private readonly simpleEventRepo: SimpleEventRepository,
-    private readonly providerRepo: ProviderRepository,
+    private readonly businessPartnerRepo: BusinessPartnerRepository,
     private readonly configurationsService: ConfigurationsService,
     private readonly cattleWeightHistoryRepo: CattleWeightHistoryRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
@@ -82,7 +83,7 @@ export class ReceptionsService {
       var reception = await this.prRepo.findByPurchase(idTenant, idPurchase, manager);
       var massiveEvent;
       if (!reception) {
-        var dataMassiveEvent: MassiveEvent = {
+        massiveEvent = this.massiveEventRepo.createInstance({
           id: uuidv4(),
           idTenant,
           eventDate: new Date(),
@@ -92,8 +93,9 @@ export class ReceptionsService {
           updatedAt: new Date(),
           simpleEvents: [],
           name: 'Reception ' + purchase!.id,
-        }
-        massiveEvent = await this.massiveEventRepo.saveWithManager(manager, dataMassiveEvent);
+          linkedToPurchaseReception: true,
+        });
+        massiveEvent = await this.massiveEventRepo.saveWithManager(manager, massiveEvent);
         massiveEvent.simpleEvents = [];
         reception = await this.prRepo.createInstance({ idTenant, idPurchase, idMassiveEvent: massiveEvent.id }, manager);
       } else {
@@ -102,7 +104,14 @@ export class ReceptionsService {
           massiveEvent.simpleEvents = await this.simpleEventRepo.findByMassiveEvent(idTenant, massiveEvent.id, manager);
         }
       }
-      var provider = await this.providerRepo.findById(purchase!.idProvider, idTenant, manager);
+      var businessPartner = await this.businessPartnerRepo.findById(
+        purchase!.idProvider,
+        idTenant,
+        manager,
+      );
+      if (!businessPartner) {
+        throw new NotFoundException('Business partner not found');
+      }
       var lots = await this.lotRepo.findByPurchaseId(idPurchase, idTenant, manager);
       var lotCattle: Record<string, Cattle[]> = {};
       var appliedEvents: Record<string, AnimalSimpleEvent[]> = {};
@@ -119,18 +128,21 @@ export class ReceptionsService {
         var animalSimpleEvents = await this.animalSimpleEventRepo.findByCattle(idTenant, c.id, manager);
         appliedEvents[c.id] = animalSimpleEvents;
       }
-      return PurchaseReceptionResponseDto.toResponseDto(reception, purchase!, provider!.name, lots, lotCattle, cattle, appliedEvents, massiveEvent);
+      return PurchaseReceptionResponseDto.toResponseDto(
+        reception,
+        purchase!,
+        businessPartner.name,
+        lots,
+        lotCattle,
+        cattle,
+        appliedEvents,
+        massiveEvent,
+      );
     });
     return reception;
   }
 
-  async getColors(idTenant: string): Promise<any[]> {
-    return this.colorCharacteristicsService.getAllColors();
-  }
 
-  async getCharacteristics(idTenant: string): Promise<any[]> {
-    return this.colorCharacteristicsService.getAllCharacteristics();
-  }
 
   async receiveCattle_Transaction(idTenant: string, idCurrentUser: string, cattleDto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
     return this.ds.transaction(async manager => {
@@ -139,25 +151,32 @@ export class ReceptionsService {
         throw new ConflictException('Cattle with number ' + cattleDto.number + ' already exists');
       }
       var nextCattleSysnumber = await this.configurationsService.getTenantConfiguration(idTenant, 'next_cattle_sysnumber', manager);
-      var nextCattleSysnumberValue = parseInt(nextCattleSysnumber!.value);
+      if (!nextCattleSysnumber) {
+        throw new NotFoundException('Configuration next_cattle_sysnumber not found');
+      }
+      var nextCattleSysnumberValue = parseInt(nextCattleSysnumber.value);
       await this.configurationsService.updateTenantConfiguration(idTenant, 'next_cattle_sysnumber', (nextCattleSysnumberValue + 1).toString(), manager);
-      if (cattleDto.eartag) {
-        const existingCattleWithEartag = await this.cattleRepo.findByEartag(idTenant, cattleDto.eartag, manager);
+      if (cattleDto.eartagLeft) {
+        const existingCattleWithEartag = await this.cattleRepo.findByAnyEartag(idTenant, cattleDto.eartagLeft, manager);
         if (existingCattleWithEartag) {
-          throw new ConflictException(`Eartag ${cattleDto.eartag} already exists for another cattle`);
+          throw new ConflictException(`Eartag ${cattleDto.eartagLeft} already exists for another cattle`);
+        }
+      }
+      if (cattleDto.eartagRight) {
+        const existingCattleWithEartag = await this.cattleRepo.findByAnyEartag(idTenant, cattleDto.eartagRight, manager);
+        if (existingCattleWithEartag) {
+          throw new ConflictException(`Eartag ${cattleDto.eartagRight} already exists for another cattle`);
         }
       }
       if (cattleDto.idDevice) {
         await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(idTenant, cattleDto.idDevice, manager, new Date());
         await this.cattleRepo.unsetDevice(idTenant, cattleDto.idDevice, manager);
       }
-      var cattleLotNumber;
       if (cattleDto.idLot) {
         let lot = await this.lotRepo.findById(idTenant, cattleDto.idLot, manager);
         if (!lot) {
           throw new NotFoundException('Lot not found ' + cattleDto.idLot);
         }
-        cattleLotNumber = lot!.lotNumber
         if (!cattleDto.purchaseWeight) {
           cattleDto.purchaseWeight = lot.averageWeight;
         }
@@ -165,6 +184,7 @@ export class ReceptionsService {
           cattleDto.purchasePrice = lot.averageWeight * lot.pricePerKg;
         }
       }
+      const birthPatch = this.cattleService.mergeReceiveCattleBirthAndDentition(cattleDto);
       var cattleData = {
         id: uuidv4(),
         idTenant,
@@ -175,10 +195,10 @@ export class ReceptionsService {
         purchaseWeight: cattleDto.purchaseWeight,
         purchasePrice: cattleDto.purchasePrice,
         idLot: cattleDto.idLot ?? null,
-        lot: cattleLotNumber ?? null,
         idBrand: cattleDto.idBrand ?? null,
         color: cattleDto.color,
-        eartag: cattleDto.eartag ?? null,
+        eartagLeft: cattleDto.eartagLeft ?? null,
+        eartagRight: cattleDto.eartagRight ?? null,
         idDevice: cattleDto.idDevice ?? null,
         castrated: cattleDto.castrated,
         comments: cattleDto.comments ?? null,
@@ -189,11 +209,19 @@ export class ReceptionsService {
         idProvider: cattleDto.idProvider ?? null,
         idPurchase: cattleDto.idPurchase,
         gender: cattleDto.gender,
-        age: cattleDto.age,
-        hasHorn: cattleDto.hasHorn
-      }
+        birthDateAprx: birthPatch.birthDateAprx ?? (cattleDto.birthDateAprx ? new Date(cattleDto.birthDateAprx) : null),
+        birthDateAprxSource: birthPatch.birthDateAprxSource ?? null,
+        milkTeethCount: birthPatch.milkTeethCount ?? null,
+        permanentTeethCount: birthPatch.permanentTeethCount ?? null,
+        milkTeethWear: birthPatch.milkTeethWear ?? null,
+        permanentTeethWear: birthPatch.permanentTeethWear ?? null,
+        dentalEvaluationDate: birthPatch.dentalEvaluationDate ?? null,
+        dentitionTableVersion: birthPatch.dentitionTableVersion ?? null,
+        hasHorn: cattleDto.hasHorn,
+      };
 
       cattle = await this.cattleRepo.saveWithManager(manager, cattleData as unknown as Cattle);
+      await this.cattleService.recordAgeHistoryFromSavedCattle(manager, idTenant, cattle, idCurrentUser);
       var weightHistory: CattleWeightHistory = {
         id: uuidv4(),
         idTenant,
@@ -304,7 +332,6 @@ export class ReceptionsService {
         throw new NotFoundException('Lot not found');
       }
       cattle.idLot = dto.idLot;
-      cattle.lot = lot.lotNumber;
       cattle.purchaseWeight = lot.averageWeight ?? 0;
       cattle.purchasePrice = (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
       cattle = await this.cattleRepo.saveWithManager(manager, cattle);
@@ -319,6 +346,204 @@ export class ReceptionsService {
   async nextNumber(idTenant: string, number: string): Promise<string> {
     return this.ds.transaction(async manager => {
       return await this.cattleRepo.getSuggestNextNumber(idTenant, number, manager);
+    });
+  }
+
+  private async assertEartagAvailableForUpdate(
+    idTenant: string,
+    eartag: string | null | undefined,
+    excludeCattleId: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    const trimmed = eartag?.trim();
+    if (!trimmed) return;
+    const existing = await this.cattleService.findByAnyEartag(idTenant, trimmed, manager);
+    if (
+      existing &&
+      existing.id !== excludeCattleId &&
+      (existing.status === CattleStatus.ACTIVE || existing.status === CattleStatus.LOST)
+    ) {
+      throw new ConflictException(`Eartag ${trimmed} is already assigned to another animal`);
+    }
+  }
+
+  async updateReceivedCattle(
+    idTenant: string,
+    idCattle: string,
+    dto: UpdateReceivedCattleDto,
+    idCurrentUser: string,
+  ): Promise<Cattle> {
+    return this.ds.transaction(async manager => {
+      const cattle = await this.cattleRepo.findById(idTenant, idCattle, manager);
+      if (!cattle) {
+        throw new NotFoundException('Cattle not found');
+      }
+      if (!cattle.idPurchase) {
+        throw new ConflictException('Animal is not linked to a purchase reception');
+      }
+      const purchase = await this.purchaseRepo.findById(cattle.idPurchase, idTenant, manager);
+      if (!purchase) {
+        throw new NotFoundException('Purchase not found');
+      }
+
+      const oldLotId = cattle.idLot;
+
+      if (dto.receivedWeight !== undefined) {
+        cattle.receivedWeight = dto.receivedWeight;
+        cattle.lastWeight = dto.receivedWeight;
+      }
+      if (dto.eartagLeft !== undefined) {
+        await this.assertEartagAvailableForUpdate(
+          idTenant,
+          dto.eartagLeft,
+          cattle.id,
+          manager,
+        );
+        cattle.eartagLeft = dto.eartagLeft?.trim() || null;
+      }
+      if (dto.eartagRight !== undefined) {
+        await this.assertEartagAvailableForUpdate(
+          idTenant,
+          dto.eartagRight,
+          cattle.id,
+          manager,
+        );
+        cattle.eartagRight = dto.eartagRight?.trim() || null;
+      }
+      if (dto.idLot !== undefined) {
+        const newLotId = dto.idLot ?? null;
+        if (newLotId) {
+          const lot = await this.lotRepo.findById(idTenant, newLotId, manager);
+          if (!lot || lot.idPurchase !== cattle.idPurchase) {
+            throw new BadRequestException('Lot does not belong to this purchase');
+          }
+          cattle.idLot = newLotId;
+          cattle.purchaseWeight = lot.averageWeight ?? cattle.purchaseWeight;
+          cattle.purchasePrice =
+            (lot.averageWeight ?? 0) * (lot.pricePerKg ?? 0);
+        } else {
+          cattle.idLot = null;
+        }
+      }
+      if (dto.color !== undefined) {
+        cattle.color = dto.color as Cattle['color'];
+      }
+      if (dto.comments !== undefined) {
+        cattle.comments = dto.comments?.trim() || null;
+      }
+      if (dto.hasHorn !== undefined) {
+        cattle.hasHorn = dto.hasHorn;
+      }
+      if (dto.castrated !== undefined) {
+        cattle.castrated = dto.castrated;
+      }
+      if (dto.gender !== undefined) {
+        cattle.gender = dto.gender as Cattle['gender'];
+      }
+      if (dto.characteristics !== undefined) {
+        await this.cattleCharacteristicRepository.replaceAll(
+          cattle.id,
+          idTenant,
+          dto.characteristics,
+          manager,
+        );
+      }
+      if (dto.idDevice !== undefined) {
+        if (dto.idDevice) {
+          await this.cattleDeviceHistoryRepository.unassignDeviceByidDevice(
+            idTenant,
+            dto.idDevice,
+            manager,
+            new Date(),
+          );
+          await this.cattleRepo.unsetDevice(idTenant, dto.idDevice, manager);
+          cattle.idDevice = dto.idDevice;
+        } else {
+          cattle.idDevice = null;
+        }
+      }
+
+      const hasBirthUpdate =
+        dto.birthDateAprx !== undefined ||
+        dto.milkTeethCount !== undefined ||
+        dto.permanentTeethCount !== undefined ||
+        dto.milkTeethWear !== undefined ||
+        dto.permanentTeethWear !== undefined ||
+        dto.dentalEvaluationDate !== undefined;
+
+      if (hasBirthUpdate) {
+        const dentitionFieldsSent =
+          dto.milkTeethCount !== undefined ||
+          dto.permanentTeethCount !== undefined ||
+          dto.milkTeethWear !== undefined ||
+          dto.permanentTeethWear !== undefined ||
+          dto.dentalEvaluationDate !== undefined;
+
+        if (dentitionFieldsSent) {
+          const mergeDto = {
+            milkTeethCount: dto.milkTeethCount,
+            permanentTeethCount: dto.permanentTeethCount,
+            milkTeethWear: dto.milkTeethWear,
+            permanentTeethWear: dto.permanentTeethWear,
+            dentalEvaluationDate: dto.dentalEvaluationDate,
+          } as ReceiveCattleRequestDto;
+          Object.assign(
+            cattle,
+            this.cattleService.mergeReceiveCattleBirthAndDentition(mergeDto),
+          );
+        } else if (dto.birthDateAprx) {
+          cattle.birthDateAprx = new Date(dto.birthDateAprx);
+          cattle.birthDateAprxSource = BirthDateAprxSource.MANUAL;
+          cattle.milkTeethCount = null;
+          cattle.permanentTeethCount = null;
+          cattle.milkTeethWear = null;
+          cattle.permanentTeethWear = null;
+          cattle.dentalEvaluationDate = null;
+          cattle.dentitionTableVersion = null;
+        } else {
+          cattle.birthDateAprx = null;
+          cattle.birthDateAprxSource = null;
+          cattle.milkTeethCount = null;
+          cattle.permanentTeethCount = null;
+          cattle.milkTeethWear = null;
+          cattle.permanentTeethWear = null;
+          cattle.dentalEvaluationDate = null;
+          cattle.dentitionTableVersion = null;
+        }
+        await this.cattleService.recordAgeHistoryFromSavedCattle(
+          manager,
+          idTenant,
+          cattle,
+          idCurrentUser,
+        );
+      }
+
+      const saved = await this.cattleRepo.saveWithManager(manager, cattle);
+
+      if (dto.idLot !== undefined && (dto.idLot ?? null) !== oldLotId) {
+        if (dto.idLot) {
+          await this.lotService.UpdateLotDataAfterReception(
+            idTenant,
+            dto.idLot,
+            manager,
+          );
+        }
+        if (oldLotId) {
+          await this.lotService.UpdateLotDataAfterReception(
+            idTenant,
+            oldLotId,
+            manager,
+          );
+        }
+      } else if (dto.receivedWeight !== undefined && saved.idLot) {
+        await this.lotService.UpdateLotDataAfterReception(
+          idTenant,
+          saved.idLot,
+          manager,
+        );
+      }
+
+      return saved;
     });
   }
 }

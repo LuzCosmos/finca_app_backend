@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, Query, ConflictException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, Query, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { RequireEntity, RequireModule, RequireAction } from 'src/common/application-permissions/application-permissions.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -7,7 +7,7 @@ import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from '../../auth/dto/session-user.dto';
 import { ReceptionsService } from '../services/receptions.service';
 import { ReceptionResponseDto } from '../dto/reception-response.dto';
-import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto } from '../dto/receive-cattle-request.dto';
+import { ReceiveCattleRequestDto, UpdateLotCattleRequestDto, UpdateReceivedCattleDto } from '../dto/receive-cattle-request.dto';
 import { ReceiveCattleResponseDto } from '../dto/receive-cattle-response.dto';
 import { Cattle, CattleStatus } from 'src/modules/farm/entities/cattle.entity';
 import { Device } from 'src/modules/production-center/entities/device.entity';
@@ -26,6 +26,7 @@ import { PurchaseService } from 'src/modules/commerce/services/purchase.service'
 @RequireModule('RECEPTION')
 @UseGuards(JwtAuthGuard, ApplicationPermissionsGuard)
 export class ReceptionController {
+  private readonly logger = new Logger(ReceptionController.name);
 
   constructor(
     private readonly receptionsService: ReceptionsService,
@@ -56,7 +57,7 @@ export class ReceptionController {
     if (!eartag?.trim()) {
       throw new BadRequestException('eartag is required');
     }
-    var cattle = await this.cattleService.findByEartag(sessionUser.tenant_id, eartag.trim())
+    var cattle = await this.cattleService.findByAnyEartag(sessionUser.tenant_id, eartag.trim())
     const exists =
       !!cattle &&
       (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST);
@@ -70,14 +71,12 @@ export class ReceptionController {
   @ApiResponse({ status: 400, description: 'Invalid request body' })
   @RequireAction('create')
   async findOrCreateReception(@SessionUser() sessionUser: SessionUserDto, @Param('idPurchase') idPurchase: string) {
-    console.log('idPurchase - controller', idPurchase);
+    this.logger.debug(`findOrCreateReception: purchaseId=${idPurchase}`);
     const receptionInfo = await this.receptionsService.findOrCreateReceptionByIdPurchase(
       sessionUser.tenant_id,
       idPurchase,
       sessionUser.sub);
-    const colors = await this.receptionsService.getColors(sessionUser.tenant_id);
-    const characteristics = await this.receptionsService.getCharacteristics(sessionUser.tenant_id);
-    const receptionResponseDto = ReceptionResponseDto.toResponseDto(receptionInfo, colors, characteristics);
+    const receptionResponseDto = ReceptionResponseDto.toResponseDto(receptionInfo);
     return receptionResponseDto;
   }
 
@@ -110,21 +109,24 @@ export class ReceptionController {
           idBrand: 'uuid-brand-789', // Optional
           color: 'color_enum', // Optional
           characteristicsIds: ['char_enum_1', 'char_enum_2'], // Optional
-          eartag: 'ET-12345', // Optional
+          eartagLeft: 'ET-12345', // Optional
+          eartagRight: 'ET-12346', // Optional
           idDevice: 'uuid-device-999', // Optional
           castrated: true, // Optional
           hasHorn: true, // Optional
-          age: 'number',
+          birthDateAprx: '2024-01-15',
           gender: 'gender_enum',
           comments: 'Initial reception check completed.', // Optional
-          idProvider: 'uuid-provider-123', // Optional
+          idProvider: 'uuid-provider-123',
           idSimpleEvents: ['uuid-simple-event-1', 'uuid-simple-event-2'] // Optional
         }
       }
     }
   })
   async receiveCattle(@SessionUser() sessionUser: SessionUserDto, @Body() dto: ReceiveCattleRequestDto): Promise<ReceiveCattleResponseDto> {
-    console.log('dto - controller', dto);
+    this.logger.debug(
+      `receiveCattle: purchaseId=${dto.idPurchase}, number=${dto.number}, tenantUser=${sessionUser.sub}`,
+    );
     return this.receptionsService.receiveCattle_Transaction(
       sessionUser.tenant_id,
       sessionUser.sub,
@@ -154,6 +156,23 @@ export class ReceptionController {
       dto);
   }
 
+  @Patch('received-cattle/:idCattle')
+  @ApiOperation({ summary: 'Update received cattle data during reception' })
+  @HttpCode(HttpStatus.OK)
+  @ApiResponse({ status: 200, description: 'Cattle updated successfully', type: Cattle })
+  @RequireAction('update')
+  async updateReceivedCattle(
+    @SessionUser() sessionUser: SessionUserDto,
+    @Param('idCattle') idCattle: string,
+    @Body() dto: UpdateReceivedCattleDto,
+  ): Promise<Cattle> {
+    return this.receptionsService.updateReceivedCattle(
+      sessionUser.tenant_id,
+      idCattle,
+      dto,
+      sessionUser.sub,
+    );
+  }
 
   @Get('next-number/:number')
   @ApiOperation({ summary: 'Get the next number for a reception' })

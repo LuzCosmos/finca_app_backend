@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsArray, IsDateString, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEnum, IsArray, IsDateString, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength, ValidateNested } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { SimpleEventType } from '../enums/simple-event-type.enum';
 
 class SimpleEventInputDto {
@@ -31,6 +31,17 @@ export class CreateMassiveEventDto {
   @IsDateString()
   eventDate: string;
 
+  @ApiProperty({
+    description: 'Nombre obligatorio del evento masivo (1–100 caracteres)',
+    example: 'Vacunación marzo',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(1)
+  @MaxLength(100)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  name: string;
+
   @ApiPropertyOptional({
     description: 'Lista inicial de simpleEvents (puede ir vacía)',
     type: [SimpleEventInputDto],
@@ -40,4 +51,17 @@ export class CreateMassiveEventDto {
   @ValidateNested({ each: true })
   @Type(() => SimpleEventInputDto)
   simpleEvents?: SimpleEventInputDto[];
+}
+
+export class UpdateMassiveEventDto {
+  @ApiProperty({
+    description: 'Nombre del evento masivo (1–100 caracteres)',
+    example: 'Vacunación abril',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(1)
+  @MaxLength(100)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  name: string;
 }

@@ -1,0 +1,111 @@
+# Ejecuta tests E2E del backend contra Postgres + Redis (servicios de GitHub Actions).
+# Requiere que existan las variables de entorno de E2E en el job (o GitHub Secrets mapeados a env).
+
+name: Backend E2E
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: backend-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Unit tests + cobertura (umbrales §3.6)
+        run: npm run test:ci
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    needs: unit
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: finca
+          POSTGRES_PASSWORD: finca
+          POSTGRES_DB: finca_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finca -d finca_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Seed E2E tenant & user
+        env:
+          FA_DB_HOST: localhost
+          FA_DB_PORT: '5432'
+          FA_DB_USER: finca
+          FA_DB_PASSWORD: finca
+          FA_DB_NAME: finca_e2e
+          DB_SCHEMA: public
+          FA_REDIS_HOST: localhost
+          FA_REDIS_PORT: '6379'
+          JWT_SECRET: ci-e2e-jwt-secret-must-be-at-least-32-chars-long
+          JWT_EXPIRATION: 24h
+          JWT_REFRESH_EXPIRATION: 7d
+          E2E_COMPANY_USERNAME: finca_e2e_ci
+          E2E_USERNAME: e2e_admin
+          E2E_PASSWORD: 'E2E_ci_Password123!'
+          E2E_LIMITED_USERNAME: e2e_limited
+          E2E_LIMITED_PASSWORD: 'E2E_ci_Limited123!'
+          E2E_FARM_WORKER_USERNAME: e2e_farm_worker
+          E2E_FARM_WORKER_PASSWORD: 'E2E_ci_FarmWorker123!'
+          E2E_TENANT_NAME: E2E CI Tenant
+          E2E_ADMIN_EMAIL: e2e-ci@example.invalid
+        run: npm run seed:e2e
+
+      - name: Run E2E tests
+        env:
+          FA_DB_HOST: localhost
+          FA_DB_PORT: '5432'
+          FA_DB_USER: finca
+          FA_DB_PASSWORD: finca
+          FA_DB_NAME: finca_e2e
+          DB_SCHEMA: public
+          FA_REDIS_HOST: localhost
+          FA_REDIS_PORT: '6379'
+          JWT_SECRET: ci-e2e-jwt-secret-must-be-at-least-32-chars-long
+          JWT_EXPIRATION: 24h
+          JWT_REFRESH_EXPIRATION: 7d
+          E2E_COMPANY_USERNAME: finca_e2e_ci
+          E2E_USERNAME: e2e_admin
+          E2E_PASSWORD: 'E2E_ci_Password123!'
+          E2E_LIMITED_USERNAME: e2e_limited
+          E2E_LIMITED_PASSWORD: 'E2E_ci_Limited123!'
+          E2E_FARM_WORKER_USERNAME: e2e_farm_worker
+          E2E_FARM_WORKER_PASSWORD: 'E2E_ci_FarmWorker123!'
+          E2E_REQUIRE_AUTH: 'true'
+        run: npm run test:e2e

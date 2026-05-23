@@ -14,8 +14,22 @@ type PagedInput = {
   updatedAfter?: Date;
 };
 
+type CattleBasicSyncItem = {
+  idTenant: string;
+  id: string;
+  number: string;
+  sysNumber: string;
+  idDevice: string | null;
+  eartagLeft: string | null;
+  eartagRight: string | null;
+  castrated: boolean;
+  hasHorns: boolean;
+  color: string;
+  updatedAt: string;
+};
+
 type PagedOutput = {
-  items: Array<Pick<Cattle, 'id' | 'number' | 'sysNumber'>>;
+  items: CattleBasicSyncItem[];
   nextCursor: string | null;
   hasMore: boolean;
   total: number | null; // opcional, aquí lo dejamos null para no encarecer
@@ -82,6 +96,7 @@ export class CattleRepository {
     const qb = repo
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.device', 'd')
+      .leftJoinAndSelect('c.cattleCharacteristics', 'cc')
       .where('c.idTenant = :idTenant', { idTenant })
       .andWhere('c.idPurchase = :idPurchase', { idPurchase })
       .andWhere('c.idLot IS NULL');
@@ -104,6 +119,7 @@ export class CattleRepository {
     const qb = repo
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.device', 'd')
+      .leftJoinAndSelect('c.cattleCharacteristics', 'cc')
       .where('c.idTenant = :idTenant', { idTenant })
       .andWhere('c.idLot = :idLot', { idLot })
     qb.addSelect(
@@ -177,9 +193,33 @@ export class CattleRepository {
     }
   }
 
-  async findByEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
+  async findOneForUpdateByNumberAndStatuses(idTenant: string, number: string, statuses: CattleStatus[], manager: EntityManager): Promise<Cattle | null> {
+    try {
+      return manager.getRepository(Cattle).findOne({
+        where: { idTenant, number, status: In(statuses) },
+        lock: { mode: 'pessimistic_write' },
+      });
+    } catch (err) {
+      if (err instanceof QueryFailedError) {
+        const pgCode = err.driverError?.code as string | undefined;
+        if (pgCode === '55P03') { // Locked
+          throw new HttpException('Resource is locked', HttpStatus.LOCKED); // 423
+        }
+        if (pgCode === '40P01') { // Deadlock
+          throw new ConflictException('A deadlock occurred, please retry.');
+        }
+      }
+      throw err;
+    }
+  }
+
+  async findByAnyEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
     const repo = manager?.getRepository(Cattle) ?? this.repository;
-    return repo.findOne({ where: { idTenant, eartag } });
+    return repo
+      .createQueryBuilder('c')
+      .where('c.idTenant = :idTenant', { idTenant })
+      .andWhere('(c.eartagLeft = :eartag OR c.eartagRight = :eartag)', { eartag })
+      .getOne();
   }
 
   async getBasicInfo(idTenant: string, manager?: EntityManager): Promise<Cattle[]> {
@@ -249,7 +289,19 @@ export class CattleRepository {
       );
     }
     qb
-      .select(['c.id', 'c.number', 'c.sysNumber', 'c.updatedAt'])
+      .select([
+        'c.id',
+        'c.idTenant',
+        'c.number',
+        'c.sysNumber',
+        'c.idDevice',
+        'c.eartagLeft',
+        'c.eartagRight',
+        'c.castrated',
+        'c.hasHorn',
+        'c.color',
+        'c.updatedAt',
+      ])
       .orderBy('c.updatedAt', 'ASC')
       .addOrderBy('c.id', 'ASC')
       .limit(limit + 1); // pedimos uno extra para saber si hay más
@@ -265,12 +317,19 @@ export class CattleRepository {
         'utf8',
       ).toString('base64');
     }
-    // Map a DTO ligero
-    const items = pageItems.map(r => ({
+    // Map a DTO ligero (hasHorns alinea con columna has_horns / propiedad hasHorn)
+    const items = pageItems.map((r) => ({
       idTenant: r.idTenant,
       id: r.id,
       number: r.number,
-      sysNumber: (r as any).sysNumber,
+      sysNumber: r.sysNumber,
+      idDevice: r.idDevice ?? null,
+      eartagLeft: r.eartagLeft ?? null,
+      eartagRight: r.eartagRight ?? null,
+      castrated: r.castrated,
+      hasHorns: r.hasHorn,
+      color: r.color,
+      updatedAt: r.updatedAt.toISOString(),
     }));
     return {
       items,
@@ -342,7 +401,7 @@ export class CattleRepository {
       .where('c.idTenant = :idTenant', { idTenant })
       .andWhere('c.status IN (:...statuses)', { statuses })
       .andWhere(
-        '(c.number ILIKE :query OR c.eartag ILIKE :query OR d.name ILIKE :query OR d.deveui ILIKE :query)',
+        '(c.number ILIKE :query OR c.eartagLeft ILIKE :query OR c.eartagRight ILIKE :query OR d.name ILIKE :query OR d.deveui ILIKE :query)',
         { query: `%${query}%` }
       )
       .limit(20);

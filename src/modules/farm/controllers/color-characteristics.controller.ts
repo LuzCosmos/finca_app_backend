@@ -8,7 +8,6 @@ import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { ApplicationPermissionsGuard } from 'src/common/application-permissions/application-permissions.guard';
 import { SessionUser } from 'src/common/decorators/session-user.decorator';
 import { SessionUserDto } from 'src/modules/auth/dto/session-user.dto';
-import { ColorResponseDto, CharacteristicResponseDto } from "../dto/color-characteristic.dto";
 import { RequireAction } from "src/common/application-permissions/application-permissions.decorator";
 import { ColorCharacteristicsService } from "../services/color-characteristics.service";
 
@@ -27,7 +26,7 @@ export class ColorCharacteristicsController {
     @Get('color')
     @ApiOperation({ summary: 'Get all colors' })
     @HttpCode(HttpStatus.OK)
-    @ApiResponse({ status: 200, description: 'Colors retrieved successfully', type: ColorResponseDto })
+    @ApiResponse({ status: 200, description: 'Colors retrieved successfully' })
     @ApiResponse({ status: 400, description: 'Invalid request body' })
     @RequireAction('read')
     getAllColors(@SessionUser() sessionUser: SessionUserDto) {
@@ -38,7 +37,7 @@ export class ColorCharacteristicsController {
     @Get('characteristic')
     @ApiOperation({ summary: 'Get all characteristics' })
     @HttpCode(HttpStatus.OK)
-    @ApiResponse({ status: 200, description: 'Characteristics retrieved successfully', type: CharacteristicResponseDto })
+    @ApiResponse({ status: 200, description: 'Characteristics retrieved successfully' })
     @ApiResponse({ status: 400, description: 'Invalid request body' })
     @RequireAction('read')
     getAllCharacteristics(@SessionUser() sessionUser: SessionUserDto) {

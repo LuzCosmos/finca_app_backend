@@ -56,7 +56,7 @@ export class SimpleEventService {
    */
   private async saveNewSimpleEvent(
     manager: EntityManager,
-    payload: { id: string; idMassiveEvent: string; idTenant: string; type: SimpleEventType; dataJson?: string; createdAt?: string }
+    payload: { id: string; idMassiveEvent: string; idTenant: string; type: SimpleEventType; dataJson?: string; createdAt?: string; isActive?: boolean }
   ): Promise<SimpleEvent> {
     const exists = await manager.findOne(SimpleEvent, { where: { id: payload.id } });
     if (exists) return exists;
@@ -69,6 +69,7 @@ export class SimpleEventService {
       idMassiveEvent: payload.idMassiveEvent,
       idTenant: payload.idTenant,
       type: payload.type,
+      isActive: payload.isActive ?? true,
       data: payload.dataJson ? JSON.parse(payload.dataJson) : null,
       createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
     });
@@ -118,6 +119,7 @@ export class SimpleEventService {
           type: dto.type,
           dataJson: dto.dataJson,
           createdAt: dto.createdAt,
+          isActive: dto.isActive,
         });
         results.push({ id: saved.id, status: 'synced', serverId: saved.id });
       }
@@ -165,6 +167,26 @@ export class SimpleEventService {
   }
 
   validateDataFields(type: string, dataInput: any) {
+    /*if (type == 'eartag') {
+      let data: any;
+      if (typeof dataInput === 'string') {
+        if (dataInput.trim() === '') {
+          throw new BadRequestException('dataJson is required for type eartag');
+        }
+        data = JSON.parse(dataInput);
+      } else if (dataInput && typeof dataInput === 'object') {
+        data = dataInput;
+      } else {
+        throw new BadRequestException('data is required for type eartag');
+      }
+
+      const left = typeof data.eartagLeft === 'string' ? data.eartagLeft.trim() : '';
+      const right = typeof data.eartagRight === 'string' ? data.eartagRight.trim() : '';
+      if (left.length === 0 && right.length === 0) {
+        throw new BadRequestException('dataJson is invalid for type eartag');
+      }
+    }*/
+
     if (type == 'medication') {
       let data: any;
       if (typeof dataInput === 'string') {

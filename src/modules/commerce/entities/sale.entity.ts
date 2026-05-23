@@ -8,7 +8,7 @@ import {
     OneToMany,
     JoinColumn,
 } from 'typeorm';
-import { Provider } from './provider.entity';
+import { BusinessPartner } from './business-partner.entity';
 import { SaleDetail } from './sale-detail.entity';
 
 @Entity('sales')
@@ -22,16 +22,16 @@ export class Sale {
     @Column({ name: 'buyer_id', type: 'uuid' })
     buyerId: string;
 
-    @ManyToOne(() => Provider)
+    @ManyToOne(() => BusinessPartner)
     @JoinColumn({ name: 'buyer_id' })
-    buyer: Provider;
+    buyer: BusinessPartner;
 
     @Column({ name: 'transporter_id', type: 'uuid', nullable: true })
     transporterId: string;
 
-    @ManyToOne(() => Provider)
+    @ManyToOne(() => BusinessPartner)
     @JoinColumn({ name: 'transporter_id' })
-    transporter: Provider;
+    transporter: BusinessPartner;
 
     @Column({ name: 'min_weight_config', type: 'numeric', precision: 10, scale: 2 })
     minWeightConfig: number;

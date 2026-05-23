@@ -3,7 +3,6 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe, Logger, LogLevel } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
-import { ENV } from './config/env';
 
 async function bootstrap() {
   // Configurar niveles de log según el entorno
@@ -73,6 +72,9 @@ async function bootstrap() {
   const port = configService.get<number>('APP_PORT') ?? 3000;
   //await app.listen(port);
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 API escuchando en http://localhost:${port} (env=${configService.get('ENVIRONMENT')})`);
+  Logger.log(
+    `API escuchando en http://0.0.0.0:${port} (env=${configService.get('ENVIRONMENT')})`,
+    'Bootstrap',
+  );
 }
 bootstrap();

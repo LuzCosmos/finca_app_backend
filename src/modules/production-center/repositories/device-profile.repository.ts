@@ -30,6 +30,13 @@ export class DeviceProfileRepository {
     return deviceProfile;
   }
 
+  async findOptionalByIdAndTenant(
+    id: string,
+    idTenant: string,
+  ): Promise<DeviceProfile | null> {
+    return await this.repository.findOne({ where: { id, idTenant } });
+  }
+
   async findByNameAndTenantId(name: string, idTenant:string): Promise<DeviceProfile> {
     const deviceProfile = await this.repository.findOne({ where: { name, idTenant: idTenant } });
     if (!deviceProfile) {

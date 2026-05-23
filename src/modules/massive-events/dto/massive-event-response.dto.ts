@@ -13,8 +13,27 @@ export class MassiveEventResponseDto {
   @ApiProperty({ example: 'open', description: 'Status of the massive event' })
   status: string;
   
-  @ApiProperty({ example: '2022-01-01', description: 'Event date' }) 
-  eventDate:Date;
+  @ApiProperty({ example: '2022-01-01', description: 'Event date' })
+  eventDate: Date;
+
+  @ApiProperty({ example: 'Vacunación marzo', required: false, description: 'Optional display name' })
+  name?: string;
+
+  @ApiProperty({ example: 'uuid-user', required: false, description: 'User who created the event' })
+  createdBy?: string;
+
+  @ApiProperty({
+    example: 'jdoe',
+    required: false,
+    description: 'Username of the creator (same tenant); for display in lists',
+  })
+  createdByUsername?: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'True if linked to a purchase reception (not shown in standalone massive-events list)',
+  })
+  linkedToPurchaseReception: boolean;
 
   @ApiProperty({ example: '2025-07-24T12:00:00Z', description: 'Date when the massive event was created' })
   createdAt: Date;
@@ -28,17 +47,29 @@ export class MassiveEventResponseDto {
   })
   simpleEvents: SimpleEventResponseDto[];
 
-  static toResponseDto(entity: MassiveEvent, simpleEvents?: SimpleEvent[]): MassiveEventResponseDto {
-    return {
+  static toResponseDto(
+    entity: MassiveEvent,
+    simpleEvents?: SimpleEvent[],
+    opts?: { createdByUsername?: string | null },
+  ): MassiveEventResponseDto {
+    const dto: MassiveEventResponseDto = {
       id: entity.id,
       idTenant: entity.idTenant,
       status: entity.status,
       eventDate: entity.eventDate,
+      name: entity.name,
+      createdBy: entity.createdBy,
+      linkedToPurchaseReception: entity.linkedToPurchaseReception ?? false,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       simpleEvents: simpleEvents
         ? simpleEvents.map(SimpleEventResponseDto.toResponseDto)
         : [],
     };
+    const un = opts?.createdByUsername?.trim();
+    if (un) {
+      dto.createdByUsername = un;
+    }
+    return dto;
   }
 }

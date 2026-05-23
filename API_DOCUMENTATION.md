@@ -47,8 +47,27 @@ docker compose up -d
 ### Auth (JWT)
 - `POST /api/v1/auth/login`
   - Autentica y devuelve JWT
+  - Devuelve `access_token`, `refresh_token`, `expires_in`, `user`, `permissions`
+- `POST /api/v1/auth/refresh`
+  - Renueva `access_token` usando `refresh_token`
+  - Rota `refresh_token` en Redis en cada renovación
+- `POST /api/v1/auth/logout`
+  - Requiere `Authorization: Bearer <token>`
+  - Revoca sesión y refresh token en Redis
   - Header esperado en endpoints protegidos:  
     `Authorization: Bearer <token>`
+
+### Configuración de expiración de sesión
+- La variable de entorno `JWT_EXPIRATION` define:
+  - La expiración del `access_token` firmado por JWT.
+  - Un límite mínimo para TTL de sesión en Redis.
+- La variable `JWT_REFRESH_EXPIRATION` define el TTL del refresh token en Redis (`refresh:{token}`).
+- El TTL de la sesión en Redis (`session:{userId}:{sessionId}`) se calcula como  
+  `max(JWT_EXPIRATION, JWT_REFRESH_EXPIRATION)` para permitir renovar sesión cuando el access token ya expiró.
+- Formatos soportados: `s` (segundos), `m` (minutos), `h` (horas), `d` (días).  
+  Ejemplos: `30s`, `15m`, `24h`, `7d`.
+- Si `JWT_EXPIRATION` es inválido, el backend aplica fallback de seguridad a `86400` segundos (24h) para el TTL en Redis.
+- Si `JWT_REFRESH_EXPIRATION` es inválido, el backend aplica fallback a `604800` segundos (7 días).
 
 ### Guards y permisos
 - `JwtAuthGuard`: valida token JWT
@@ -81,6 +100,8 @@ docker compose up -d
 
 ### Auth
 - `POST /api/v1/auth/login` — Login y generación de JWT
+- `POST /api/v1/auth/refresh` — Renovar access token (con rotación de refresh token)
+- `POST /api/v1/auth/logout` — Cerrar sesión y revocar tokens en Redis
 
 ### Employee Management — Users
 - `POST /api/v1/users` — Crear usuario
@@ -112,7 +133,7 @@ docker compose up -d
 - `GET /api/v1/cattle/basic-info` — Info básica
 - `GET /api/v1/cattle/basic` — Info básica paginada con cursor
 - `GET /api/v1/cattle/simple-events/:id` — Eventos simples por ganado
-- `POST /api/v1/cattle/apply-events/:cattleNumber` — Aplicar eventos a un ganado
+- `POST /api/v1/cattle/apply-events` — Aplicar eventos a un ganado (`applied.cattleNumber` en body)
 - `POST /api/v1/cattle/apply-simple-events` — Aplicar eventos a múltiples ganados
 - `POST /api/v1/cattle/sync-cattle-simple-event` — Sincronización offline
 - `POST /api/v1/cattle/import` — Importar ganado (Excel)
@@ -154,16 +175,16 @@ docker compose up -d
 - `PUT /api/v1/sales/:id` — Actualizar venta
 
 ### Commerce — Providers
-- `POST /api/v1/providers` — Crear proveedor
-- `GET /api/v1/providers` — Listar proveedores
-- `GET /api/v1/providers/search` — Buscar por nombre
-- `GET /api/v1/providers/search/by-nit` — Buscar por NIT
-- `GET /api/v1/providers/:id` — Obtener por ID
-- `GET /api/v1/providers/nit/:nit` — Obtener por NIT
-- `PUT /api/v1/providers/:id` — Actualizar por ID
-- `PUT /api/v1/providers/nit/:nit` — Actualizar por NIT
-- `DELETE /api/v1/providers/:id` — Eliminar por ID
-- `DELETE /api/v1/providers/nit/:nit` — Eliminar por NIT
+- `POST /api/v1/business-partners` — Crear tercero comercial
+- `GET /api/v1/business-partners` — Listar terceros comerciales
+- `GET /api/v1/business-partners/search` — Buscar por nombre
+- `GET /api/v1/business-partners/search/by-nit` — Buscar por NIT
+- `GET /api/v1/business-partners/:id` — Obtener por ID
+- `GET /api/v1/business-partners/nit/:nit` — Obtener por NIT
+- `PUT /api/v1/business-partners/:id` — Actualizar por ID
+- `PUT /api/v1/business-partners/nit/:nit` — Actualizar por NIT
+- `DELETE /api/v1/business-partners/:id` — Eliminar por ID
+- `DELETE /api/v1/business-partners/nit/:nit` — Eliminar por NIT
 
 ### Commerce — Lots
 - `GET /api/v1/lots/:id` — Obtener lote por ID

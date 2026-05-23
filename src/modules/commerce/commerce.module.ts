@@ -6,10 +6,10 @@ import { FarmModule } from '../farm/farm.module';
 import { ProductionCenterModule } from '../production-center/production-center.module';
 
 import { Contact } from './entities/contact.entity';
-import { Provider } from './entities/provider.entity';
-import { ProviderController } from './controllers/provider.controller';
-import { ProviderService } from './services/provider.service';
-import { ProviderRepository } from './repositories/provider.repository';
+import { BusinessPartner } from './entities/business-partner.entity';
+import { BusinessPartnerController } from './controllers/business-partner.controller';
+import { BusinessPartnerService } from './services/business-partner.service';
+import { BusinessPartnerRepository } from './repositories/business-partner.repository';
 
 import { Purchase } from './entities/purchase.entity';
 import { PurchaseController } from './controllers/purchase.controller';
@@ -30,7 +30,7 @@ import { SalesService } from './services/sales.service';
   imports: [
     TypeOrmModule.forFeature([
       Contact,
-      Provider,
+      BusinessPartner,
       Purchase,
       Lot,
       Sale,
@@ -41,16 +41,23 @@ import { SalesService } from './services/sales.service';
     forwardRef(() => FarmModule),
     ProductionCenterModule,
   ],
-  controllers: [LotController, ProviderController, PurchaseController, SalesController],
+  controllers: [LotController, BusinessPartnerController, PurchaseController, SalesController],
   providers: [
-    ProviderService,
-    ProviderRepository,
+    BusinessPartnerService,
+    BusinessPartnerRepository,
     PurchaseService,
     PurchaseRepository,
     LotRepository,
     LotService,
     SalesService,
   ],
-  exports: [ProviderRepository, PurchaseRepository, LotRepository, LotService, PurchaseService],
+  exports: [
+    BusinessPartnerRepository,
+    PurchaseRepository,
+    LotRepository,
+    LotService,
+    PurchaseService,
+    SalesService,
+  ],
 })
-export class CommerceModule { }
+export class CommerceModule {}

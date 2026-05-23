@@ -28,8 +28,11 @@ export class ReceiveCattleResponseDto {
     @ApiProperty({ example: 'uuid', description: 'idDevice' })
     idDevice?: string;
 
-    @ApiProperty({ example: 'C-001', description: 'eartag' })
-    eartag?: string;
+    @ApiProperty({ example: 'C-001', description: 'eartagLeft' })
+    eartagLeft?: string;
+
+    @ApiProperty({ example: 'C-002', description: 'eartagRight' })
+    eartagRight?: string;
 
     @ApiProperty({ example: 'Tracker 1', description: 'deviceName' })
     deviceName?: string;
@@ -53,7 +56,8 @@ export class ReceiveCattleResponseDto {
             idBrand: cattle.idBrand ?? undefined,
             color: cattle.color ?? undefined,
             idDevice: cattle.idDevice ?? undefined,
-            eartag: cattle.eartag ?? undefined,
+            eartagLeft: cattle.eartagLeft ?? undefined,
+            eartagRight: cattle.eartagRight ?? undefined,
             deviceName: cattle.device?.name ?? undefined,
             appliedEvents: appliedEvents ?? [],
         };

@@ -12,10 +12,14 @@ import { MassiveEventController } from './controllers/massive-event.controller';
 import { SimpleEventController } from './controllers/simple-event.controller';
 import { FarmModule } from '../farm/farm.module';
 import { ApplicationPermissionsModule } from '../../common/application-permissions/application-permissions.module';
-
+import { User } from '../employee-management/entities/user.entity';
 
 @Module({
-  imports: [forwardRef(() => FarmModule), ApplicationPermissionsModule, TypeOrmModule.forFeature([MassiveEvent, SimpleEvent, AnimalSimpleEvent])],
+  imports: [
+    forwardRef(() => FarmModule),
+    ApplicationPermissionsModule,
+    TypeOrmModule.forFeature([MassiveEvent, SimpleEvent, AnimalSimpleEvent, User]),
+  ],
   controllers: [MassiveEventController, SimpleEventController],
   providers: [
     MassiveEventRepository,

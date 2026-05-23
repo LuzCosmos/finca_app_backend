@@ -12,6 +12,14 @@ export class CreateDeviceDto {
   @IsNotEmpty()
   idDeviceProfile: string;
 
+  @ApiProperty({
+    description: 'ID del perfil de dispositivo en ChirpStack (deviceProfile.idChipstack)',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  idChirpstackProfile?: string;
+
   @ApiProperty({ description: 'DevEUI del dispositivo' })
   @IsString()
   @IsNotEmpty()

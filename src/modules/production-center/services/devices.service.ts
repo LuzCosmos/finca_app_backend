@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException, Logger, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { DeviceRepository } from '../repositories/device.repository';
 import { CreateDeviceDto } from '../dto/create-device.dto';
 import { UpdateDeviceDto } from '../dto/update-device.dto';
@@ -8,10 +8,28 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { DeviceProfileRepository } from '../repositories/device-profile.repository';
 import { ChirpstackDeviceInterface, ChirpstackDeviceKeysInterface, ChirpstackDeviceKeysUpdateInterface, ChirpstackDeviceUpdateInterface } from '../interfaces/chirpstack-device.interface';
-import * as ExcelJS from 'exceljs';
 import { DeviceProfile } from '../entities/device-profile.entity';
 import { promises as fs } from 'fs';
 import { EntityManager } from 'typeorm';
+import { DeviceListItemResponseDto } from '../dto/device-list-item-response.dto';
+import { mapDeviceToListItem } from '../mappers/device-list.mapper';
+import {
+  ImportDeviceRowIssueDto,
+  ImportDevicesResultDto,
+} from '../dto/import-devices-result.dto';
+import {
+  allRowsHaveValidProfileId,
+  resolveLw001AppKeyValue,
+  resolveLw001JoinEuiValue,
+  buildLw001DeviceName,
+  isValidUuid,
+  loadLw001ImportLayout,
+  Lw001ParsedRow,
+  normalizeLw001Deveui,
+  normalizeOptionalHex16,
+  normalizeOptionalHex32,
+} from '../import-lw001/devices-import-lw001.helper';
+import { ImportLw001Reason } from '../import-lw001/import-lw001.constants';
 
 @Injectable()
 export class DevicesService {
@@ -81,6 +99,7 @@ export class DevicesService {
     } else {
       createDeviceDto.csNwkKey = deviceProfile.csNwkKey;
     }
+    createDeviceDto.idChirpstackProfile = deviceProfile.idChipstack;
     return await this.createDevice(createDeviceDto, deviceProfile, deviceChirpstack, deviceKeys);
   }
 
@@ -124,11 +143,20 @@ export class DevicesService {
       }
       return false;
     } catch (error) {
-      this.logger.error(error.response?.data);
-      if (error.response?.status === 401) {
+      const axiosError = error as { response?: { status?: number; data?: { code?: number } } };
+      const status = axiosError.response?.status;
+      const grpcCode = axiosError.response?.data?.code;
+      if (status === 401) {
         return false;
       }
-      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || 'Unknown error');
+      // Dispositivo inexistente en ChirpStack (HTTP 404 o gRPC NOT_FOUND = 5).
+      if (status === 404 || grpcCode === 5) {
+        return false;
+      }
+      this.logger.error(axiosError.response?.data);
+      const errorMsg = axiosError.response?.data
+        ? JSON.stringify(axiosError.response.data)
+        : (error instanceof Error ? error.message : 'Unknown error');
       throw new BadRequestException(`Error validating device ${deveui} with Chirpstack, error: ${errorMsg}`);
     }
   }
@@ -220,13 +248,30 @@ export class DevicesService {
   async updateWithDevice(device: Device, updateDeviceDto: UpdateDeviceDto, manager?: EntityManager): Promise<Device> {
     this.logger.debug(`log_device 1: Updating device ${device.deveui} with device tags: ${JSON.stringify(updateDeviceDto)}`);
     try {
-
-      const deviceChirpstack = await this.updateDeviceInChirpstack(device.deveui, updateDeviceDto, device);
-      if (!deviceChirpstack) {
-        this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
-        throw new BadRequestException(`Error updating device in Chirpstack`);
+      const chirpstackProfileId = await this.resolveChirpstackProfileIdForUpdate(
+        device,
+        updateDeviceDto,
+      );
+      if (chirpstackProfileId) {
+        if (!updateDeviceDto.idChirpstackProfile) {
+          updateDeviceDto.idChirpstackProfile = chirpstackProfileId;
+        }
+        const deviceChirpstack = await this.updateDeviceInChirpstack(
+          device.deveui,
+          updateDeviceDto,
+          device,
+          chirpstackProfileId,
+        );
+        if (!deviceChirpstack) {
+          this.logger.debug(`log_device 2: Error updating device in Chirpstack`);
+          throw new BadRequestException(`Error updating device in Chirpstack`);
+        }
+        this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
+      } else {
+        this.logger.debug(
+          `log_device 2.1: Device ${device.deveui} skipped ChirpStack update (no id_chirpstack_profile resoluble)`,
+        );
       }
-      this.logger.debug(`log_device 3: Device updated in Chirpstack: ${deviceChirpstack}`);
       const deviceUpdated = await this.deviceRepository.update(device.id, updateDeviceDto, manager);
       if (!deviceUpdated) {
         this.logger.debug(`log_device 4: Error updating device ${device.deveui}`);
@@ -234,7 +279,6 @@ export class DevicesService {
       }
       this.logger.debug(`log_device 5: Device updated: ${deviceUpdated.id}`);
       return deviceUpdated;
-
     } catch (error) {
       const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || 'Unknown error');
       this.logger.error(`log_device 6: Error updating device ${device.deveui} with Chirpstack, message: ${error.message}, error: ${errorMsg}`);
@@ -251,7 +295,12 @@ export class DevicesService {
    * @param updateDeviceDto - The device to update
    * @returns True if the device was updated, false otherwise
    */
-  async updateDeviceInChirpstack(deveui: string, updateDeviceDto: UpdateDeviceDto, device: Device): Promise<boolean> {
+  async updateDeviceInChirpstack(
+    deveui: string,
+    updateDeviceDto: UpdateDeviceDto,
+    device: Device,
+    chirpstackProfileId: string,
+  ): Promise<boolean> {
     const deviceChirpstack: ChirpstackDeviceUpdateInterface = {}
     if (updateDeviceDto.csApplicationId) {
       deviceChirpstack.applicationId = updateDeviceDto.csApplicationId;
@@ -264,11 +313,7 @@ export class DevicesService {
     if (updateDeviceDto.deveui) {
       deviceChirpstack.devEui = updateDeviceDto.deveui;
     }
-    if (updateDeviceDto.idDeviceProfile) {
-      deviceChirpstack.deviceProfileId = updateDeviceDto.idDeviceProfile;
-    } else {
-      deviceChirpstack.deviceProfileId = device.idChirpstackProfile;
-    }
+    deviceChirpstack.deviceProfileId = chirpstackProfileId;
     /*if (updateDeviceDto.isDisabled) {
       deviceChirpstack.isDisabled = updateDeviceDto.isDisabled;
     }*/
@@ -370,26 +415,42 @@ export class DevicesService {
 
   /**
    * Remove a device
-   * @param id - The device ID
+   * @param id - Local device UUID (`devices.id`)
+   * @param idTenant - Tenant ID for scoping
    */
   async remove(id: string, idTenant: string): Promise<void> {
-    const device = await this.deviceRepository.findByDevEuiAndTenantId(id, idTenant);
-    if (!device) {
-      throw new BadRequestException(`Device with ID ${id} not found`);
+    const device = await this.deviceRepository.findByIdAndTenantId(id, idTenant);
+    if (device == null) {
+      throw new NotFoundException(`Device with ID ${id} not found`);
     }
-    const response = await this.httpService.axiosRef.delete(
-      `${this.chirpstackUrl}/api/devices/${device.deveui}`,
-      {
-        headers: {
-          'accept': 'application/json',
-          'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`
+    try {
+      const response = await this.httpService.axiosRef.delete(
+        `${this.chirpstackUrl}/api/devices/${device.deveui}`,
+        {
+          headers: {
+            'accept': 'application/json',
+            'Grpc-Metadata-Authorization': `Bearer ${this.chirpstackToken}`,
+          },
         },
+      );
+      if (response.status !== 200) {
+        throw new BadRequestException(
+          `Error removing device ${device.deveui} from Chirpstack: unexpected status ${response.status}`,
+        );
       }
-    );
-    if (response.status === 200) {
-      await this.deviceRepository.remove(id);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      const errorMsg = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : (error.message || 'Unknown error');
+      const status = error.response?.status;
+      throw new BadRequestException(
+        `Error removing device ${device.deveui} from Chirpstack (HTTP ${status ?? 'n/a'}): ${errorMsg}`,
+      );
     }
-    throw new BadRequestException(`Error removing device ${device.deveui} from Chirpstack`);
+    await this.deviceRepository.remove(id);
   }
 
   /**
@@ -425,173 +486,463 @@ export class DevicesService {
     return await this.deviceRepository.findAll(idTenant);
   }
 
+  /** Solo id, deveui, name — para sincronización offline en móvil (sin claves). */
+  async findAllCatalog(
+    idTenant: string,
+  ): Promise<{ id: string; deveui: string; name: string }[]> {
+    const rows = await this.deviceRepository.findAll(idTenant);
+    return rows.map((d) => ({
+      id: d.id,
+      deveui: d.deveui,
+      name: d.name,
+    }));
+  }
+
+  async findAllListSummary(idTenant: string): Promise<DeviceListItemResponseDto[]> {
+    const rows = await this.deviceRepository.findAllForList(idTenant);
+    return rows.map(mapDeviceToListItem);
+  }
+
   /**
-   * Import devices from Excel file
-   * @param file - The Excel file
-   * @param idTenant - The tenant ID
-   * @param deviceProfileId - The device profile ID
-   * @returns The list of devices
+   * Import devices from LW001-BG PRO template (.xlsx, .xls, .csv).
    */
-  async importDevicesFromExcel(file: Express.Multer.File, idTenant: string, deviceProfileId: string): Promise<any[]> {
+  async importDevicesFromExcel(
+    file: Express.Multer.File,
+    idTenant: string,
+    deviceProfileId?: string,
+  ): Promise<ImportDevicesResultDto> {
     try {
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.readFile(file.path);
-      const worksheet = workbook.worksheets[0];
-      if (!worksheet) {
-        throw new BadRequestException('The Excel sheet does not exist or is empty');
+      const buffer = await fs.readFile(file.path);
+      const layout = loadLw001ImportLayout(buffer, file.originalname);
+      const multipartProfileId = deviceProfileId?.trim() ?? '';
+
+      const profileValid = (id: string) => isValidUuid(id);
+      const allRowsHaveProfileB = allRowsHaveValidProfileId(
+        layout.dataRows,
+        profileValid,
+      );
+
+      if (!allRowsHaveProfileB && !multipartProfileId) {
+        throw new BadRequestException(ImportLw001Reason.DEVICE_PROFILE_ID_REQUIRED);
       }
-      let deviceProfile: DeviceProfile | null = null;
-      if (deviceProfileId) {
-        deviceProfile = await this.deviceProfileRepository.findOne(deviceProfileId, idTenant);
-        if (!deviceProfile) {
-          throw new BadRequestException(`Device profile with ID ${deviceProfileId} not found`);
+
+      let defaultProfile: DeviceProfile | null = null;
+      if (multipartProfileId) {
+        defaultProfile = await this.deviceProfileRepository.findOptionalByIdAndTenant(
+          multipartProfileId,
+          idTenant,
+        );
+        if (!defaultProfile) {
+          throw new BadRequestException(ImportLw001Reason.DEVICE_PROFILE_ID_INVALID);
         }
       }
-      const datos = await this.processSheet(worksheet, idTenant, deviceProfile);
-      return datos;
+
+      const result: ImportDevicesResultDto = {
+        totalRows: layout.dataRows.length,
+        created: 0,
+        updated: 0,
+        duplicateDeveuisInFile: [],
+        warnings: [],
+        errors: [],
+      };
+
+      const deveuiOccurrences = new Map<string, number>();
+      for (const row of layout.dataRows) {
+        const normalized = normalizeLw001Deveui(row.devEui);
+        if (!normalized) {
+          continue;
+        }
+        deveuiOccurrences.set(normalized, (deveuiOccurrences.get(normalized) ?? 0) + 1);
+      }
+      result.duplicateDeveuisInFile = [...deveuiOccurrences.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([deveui]) => deveui);
+
+      const seenDeveuisInFile = new Set<string>();
+
+      for (const row of layout.dataRows) {
+        await this.processLw001ImportRow(
+          row,
+          idTenant,
+          defaultProfile,
+          seenDeveuisInFile,
+          result,
+        );
+      }
+
+      return result;
     } catch (error) {
-      throw new InternalServerErrorException('Error processing the Excel file');
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(
+        `LW001 import failed: ${error instanceof Error ? error.message : error}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException('Error processing the import file');
     } finally {
       fs.unlink(file.path)
         .then(() =>
           this.logger.debug(`File ${file.originalname} deleted from ${file.path}`),
         )
-        .catch(err =>
+        .catch((err) =>
           this.logger.error(`Error deleting file ${file.path}: ${err.message}`),
         );
     }
   }
 
-  /**
-   * Process the Excel sheet
-   * @param worksheet - The Excel sheet
-   * @param idTenant - The tenant ID
-   * @param deviceProfile - The device profile
-   * @returns The list of devices
-   */
-  async processSheet(worksheet: ExcelJS.Worksheet, idTenant: string, deviceProfile: DeviceProfile | null): Promise<any> {
-    const results = {
-      success: 0,
-      failed: 0,
-      errors: [] as Array<string>,
-    };
-    for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
-      try {
-        const row = worksheet.getRow(rowNumber);
-        const rowValues = Array.isArray(row.values)
-          ? row.values.slice(1).map((v: any) =>
-            typeof v === 'object' && v?.result !== undefined ? v.result : v,
-          )
-          : [];
-        if (rowValues.length === 0) {
-          results.errors.push(`Row ${rowNumber} is empty`);
-          results.failed++;
-          continue;
-        }
-        const deveui = rowValues[0];
-        if (!deviceProfile && rowValues.length < 3) {
-          results.errors.push(`Row ${rowNumber}, ${deveui}, has not the required columns: devEui, deviceName, deviceProfileId.`);
-          results.failed++;
-          continue;
-        }
-        if (rowValues.length < 2) {
-          results.errors.push(`Row ${rowNumber}, ${deveui}, has not the required columns: devEui, deviceName.`);
-          results.failed++;
-          continue;
-        }
-        let currentDeviceProfile = deviceProfile;
-        if (!currentDeviceProfile) {
-          try {
-            currentDeviceProfile = await this.deviceProfileRepository.findOne(rowValues[2], idTenant);
-            if (!currentDeviceProfile) {
-              throw new Error(`Device profile with ID ${rowValues[2]} not found`);
-            }
-          } catch (error) {
-            results.errors.push(`Row ${rowNumber}, ${deveui}, ${error.message}`);
-            results.failed++;
-            continue;
-          }
-        }
-        try {
-          const device = await this.processExcelRow(rowValues, rowNumber, idTenant, currentDeviceProfile);
-          results.success++;
-        } catch (error) {
-          results.errors.push(`Row ${rowNumber}, ${deveui}, ${error.message}`);
-          results.failed++;
-        }
-      } catch (error) {
-        results.errors.push(`Row ${rowNumber}, ${error.message}`);
-        results.failed++;
-      }
+  private async processLw001ImportRow(
+    row: Lw001ParsedRow,
+    idTenant: string,
+    defaultProfile: DeviceProfile | null,
+    seenDeveuisInFile: Set<string>,
+    result: ImportDevicesResultDto,
+  ): Promise<void> {
+    const normalizedDeveui = normalizeLw001Deveui(row.devEui);
+    if (!normalizedDeveui) {
+      result.errors.push(
+        this.buildImportIssueForLw001Row(ImportLw001Reason.DEVEUI_INVALID_LENGTH, row),
+      );
+      return;
     }
-    return results;
+
+    const profile = await this.resolveLw001ProfileForRow(
+      row,
+      idTenant,
+      defaultProfile,
+      result,
+    );
+    if (!profile) {
+      return;
+    }
+
+    if (!profile.idChipstack?.trim()) {
+      result.errors.push(
+        this.buildImportIssueForLw001Row(
+          ImportLw001Reason.CHIRPSTACK_PROFILE_ID_REQUIRED,
+          row,
+          normalizedDeveui,
+        ),
+      );
+      return;
+    }
+
+    const joinEui = this.resolveLw001JoinEui(row, profile, result);
+    if (joinEui === undefined) {
+      return;
+    }
+    const appKey = this.resolveLw001AppKey(row, profile, result);
+    if (appKey === undefined) {
+      return;
+    }
+
+    const nwkKey = normalizeOptionalHex32(profile.csNwkKey ?? '');
+    if (!nwkKey) {
+      result.errors.push(
+        this.buildImportIssueForLw001Row(
+          ImportLw001Reason.NWK_KEY_INVALID,
+          row,
+          normalizedDeveui,
+        ),
+      );
+      return;
+    }
+
+    const existingDevice = await this.deviceRepository.findOptionalByDevEuiAndTenantId(
+      normalizedDeveui,
+      idTenant,
+    );
+    const isDuplicateInFile = seenDeveuisInFile.has(normalizedDeveui);
+    seenDeveuisInFile.add(normalizedDeveui);
+
+    const deviceName = await this.resolveLw001DeviceNameForTenant(
+      normalizedDeveui,
+      idTenant,
+      existingDevice?.id,
+    );
+    const tags = { idTenant };
+
+    try {
+      if (existingDevice || isDuplicateInFile) {
+        const target =
+          existingDevice
+          ?? (await this.deviceRepository.findOptionalByDevEuiAndTenantId(
+            normalizedDeveui,
+            idTenant,
+          ));
+        if (!target) {
+          result.errors.push(
+            this.buildImportIssueForLw001Row(
+              ImportLw001Reason.ROW_PROCESS_FAILED,
+              row,
+              normalizedDeveui,
+              'Device not found for update',
+            ),
+          );
+          return;
+        }
+        await this.persistLw001UpdatedDevice(
+          target,
+          deviceName,
+          profile,
+          joinEui,
+          appKey,
+          nwkKey,
+          tags,
+          normalizedDeveui,
+        );
+        result.updated++;
+        const warningReason = isDuplicateInFile
+          ? ImportLw001Reason.DEVEUI_DUPLICATE_IN_FILE_UPDATED
+          : ImportLw001Reason.DEVEUI_ALREADY_EXISTS_UPDATED;
+        result.warnings.push(
+          this.buildImportIssueForLw001Row(
+            warningReason,
+            row,
+            normalizedDeveui,
+            normalizedDeveui,
+          ),
+        );
+      } else {
+        await this.persistLw001NewDevice(
+          normalizedDeveui,
+          deviceName,
+          profile,
+          joinEui,
+          appKey,
+          nwkKey,
+          tags,
+          idTenant,
+        );
+        result.created++;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      result.errors.push(
+        this.buildImportIssueForLw001Row(
+          ImportLw001Reason.ROW_PROCESS_FAILED,
+          row,
+          normalizedDeveui,
+          message,
+        ),
+      );
+    }
+  }
+
+  private async resolveLw001ProfileForRow(
+    row: Lw001ParsedRow,
+    idTenant: string,
+    defaultProfile: DeviceProfile | null,
+    result: ImportDevicesResultDto,
+  ): Promise<DeviceProfile | null> {
+    const columnProfileId = row.idDeviceProfile.trim();
+    if (columnProfileId) {
+      if (!isValidUuid(columnProfileId)) {
+        result.errors.push(
+          this.buildImportIssueForLw001Row(
+            ImportLw001Reason.DEVICE_PROFILE_ID_INVALID,
+            row,
+          ),
+        );
+        return null;
+      }
+      const profile = await this.deviceProfileRepository.findOptionalByIdAndTenant(
+        columnProfileId,
+        idTenant,
+      );
+      if (!profile) {
+        result.errors.push(
+          this.buildImportIssueForLw001Row(
+            ImportLw001Reason.DEVICE_PROFILE_ID_INVALID,
+            row,
+          ),
+        );
+        return null;
+      }
+      return profile;
+    }
+    if (!defaultProfile) {
+      result.errors.push(
+        this.buildImportIssueForLw001Row(
+          ImportLw001Reason.DEVICE_PROFILE_ID_REQUIRED,
+          row,
+        ),
+      );
+      return null;
+    }
+    return defaultProfile;
+  }
+
+  private resolveLw001JoinEui(
+    row: Lw001ParsedRow,
+    profile: DeviceProfile,
+    result: ImportDevicesResultDto,
+  ): string | undefined {
+    const resolved = resolveLw001JoinEuiValue(row.joineui, profile.csJoineui);
+    if (!resolved.ok) {
+      result.errors.push(
+        this.buildImportIssueForLw001Row(resolved.reason, row),
+      );
+      return undefined;
+    }
+    return resolved.value;
+  }
+
+  private resolveLw001AppKey(
+    row: Lw001ParsedRow,
+    profile: DeviceProfile,
+    result: ImportDevicesResultDto,
+  ): string | undefined {
+    const resolved = resolveLw001AppKeyValue(row.appKey, profile.csAppKey);
+    if (!resolved.ok) {
+      result.errors.push(
+        this.buildImportIssueForLw001Row(resolved.reason, row),
+      );
+      return undefined;
+    }
+    return resolved.value;
+  }
+
+  private async resolveLw001DeviceNameForTenant(
+    deveuiLower: string,
+    idTenant: string,
+    excludeDeviceId?: string,
+  ): Promise<string> {
+    let name = buildLw001DeviceName(deveuiLower, false);
+    const conflict = await this.deviceRepository.findOptionalByNameAndTenantId(
+      name,
+      idTenant,
+    );
+    if (conflict && conflict.id !== excludeDeviceId) {
+      name = buildLw001DeviceName(deveuiLower, true);
+    }
+    return name;
+  }
+
+  private async persistLw001NewDevice(
+    deveui: string,
+    name: string,
+    profile: DeviceProfile,
+    joinEui: string,
+    appKey: string,
+    nwkKey: string,
+    tags: Record<string, string>,
+    idTenant: string,
+  ): Promise<Device> {
+    const createDeviceDto: CreateDeviceDto = {
+      idTenant,
+      idDeviceProfile: profile.id,
+      idChirpstackProfile: profile.idChipstack,
+      deveui,
+      name,
+      description: '',
+      csApplicationId: profile.csApplicationId,
+      csJoineui: joinEui,
+      csAppKey: appKey,
+      csNwkKey: nwkKey,
+      tags,
+      variables: {},
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const deviceChirpstack: ChirpstackDeviceInterface = {
+      applicationId: profile.csApplicationId,
+      description: '',
+      devEui: deveui,
+      deviceProfileId: profile.idChipstack,
+      isDisabled: false,
+      joinEui,
+      name,
+      skipFcntCheck: false,
+      tags,
+      variables: {},
+    };
+    const deviceKeys: ChirpstackDeviceKeysInterface = {
+      appKey,
+      nwkKey,
+    };
+    return await this.createDevice(
+      createDeviceDto,
+      profile,
+      deviceChirpstack,
+      deviceKeys,
+    );
+  }
+
+  private async persistLw001UpdatedDevice(
+    device: Device,
+    name: string,
+    profile: DeviceProfile,
+    joinEui: string,
+    appKey: string,
+    nwkKey: string,
+    tags: Record<string, string>,
+    deveui: string,
+  ): Promise<Device> {
+    const updateDeviceDto: UpdateDeviceDto = {
+      idDeviceProfile: profile.id,
+      idChirpstackProfile: profile.idChipstack,
+      deveui,
+      name,
+      description: device.description ?? '',
+      csApplicationId: profile.csApplicationId,
+      csJoineui: joinEui,
+      csAppKey: appKey,
+      csNwkKey: nwkKey,
+      tags,
+      variables: device.variables ?? {},
+      updatedAt: new Date(),
+    };
+    return await this.updateWithDevice(device, updateDeviceDto);
   }
 
   /**
-   * Process the Excel row
-   * @param rowValues - The row values
-   * @param rowNumber - The row number
-   * @param idTenant - The tenant ID
-   * @param deviceProfile - The device profile
-   * @returns The created device
+   * UUID de perfil ChirpStack para PUT /api/devices: explícito en DTO, idChipstack del
+   * device_profile si cambia idDeviceProfile, o el valor ya persistido en el dispositivo.
    */
-  async processExcelRow(rowValues: any[], rowNumber: number, idTenant: string, deviceProfile: DeviceProfile): Promise<Device> {
-    const createDeviceDto: CreateDeviceDto = {
-      idTenant: idTenant,
-      idDeviceProfile: deviceProfile.id,
-      deveui: rowValues[0],
-      name: rowValues[1],
-      description: "",
-      csApplicationId: deviceProfile.csApplicationId,
-      csJoineui: deviceProfile.csJoineui,
-      csAppKey: deviceProfile.csAppKey,
-      csNwkKey: deviceProfile.csNwkKey,
-      tags: {},
-      variables: {},
+  private async resolveChirpstackProfileIdForUpdate(
+    device: Device,
+    updateDeviceDto: UpdateDeviceDto,
+  ): Promise<string | null> {
+    const explicit = updateDeviceDto.idChirpstackProfile?.trim();
+    if (explicit) {
+      return explicit;
     }
-    const deviceChirpstack: ChirpstackDeviceInterface = {
-      applicationId: deviceProfile.csApplicationId,
-      description: createDeviceDto.description,
-      devEui: createDeviceDto.deveui,
-      deviceProfileId: deviceProfile.idChipstack,
-      isDisabled: false,
-      joinEui: deviceProfile.csJoineui,
-      name: createDeviceDto.name,
-      skipFcntCheck: false,
-      tags: {},
-      variables: {},
+    const tenantProfileId = updateDeviceDto.idDeviceProfile?.trim();
+    if (tenantProfileId) {
+      const profile = await this.deviceProfileRepository.findOptionalByIdAndTenant(
+        tenantProfileId,
+        device.idTenant,
+      );
+      return profile?.idChipstack?.trim() || null;
     }
-    const deviceKeys: ChirpstackDeviceKeysInterface = {
-      appKey: deviceProfile.csAppKey,
-      nwkKey: deviceProfile.csNwkKey
-    }
-    if (rowValues.length >= 4) {
-      createDeviceDto.description = rowValues[3];
-      deviceChirpstack.description = rowValues[3];
-    }
-    if (rowValues.length >= 5) {
-      createDeviceDto.csJoineui = rowValues[4];
-      deviceChirpstack.joinEui = rowValues[4];
-    }
-    if (rowValues.length >= 6) {
-      createDeviceDto.csNwkKey = rowValues[5];
-      deviceKeys.nwkKey = rowValues[5];
-    }
+    return device.idChirpstackProfile?.trim() || null;
+  }
 
-    if (rowValues.length >= 7) {
-      createDeviceDto.tags = rowValues[6];
-      deviceChirpstack.tags = rowValues[6];
-    }
-    if (rowValues.length >= 8) {
-      createDeviceDto.variables = rowValues[7];
-      deviceChirpstack.variables = rowValues[7];
-    }
-    try {
-      const device = await this.createDevice(createDeviceDto, deviceProfile, deviceChirpstack, deviceKeys);
-      return device;
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
+  private buildImportIssue(
+    reason: string,
+    row: number,
+    deveui?: string,
+    detail?: string,
+  ): ImportDeviceRowIssueDto {
+    return {
+      reason,
+      row,
+      deveui,
+      detail,
+    };
+  }
+
+  private buildImportIssueForLw001Row(
+    reason: string,
+    row: Lw001ParsedRow,
+    deveuiOverride?: string,
+    detail?: string,
+  ): ImportDeviceRowIssueDto {
+    const deveui = deveuiOverride ?? row.devEui.trim();
+    const sheetDetail = row.sheetName ? `sheet=${row.sheetName}` : undefined;
+    const mergedDetail = [sheetDetail, detail].filter((part) => part && part.length > 0).join('; ');
+    return this.buildImportIssue(reason, row.rowNumber, deveui, mergedDetail || undefined);
   }
 
 } 
