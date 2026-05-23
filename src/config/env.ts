@@ -36,7 +36,6 @@ export const ENV = {
 
   JWT_SECRET: req('JWT_SECRET'),
   JWT_EXPIRATION: req('JWT_EXPIRATION'),
-  JWT_TTL: reqInt('JWT_TTL'),
 
   FA_REDIS_HOST: req('FA_REDIS_HOST'),
   FA_REDIS_PORT: reqInt('FA_REDIS_PORT'),

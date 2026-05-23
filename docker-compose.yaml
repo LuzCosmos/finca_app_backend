@@ -1,7 +1,7 @@
 services:
   # Database
   postgres:
-    container_name: finca_app_postgres
+    container_name: ${ENVIRONMENT}_finca_app_postgres
     image: postgis/postgis:17-3.4
     restart: unless-stopped
     ports:
@@ -25,7 +25,7 @@ services:
   # Redis
   redis:
     image: redis:7.4-alpine
-    container_name: fa_redis_server
+    container_name: ${ENVIRONMENT}_fa_redis_server
     restart: unless-stopped
     command: >
       redis-server
@@ -43,8 +43,8 @@ services:
 
   # Backend API
   backend:
-    container_name: finca_app_backend
-    image: finca_app_backend:1
+    container_name: ${ENVIRONMENT}_finca_app_backend
+    image: finca_app_backend:latest
     restart: unless-stopped
     ports:
       - '${APP_PORT_EXTERNAL}:3000'
@@ -72,7 +72,7 @@ services:
       # JWT
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-24h}
-      JWT_TTL: ${JWT_TTL:-86400}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
 
       # ChirpStack
       CHIRPSTACK_API_URL: ${CHIRPSTACK_API_URL}

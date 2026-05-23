@@ -24,9 +24,6 @@ export class CattleResponseDto {
   characteristics?: string[];
 
   @Expose()
-  lot?: string;
-
-  @Expose()
   receivedAt: string;
 
   @Expose()

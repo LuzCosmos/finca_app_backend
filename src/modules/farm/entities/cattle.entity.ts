@@ -15,6 +15,7 @@ import { Purchase } from '../../commerce/entities/purchase.entity';
 import { CattleColor } from '../enums/cattle-color.enum';
 import { CattleCharacteristic } from './cattle-characteristic.entity';
 import { CattleGender } from '../enums/cattle-gender.enum';
+import { BirthDateAprxSource } from '../enums/birth-date-aprx-source.enum';
 
 export enum CattleStatus {
   ACTIVE = 'ACTIVE',
@@ -62,9 +63,6 @@ export class Cattle {
   @Column({ name: 'id_lot', type: 'uuid', nullable: true })
   idLot: string | null;
 
-  @Column({ length: 10, nullable: true })
-  lot: string;
-
   @Column({ name: 'id_brand', type: 'uuid', nullable: true })
   idBrand: string | null;
 
@@ -79,9 +77,13 @@ export class Cattle {
   @OneToMany(() => CattleCharacteristic, (cattleCharacteristic) => cattleCharacteristic.cattle)
   cattleCharacteristics: CattleCharacteristic[];
 
-  /** Eartag actual */
-  @Column({ name: 'eartag', type: 'varchar', length: 50, nullable: true })
-  eartag: string | null;
+  /** Arete izquierdo */
+  @Column({ name: 'eartag_left', type: 'varchar', length: 50, nullable: true })
+  eartagLeft: string | null;
+
+  /** Arete derecho */
+  @Column({ name: 'eartag_right', type: 'varchar', length: 50, nullable: true })
+  eartagRight: string | null;
 
   @Column({ name: 'id_device', type: 'uuid', nullable: true })
   idDevice: string | null;
@@ -150,8 +152,44 @@ export class Cattle {
   })
   gender: CattleGender;
 
-  @Column({ name: 'age', nullable: true })
-  age: string;
+  @Column({ name: 'birth_date_aprx', type: 'date', nullable: true })
+  birthDateAprx: Date | null;
+
+  @Column({
+    name: 'birth_date_aprx_source',
+    type: 'enum',
+    enum: BirthDateAprxSource,
+    enumName: 'birth_date_aprx_source_enum',
+    nullable: true,
+  })
+  birthDateAprxSource: BirthDateAprxSource | null;
+
+  @Column({ name: 'milk_teeth_count', type: 'int', nullable: true })
+  milkTeethCount: number | null;
+
+  @Column({ name: 'permanent_teeth_count', type: 'int', nullable: true })
+  permanentTeethCount: number | null;
+
+  @Column({ name: 'milk_teeth_wear', type: 'smallint', nullable: true })
+  milkTeethWear: number | null;
+
+  @Column({ name: 'permanent_teeth_wear', type: 'smallint', nullable: true })
+  permanentTeethWear: number | null;
+
+  @Column({ name: 'dental_evaluation_date', type: 'date', nullable: true })
+  dentalEvaluationDate: Date | null;
+
+  /** Ej. `sapa2014-v1`: versión de la tabla SAPA2014 (véase `dentition-table-sapa2014.ts`). */
+  @Column({ name: 'dentition_table_version', type: 'varchar', length: 32, nullable: true })
+  dentitionTableVersion: string | null;
+
+  /** Fecha en que la res inicia con la nueva alimentación */
+  @Column({ name: 'new_feed_start_date', type: 'date', nullable: true })
+  newFeedStartDate: Date | null;
+
+  /** Ganancia diaria promedio (kg/día) */
+  @Column({ name: 'average_daily_gain', type: 'numeric', precision: 6, scale: 3, nullable: true })
+  averageDailyGain: number | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

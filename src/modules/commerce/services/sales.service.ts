@@ -1,7 +1,8 @@
-import { Injectable, Logger, InternalServerErrorException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { DataSource, EntityManager, Between, FindOptionsWhere, ILike } from 'typeorm';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { DataSource, EntityManager, Between, FindOptionsWhere } from 'typeorm';
 import { CreateSaleDto } from '../dto/create-sale.dto';
-import { GetSalesQueryDto, SaleSortField } from '../dto/get-sales-query.dto';
+import { CreateSaleDetailDto } from '../dto/create-sale-detail.dto';
+import { GetSalesQueryDto } from '../dto/get-sales-query.dto';
 import { UpdateSaleDto } from '../dto/update-sale.dto';
 import { Sale } from '../entities/sale.entity';
 import { SaleDetail } from '../entities/sale-detail.entity';
@@ -9,6 +10,22 @@ import { Cattle, CattleStatus } from '../../farm/entities/cattle.entity';
 import { CattleDeviceHistoryRepository } from '../../farm/repositories/cattle-device-history.repository';
 import { DevicesService } from '../../production-center/services/devices.service';
 import { CattleRepository } from '../../farm/repositories/cattle.repository';
+
+/** Inicio y fin del día civil en hora local para strings YYYY-MM-DD (fin inclusivo 23:59:59.999). */
+function calendarDayBounds(dateStr: string): { start: Date; end: Date } {
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:[Tt ].*)?$/.exec(dateStr.trim());
+    if (m) {
+        const y = Number(m[1]);
+        const mo = Number(m[2]);
+        const d = Number(m[3]);
+        return {
+            start: new Date(y, mo - 1, d, 0, 0, 0, 0),
+            end: new Date(y, mo - 1, d, 23, 59, 59, 999),
+        };
+    }
+    const parsed = new Date(dateStr);
+    return { start: parsed, end: parsed };
+}
 
 @Injectable()
 export class SalesService {
@@ -23,7 +40,6 @@ export class SalesService {
 
     async createSale(dto: CreateSaleDto): Promise<Sale> {
         return await this.dataSource.transaction(async (manager) => {
-            // 1. Create Sale Header
             const sale = manager.create(Sale, {
                 transactionDate: dto.transactionDate,
                 buyerId: dto.buyerId,
@@ -36,70 +52,17 @@ export class SalesService {
                 notes: dto.notes,
                 idTenant: dto.idTenant,
                 createdBy: dto.createdBy,
-                updatedAt: new Date(), // Explicitly set updated_at if needed
+                updatedAt: new Date(),
             });
             const savedSale = await manager.save(Sale, sale);
-            // 2. Process Details
+
             for (const detailDto of dto.details) {
-                // Create Sale Detail
-                const detail = manager.create(SaleDetail, {
-                    saleId: savedSale.id,
-                    cattleId: detailDto.cattleId,
-                    measuredWeight: detailDto.measuredWeight,
-                    isApproved: detailDto.isApproved,
-                    rejectionReason: detailDto.rejectionReason,
-                    trackerRemoved: detailDto.trackerRemoved ?? false,
-                    calculatedPrice: detailDto.calculatedPrice,
-                    idTenant: dto.idTenant,
+                await this.persistSaleDetail(manager, savedSale.id, dto.idTenant!, detailDto, {
+                    buyerId: dto.buyerId,
+                    valuePerKgConfig: dto.valuePerKgConfig,
+                    transactionDate: dto.transactionDate,
+                    applyTrackerRemoval: detailDto.trackerRemoved ?? false,
                 });
-                await manager.save(SaleDetail, detail);
-                // 3. Side Effects on Cattle
-                if (detailDto.isApproved) {
-                    // Update status to SOLD
-                    // We also update sale-related fields in Cattle as per requirements/legacy columns
-                    await manager.update(Cattle, { id: detailDto.cattleId, idTenant: dto.idTenant }, {
-                        status: CattleStatus.SOLD,
-                        saleWeight: detailDto.measuredWeight,
-                        salePrice: detailDto.calculatedPrice,
-                        salePricePerKg: dto.valuePerKgConfig,
-                        idProvider: dto.buyerId, // Buyer
-                    } as any); // Type cast due to legacy columns might be flexible or strict
-                }
-                // 4. IoT Tracker Logic
-                if (detailDto.trackerRemoved) {
-                    const cattleInTx = await manager.findOne(Cattle, { where: { id: detailDto.cattleId, idTenant: dto.idTenant } });
-                    if (cattleInTx && cattleInTx.idDevice) {
-                        const deviceId = cattleInTx.idDevice;
-                        const device = await this.deviceService.findById(deviceId, dto.idTenant!, manager); // deviceService might need refactoring to accept manager... 
-                        // Actually, in the CattleService `TRACKER` event logic shown earlier, it seemed to be re-assigning?
-                        // Ah, the snippet for `TRACKER` event was handling "Tracker detected" -> Ensure assignment.
-                        // Here we want "Tracker Removed" -> Return to inventory.
-                        // Logic:
-                        // 1. Unassign in history.
-                        // 2. Unset idDevice in Cattle.
-                        // 3. Clear tags in Device (remove idCattle).
-                        // 1. Unassign History
-                        await this.cattleDeviceHistoryRepository.unassignDeviceByidCattle(dto.idTenant!, cattleInTx.id, manager, dto.transactionDate)
-                        // 2. Unset Cattle
-                        await manager.update(Cattle, { id: cattleInTx.id }, { idDevice: null });
-                        // 3. Update Device Tags
-                        if (device) {
-                            // Update device via DeviceService to sync with Chirpstack
-                            // Update logic:
-                            const tags = device.tags || {};
-                            delete tags.idCattle;
-                            delete tags.id_cattle;
-                            // Also check 'id_device' in tags?
-                            const deviceUpdateDto = {
-                                name: device.name,
-                                // other fields...
-                                tags: tags
-                            };
-                            // Use DeviceService to sync
-                            await this.deviceService.updateWithDevice(device, deviceUpdateDto as any, manager);
-                        }
-                    }
-                }
             }
 
             return savedSale;
@@ -121,29 +84,35 @@ export class SalesService {
             queryBuilder.andWhere('sale.buyerId = :buyerId', { buyerId });
         }
 
-        if (startDate) {
-            const start = new Date(startDate);
-            const end = endDate ? new Date(endDate) : new Date('2999-12-31');
+        if (startDate || endDate) {
+            let start: Date;
+            let end: Date;
+            if (startDate && endDate) {
+                start = calendarDayBounds(startDate).start;
+                end = calendarDayBounds(endDate).end;
+            } else if (startDate) {
+                start = calendarDayBounds(startDate).start;
+                end = new Date(2999, 11, 31, 23, 59, 59, 999);
+            } else {
+                start = new Date(1970, 0, 1, 0, 0, 0, 0);
+                end = calendarDayBounds(endDate!).end;
+            }
             queryBuilder.andWhere('sale.transactionDate BETWEEN :start AND :end', { start, end });
         }
 
-        // Validate orderBy to prevent injection or errors if field doesn't exist
-        // Default to createdAt
         const validSortFields = ['transactionDate', 'totalAmount', 'totalWeightKg', 'createdAt', 'updatedAt'];
         const sortField = (orderBy && validSortFields.includes(orderBy as string)) ? `sale.${orderBy}` : 'sale.transactionDate';
         const sortOrder = order === 'ASC' ? 'ASC' : 'DESC';
 
         queryBuilder.orderBy(sortField, sortOrder);
-
         queryBuilder.skip(skip).take(take);
 
         const [items, total] = await queryBuilder.getManyAndCount();
-
         return { items, total };
     }
 
     async findAll2(idTenant: string, query: GetSalesQueryDto) {
-        const { skip, take, orderBy, order, startDate, endDate, buyerId, status } = query;
+        const { skip, take, orderBy, order, startDate, endDate, buyerId } = query;
 
         const where: FindOptionsWhere<Sale> = { idTenant };
 
@@ -157,11 +126,6 @@ export class SalesService {
             where.transactionDate = Between(new Date(startDate), new Date('2999-12-31'));
         }
 
-        // Relation filtering logic would need Join, but simple where checks are easier.
-        // For 'status', Sale doesn't have status, but Details do. 
-        // If sorting by buyer name is required, we need queryBuilder.
-        // For now, let's use standard find with relations.
-
         const [items, total] = await this.dataSource.getRepository(Sale).findAndCount({
             where,
             relations: ['buyer', 'transporter', 'details', 'details.cattle'],
@@ -173,10 +137,6 @@ export class SalesService {
         return { items, total };
     }
 
-
-
-
-
     async findOne(idTenant: string, id: string): Promise<Sale> {
         const sale = await this.dataSource.getRepository(Sale).findOne({
             where: { id, idTenant },
@@ -186,23 +146,343 @@ export class SalesService {
         return sale;
     }
 
-    async update(idTenant: string, id: string, dto: UpdateSaleDto): Promise<void> {
-        const sale = await this.findOne(idTenant, id);
+    async update(idTenant: string, id: string, dto: UpdateSaleDto): Promise<Sale> {
+        if (!dto.details?.length) {
+            throw new BadRequestException('At least one sale detail is required');
+        }
+        if (!dto.buyerId || dto.transactionDate == null || dto.minWeightConfig == null || dto.valuePerKgConfig == null) {
+            throw new BadRequestException('Sale header fields are required for update');
+        }
 
-        // Remove details from update for now to avoid complexity
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { details, ...updateData } = dto;
+        return await this.dataSource.transaction(async (manager) => {
+            const sale = await manager
+                .createQueryBuilder(Sale, 'sale')
+                .setLock('pessimistic_write')
+                .where('sale.id = :id', { id })
+                .andWhere('sale.idTenant = :idTenant', { idTenant })
+                .getOne();
 
-        await this.dataSource.getRepository(Sale).update(
-            { id, idTenant },
-            {
-                ...updateData,
-                updatedAt: new Date(),
+            if (!sale) {
+                throw new NotFoundException(`Sale with ID ${id} not found`);
             }
+
+            const existingDetails = await manager.find(SaleDetail, {
+                where: { saleId: id, idTenant },
+            });
+            const existingByCattleId = new Map(existingDetails.map((d) => [d.cattleId, d]));
+            const incomingByCattleId = new Map(dto.details!.map((d) => [d.cattleId, d]));
+
+            const approvedDetails = dto.details!.filter((d) => d.isApproved);
+            const totalAnimalCount = approvedDetails.length;
+            const totalWeightKg = approvedDetails.reduce((sum, d) => sum + Number(d.measuredWeight), 0);
+            const totalAmount = approvedDetails.reduce((sum, d) => sum + Number(d.calculatedPrice), 0);
+
+            await manager.update(
+                Sale,
+                { id, idTenant },
+                {
+                    transactionDate: dto.transactionDate,
+                    buyerId: dto.buyerId,
+                    transporterId: dto.transporterId,
+                    minWeightConfig: dto.minWeightConfig,
+                    valuePerKgConfig: dto.valuePerKgConfig,
+                    totalAnimalCount,
+                    totalWeightKg,
+                    totalAmount,
+                    notes: dto.notes,
+                    updatedAt: new Date(),
+                },
+            );
+
+            for (const existing of existingDetails) {
+                if (!incomingByCattleId.has(existing.cattleId)) {
+                    await manager.delete(SaleDetail, { id: existing.id, idTenant });
+                    if (existing.isApproved) {
+                        await this.revertCattleFromSale(manager, existing.cattleId, idTenant);
+                    }
+                }
+            }
+
+            for (const detailDto of dto.details!) {
+                const existing = existingByCattleId.get(detailDto.cattleId);
+                if (!existing) {
+                    await this.assertCattleCanBeAddedToSale(manager, idTenant, detailDto.cattleId, id);
+                    await this.persistSaleDetail(manager, id, idTenant, detailDto, {
+                        buyerId: dto.buyerId!,
+                        valuePerKgConfig: dto.valuePerKgConfig!,
+                        transactionDate: dto.transactionDate!,
+                        applyTrackerRemoval: detailDto.trackerRemoved ?? false,
+                    });
+                    continue;
+                }
+
+                const wasApproved = existing.isApproved;
+                existing.measuredWeight = detailDto.measuredWeight;
+                existing.isApproved = detailDto.isApproved;
+                if (detailDto.rejectionReason !== undefined) {
+                    existing.rejectionReason = detailDto.rejectionReason;
+                }
+                existing.calculatedPrice = detailDto.calculatedPrice;
+                const trackerJustRemoved =
+                    (detailDto.trackerRemoved ?? false) && !existing.trackerRemoved;
+                if (detailDto.trackerRemoved != null) {
+                    existing.trackerRemoved = detailDto.trackerRemoved;
+                }
+                await manager.save(SaleDetail, existing);
+
+                if (wasApproved && !detailDto.isApproved) {
+                    await this.revertCattleFromSale(manager, detailDto.cattleId, idTenant);
+                } else if (detailDto.isApproved) {
+                    await this.applyApprovedCattleSideEffects(
+                        manager,
+                        detailDto.cattleId,
+                        idTenant,
+                        dto.buyerId!,
+                        dto.valuePerKgConfig!,
+                        detailDto,
+                    );
+                }
+
+                if (trackerJustRemoved) {
+                    await this.applyTrackerRemoval(
+                        manager,
+                        idTenant,
+                        detailDto.cattleId,
+                        dto.transactionDate!,
+                    );
+                }
+            }
+
+            const updated = await manager.findOne(Sale, {
+                where: { id, idTenant },
+                relations: ['buyer', 'transporter', 'details', 'details.cattle'],
+            });
+            if (!updated) {
+                throw new NotFoundException(`Sale with ID ${id} not found`);
+            }
+            return updated;
+        });
+    }
+
+    /**
+     * Syncs sale-related data when a SOLD cattle's salePrice or saleWeight is updated.
+     * Must be called within an existing transaction (same EntityManager).
+     */
+    async syncSaleDataForSoldCattle(
+        idTenant: string,
+        cattleId: string,
+        payload: { salePrice?: number; saleWeight?: number },
+        manager: EntityManager,
+    ): Promise<{ saleId: string; totalAmount: number; totalWeightKg: number }> {
+        if (payload.salePrice == null && payload.saleWeight == null) {
+            throw new BadRequestException('At least one of salePrice or saleWeight must be provided');
+        }
+
+        const detailRepo = manager.getRepository(SaleDetail);
+        const detail = await detailRepo
+            .createQueryBuilder('detail')
+            .setLock('pessimistic_write')
+            .where('detail.cattleId = :cattleId', { cattleId })
+            .andWhere('detail.idTenant = :idTenant', { idTenant })
+            .getOne();
+
+        if (!detail) {
+            throw new BadRequestException('SOLD_CATTLE_MISSING_SALE_DETAIL');
+        }
+
+        const saleRepo = manager.getRepository(Sale);
+        const sale = await saleRepo
+            .createQueryBuilder('sale')
+            .setLock('pessimistic_write')
+            .where('sale.id = :saleId', { saleId: detail.saleId })
+            .andWhere('sale.idTenant = :idTenant', { idTenant })
+            .getOne();
+
+        if (!sale) {
+            throw new BadRequestException('SALE_NOT_FOUND');
+        }
+
+        if (payload.salePrice != null) {
+            detail.calculatedPrice = Number(payload.salePrice);
+        }
+        if (payload.saleWeight != null) {
+            detail.measuredWeight = Number(payload.saleWeight);
+        }
+        await manager.save(SaleDetail, detail);
+
+        const allDetails = await manager.find(SaleDetail, {
+            where: { saleId: sale.id, idTenant },
+        });
+
+        const approvedDetails = allDetails.filter((d) => d.isApproved);
+        const totalAmount = approvedDetails.reduce((sum, d) => sum + Number(d.calculatedPrice), 0);
+        const totalWeightKg = approvedDetails.reduce((sum, d) => sum + Number(d.measuredWeight), 0);
+        const totalAnimalCount = approvedDetails.length;
+
+        await manager.update(
+            Sale,
+            { id: sale.id, idTenant },
+            {
+                totalAmount,
+                totalWeightKg,
+                totalAnimalCount,
+                updatedAt: new Date(),
+            },
         );
 
-        // If buyer changed, we should theoretically update the cattle history/provider. 
-        // This is complex and skipped for this iteration unless requested.
-        // Warn if critical fields look changed.
+        return {
+            saleId: sale.id,
+            totalAmount,
+            totalWeightKg,
+        };
+    }
+
+    private async persistSaleDetail(
+        manager: EntityManager,
+        saleId: string,
+        idTenant: string,
+        detailDto: CreateSaleDetailDto,
+        context: {
+            buyerId: string;
+            valuePerKgConfig: number;
+            transactionDate: Date;
+            applyTrackerRemoval: boolean;
+        },
+    ): Promise<void> {
+        const detail = manager.create(SaleDetail, {
+            saleId,
+            cattleId: detailDto.cattleId,
+            measuredWeight: detailDto.measuredWeight,
+            isApproved: detailDto.isApproved,
+            rejectionReason: detailDto.rejectionReason,
+            trackerRemoved: detailDto.trackerRemoved ?? false,
+            calculatedPrice: detailDto.calculatedPrice,
+            idTenant,
+        });
+        await manager.save(SaleDetail, detail);
+
+        if (detailDto.isApproved) {
+            await this.applyApprovedCattleSideEffects(
+                manager,
+                detailDto.cattleId,
+                idTenant,
+                context.buyerId,
+                context.valuePerKgConfig,
+                detailDto,
+            );
+        }
+
+        if (context.applyTrackerRemoval) {
+            await this.applyTrackerRemoval(
+                manager,
+                idTenant,
+                detailDto.cattleId,
+                context.transactionDate,
+            );
+        }
+    }
+
+    private async applyApprovedCattleSideEffects(
+        manager: EntityManager,
+        cattleId: string,
+        idTenant: string,
+        buyerId: string,
+        valuePerKgConfig: number,
+        detailDto: CreateSaleDetailDto,
+    ): Promise<void> {
+        await manager.update(Cattle, { id: cattleId, idTenant }, {
+            status: CattleStatus.SOLD,
+            saleWeight: detailDto.measuredWeight,
+            salePrice: detailDto.calculatedPrice,
+            salePricePerKg: valuePerKgConfig,
+            idProvider: buyerId,
+        } as Partial<Cattle>);
+    }
+
+    private async revertCattleFromSale(
+        manager: EntityManager,
+        cattleId: string,
+        idTenant: string,
+    ): Promise<void> {
+        await manager.update(Cattle, { id: cattleId, idTenant }, {
+            status: CattleStatus.ACTIVE,
+            saleWeight: null,
+            salePrice: null,
+            salePricePerKg: null,
+            idProvider: null,
+        } as never);
+    }
+
+    private async applyTrackerRemoval(
+        manager: EntityManager,
+        idTenant: string,
+        cattleId: string,
+        transactionDate: Date,
+    ): Promise<void> {
+        const cattleInTx = await manager.findOne(Cattle, {
+            where: { id: cattleId, idTenant },
+        });
+        if (!cattleInTx?.idDevice) {
+            return;
+        }
+
+        const deviceId = cattleInTx.idDevice;
+        const device = await this.deviceService.findById(deviceId, idTenant, manager);
+
+        await this.cattleDeviceHistoryRepository.unassignDeviceByidCattle(
+            idTenant,
+            cattleInTx.id,
+            manager,
+            transactionDate,
+        );
+        await manager.update(Cattle, { id: cattleInTx.id }, { idDevice: null });
+
+        if (device) {
+            const tags = { ...(device.tags || {}) };
+            delete tags.idCattle;
+            delete tags.id_cattle;
+            const deviceUpdateDto = {
+                name: device.name,
+                tags,
+            };
+            await this.deviceService.updateWithDevice(device, deviceUpdateDto as never, manager);
+        }
+    }
+
+    private async assertCattleCanBeAddedToSale(
+        manager: EntityManager,
+        idTenant: string,
+        cattleId: string,
+        saleId: string,
+    ): Promise<void> {
+        const cattle = await manager.findOne(Cattle, { where: { id: cattleId, idTenant } });
+        if (!cattle) {
+            throw new BadRequestException('CATTLE_NOT_FOUND');
+        }
+
+        const detailInOtherSale = await manager
+            .createQueryBuilder(SaleDetail, 'detail')
+            .where('detail.cattleId = :cattleId', { cattleId })
+            .andWhere('detail.idTenant = :idTenant', { idTenant })
+            .andWhere('detail.saleId != :saleId', { saleId })
+            .getOne();
+
+        if (detailInOtherSale) {
+            throw new BadRequestException('CATTLE_ALREADY_IN_SALE');
+        }
+
+        if (cattle.status === CattleStatus.SOLD) {
+            const detailInThisSale = await manager.findOne(SaleDetail, {
+                where: { cattleId, idTenant, saleId },
+            });
+            if (!detailInThisSale) {
+                throw new BadRequestException('CATTLE_ALREADY_SOLD');
+            }
+            return;
+        }
+
+        if (cattle.status !== CattleStatus.ACTIVE) {
+            throw new BadRequestException('CATTLE_NOT_ACTIVE');
+        }
     }
 }

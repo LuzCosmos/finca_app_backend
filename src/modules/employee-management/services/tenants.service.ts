@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from '../entities/tenant.entity';
@@ -15,6 +15,8 @@ import { FarmModule } from 'src/modules/farm/farm.module';
 
 @Injectable()
 export class TenantsService {
+  private readonly logger = new Logger(TenantsService.name);
+
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
@@ -34,7 +36,9 @@ export class TenantsService {
    */
   async create(createTenantDto: CreateTenantDto): Promise<Tenant> {
     return this.dataSource.transaction(async (manager) => {
-      console.log('createTenantDto', createTenantDto);
+      this.logger.debug(
+        `createTenant: company_username=${createTenantDto.company_username}, name=${createTenantDto.name}`,
+      );
       const tenantRepo = manager.getRepository(Tenant);
       const existingTenant = await tenantRepo.findOne({
         where: {

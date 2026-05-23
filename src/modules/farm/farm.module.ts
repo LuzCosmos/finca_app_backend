@@ -14,6 +14,9 @@ import { CattleWeightHistoryRepository } from './repositories/cattle-weight-hist
 import { CattleEartagHistory } from './entities/cattle-eartag-history.entity';
 import { CattleEartagHistoryRepository } from './repositories/cattle-eartag-history.repository';
 import { CattleMedicationHistory } from './entities/cattle-medication-history.entity';
+import { CattleAgeHistory } from './entities/cattle-age-history.entity';
+import { CattleAgeHistoryRepository } from './repositories/cattle-age-history.repository';
+import { DentitionEstimationService } from './services/dentition-estimation.service';
 import { CattleMedicationHistoryRepository } from './repositories/cattle-medication-history.repository';
 import { ProductionCenterModule } from '../production-center/production-center.module';
 import { Location } from './entities/location.entity';
@@ -25,28 +28,26 @@ import { BrandController } from './controllers/brand.controller';
 import { BrandRepository } from './repositories/brand.repository';
 import { BrandService } from './services/brand.service';
 import { Brand } from './entities/brand.entity';
-import { Characteristic } from './entities/characteristic.entity';
-import { Color } from './entities/color.entity';
-import { ColorRepository } from './repositories/color.repository';
-import { CharacteristicRepository } from './repositories/characteristic.repository';
 import { CattleCharacteristicRepository } from './repositories/cattle-characteristic.repository';
 import { CattleCharacteristic } from './entities/cattle-characteristic.entity';
 import { ColorCharacteristicsService } from './services/color-characteristics.service';
 import { ColorCharacteristicsController } from './controllers/color-characteristics.controller';
+import { ConfigurationModule } from '../configurations/configuration.module';
+import { CattleRemoteConfigController } from './controllers/cattle-remote-config.controller';
 
 @Module({
   imports: [
     forwardRef(() => MassiveEventsModule),
     forwardRef(() => CommerceModule),
+    ConfigurationModule,
     TypeOrmModule.forFeature([
       Cattle,
       CattleCharacteristic,
-      Characteristic,
-      Color,
       CattleDeviceHistory,
       CattleWeightHistory,
       CattleEartagHistory,
       CattleMedicationHistory,
+      CattleAgeHistory,
       Location,
       Brand
     ]),
@@ -61,20 +62,21 @@ import { ColorCharacteristicsController } from './controllers/color-characterist
     CattleWeightHistoryRepository,
     CattleEartagHistoryRepository,
     CattleMedicationHistoryRepository,
-    ColorRepository,
-    CharacteristicRepository,
     CattleCharacteristicRepository,
     LocationService,
     LocationRepository,
     BrandRepository,
     BrandService,
     ColorCharacteristicsService,
+    CattleAgeHistoryRepository,
+    DentitionEstimationService,
   ],
   controllers: [
     BrandController,
     ColorCharacteristicsController,
     CattleController,
     LocationController,
+    CattleRemoteConfigController,
   ],
   exports: [
     ColorCharacteristicsService,
@@ -83,9 +85,7 @@ import { ColorCharacteristicsController } from './controllers/color-characterist
     CattleRepository,
     CattleDeviceHistoryRepository,
     CattleWeightHistoryRepository,
-    CattleCharacteristicRepository,
-    ColorRepository,
-    CharacteristicRepository
+    CattleCharacteristicRepository
   ],
 })
 export class FarmModule { } 

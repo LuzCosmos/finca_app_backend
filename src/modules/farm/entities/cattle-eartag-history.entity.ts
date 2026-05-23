@@ -16,8 +16,8 @@ export class CattleEartagHistory {
   @Column({ name: 'id_cattle', type: 'uuid' })
   idCattle: string;
 
-  @Column({ name: 'eartag_number', type: 'varchar', length: 50 })
-  eartagNumber: string;
+  @Column({ name: 'data', type: 'jsonb' })
+  data: Record<string, any>;
 
   @CreateDateColumn({ name: 'assigned_at', type: 'timestamp' })
   assignedAt: Date;

@@ -11,17 +11,30 @@ export class ConfigurationsRepository {
         private readonly repository: Repository<Configuration>,
     ) { }
 
-    async createTenantDefaults(idTenant: string, manager?: EntityManager): Promise<Configuration> {
+    async createTenantDefaults(idTenant: string, manager?: EntityManager): Promise<Configuration[]> {
         const configurationRepository = manager?.getRepository(Configuration) || this.repository;
-        const configuration = new Configuration();
-        configuration.idTenant = idTenant;
-        configuration.code = 'next_cattle_sysnumber';
-        configuration.isSystemConfig = true;
-        configuration.name = 'Next Cattle SysNumber';
-        configuration.value = '1';
-        configuration.valueType = 'number';
-        configuration.description = 'Next sysnumber assignment for new cattle';
-        return configurationRepository.save(configuration);
+        const configurations: Configuration[] = [];
+        const nextCattleSysNumberConfig = new Configuration();
+        nextCattleSysNumberConfig.idTenant = idTenant;
+        nextCattleSysNumberConfig.code = 'next_cattle_sysnumber';
+        nextCattleSysNumberConfig.isSystemConfig = true;
+        nextCattleSysNumberConfig.name = 'Next Cattle SysNumber';
+        nextCattleSysNumberConfig.value = '1';
+        nextCattleSysNumberConfig.valueType = 'number';
+        nextCattleSysNumberConfig.description = 'Next sysnumber assignment for new cattle';
+        configurations.push(nextCattleSysNumberConfig);
+
+        const averageDailyGainConfig = new Configuration();
+        averageDailyGainConfig.idTenant = idTenant;
+        averageDailyGainConfig.code = 'average_daily_gain';
+        averageDailyGainConfig.isSystemConfig = true;
+        averageDailyGainConfig.name = 'Average Daily Gain (kg)';
+        averageDailyGainConfig.value = '0.462';
+        averageDailyGainConfig.valueType = 'number';
+        averageDailyGainConfig.description = 'Average daily gain  in kg for new cattle';
+        configurations.push(averageDailyGainConfig);
+
+        return configurationRepository.save(configurations);
     }
 
     async create(idTenant: string, configuration: Configuration, manager?: EntityManager): Promise<Configuration> {

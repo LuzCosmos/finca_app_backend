@@ -1,9 +1,8 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, ManyToOne,
-  CreateDateColumn, UpdateDateColumn, JoinColumn, OneToMany
+  CreateDateColumn, UpdateDateColumn, JoinColumn
 } from 'typeorm';
 import { Purchase } from './purchase.entity';
-import { Cattle } from '../../farm/entities/cattle.entity';
 import { CattleGender } from '../../farm/enums/cattle-gender.enum';
 
 @Entity('lots')
@@ -55,9 +54,6 @@ export class Lot {
   @ManyToOne(() => Purchase, (purchase) => purchase.lots, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_purchase' })
   purchase: Purchase;
-
-  @OneToMany(() => Cattle, (cattle) => cattle.lot)
-  cattle: Cattle[];
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;

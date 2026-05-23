@@ -21,14 +21,21 @@ export class PurchaseResponseDto {
   @ApiProperty({ type: [LotResponseDto], description: 'List of lots involved in this purchase' })
   lots: LotResponseDto[];
 
+  @ApiProperty({ example: 'OPEN', enum: ['OPEN', 'RECEIVED'] })
+  status: string;
+
 
   static toPurchaseResponse(purchase: Purchase): PurchaseResponseDto {
     return {
       id: purchase.id,
       idProvider: purchase.idProvider,
-      purchaseDate: String(purchase.purchaseDate),
+      purchaseDate:
+        purchase.purchaseDate instanceof Date
+          ? purchase.purchaseDate.toISOString().slice(0, 10)
+          : String(purchase.purchaseDate).slice(0, 10),
       totalCattle: purchase.totalCattle,
       totalWeight: purchase.totalWeight,
+      status: purchase.status,
       lots: purchase.lots ? purchase.lots.map(LotResponseDto.toLotResponse) : []
     };
   }

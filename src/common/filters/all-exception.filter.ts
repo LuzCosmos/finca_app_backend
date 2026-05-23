@@ -67,8 +67,13 @@ export class AllExceptionFilter implements ExceptionFilter {
       statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'Error desconocido';
     }
-    if (!(exception instanceof UnauthorizedException) && !(exception instanceof ForbiddenException)) {
+    if (exception instanceof UnauthorizedException || exception instanceof ForbiddenException) {
+      // Sin log: rutas de auth habituales.
+    } else if (statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error({ type: this.getErrorType(exception), error: exception });
+    } else {
+      // 4xx (validación, not found, etc.): no saturar logs de ERROR.
+      this.logger.debug({ type: this.getErrorType(exception), status: statusCode });
     }
     return response.status(statusCode).json({
       success: false,

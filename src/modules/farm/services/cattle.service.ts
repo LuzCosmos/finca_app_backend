@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException, InternalServerErrorException, HttpException, HttpStatus, ConflictException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Cattle, CattleStatus } from '../entities/cattle.entity';
 import { Device } from 'src/modules/production-center/entities/device.entity';
@@ -20,14 +20,23 @@ import { DevicesService } from '../../production-center/services/devices.service
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import { SimpleEventType } from 'src/modules/massive-events/enums/simple-event-type.enum';
-import { ColorRepository } from '../repositories/color.repository';
-import { CharacteristicRepository } from '../repositories/characteristic.repository';
 import { CattleCharacteristicRepository } from '../repositories/cattle-characteristic.repository';
 import { CattleCharacteristic } from '../entities/cattle-characteristic.entity';
 import { CattleWeightHistory, WeightContext } from '../entities/cattle-weight-history.entity';
 import { CreateCattleMedicationHistoryDto } from '../dto/create-cattle-medication-history.dto';
 import { CattleMedicationHistory } from '../entities/cattle-medication-history.entity';
 import { LotService } from 'src/modules/commerce/services/lot.service';
+import { SalesService } from 'src/modules/commerce/services/sales.service';
+import { ConfigurationsService } from 'src/modules/configurations/services/configurations.service';
+import { randomUUID } from 'crypto';
+import { DentitionEstimationService } from './dentition-estimation.service';
+import { CattleAgeHistoryRepository } from '../repositories/cattle-age-history.repository';
+import { CattleAgeHistory } from '../entities/cattle-age-history.entity';
+import { BirthDateAprxSource } from '../enums/birth-date-aprx-source.enum';
+// sapa2014-v1 / SAPA2014: ver comentario en dentition-table-sapa2014.ts (fuente bibliográfica).
+import { DENTITION_TABLE_VERSION } from '../constants/dentition-table-sapa2014';
+import { ReceiveCattleRequestDto } from '../../purchase-receptions/dto/receive-cattle-request.dto';
+import { PreviewBirthFromDentitionDto } from '../dto/preview-birth-from-dentition.dto';
 
 @Injectable()
 export class CattleService {
@@ -40,15 +49,17 @@ export class CattleService {
     private readonly cattleWeightHistoryRepository: CattleWeightHistoryRepository,
     private readonly cattleEartagHistoryRepository: CattleEartagHistoryRepository,
     private readonly cattleMedicationHistoryRepository: CattleMedicationHistoryRepository,
-    private readonly colorRepository: ColorRepository,
-    private readonly characteristicRepository: CharacteristicRepository,
     private readonly cattleCharacteristicRepository: CattleCharacteristicRepository,
-    private readonly lotService: LotService,
     private readonly deviceService: DevicesService,
     private readonly animalSimpleEventRepository: AnimalSimpleEventRepository,
     private readonly dataSource: DataSource,
     private readonly massiveEventService: MassiveEventService,
     private readonly simpleEventService: SimpleEventService,
+    @Inject(forwardRef(() => SalesService))
+    private readonly salesService: SalesService,
+    private readonly configurationsService: ConfigurationsService,
+    private readonly dentitionEstimation: DentitionEstimationService,
+    private readonly cattleAgeHistoryRepository: CattleAgeHistoryRepository,
   ) { }
 
   /**
@@ -76,7 +87,8 @@ export class CattleService {
       var minimumMassiveEvents: MinimumMassiveEvents = {};
       const results: Cattle[] = [];
       for (const ev of events) {
-        const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, ev.cattleNumber, manager);
+        const statuses = [CattleStatus.ACTIVE, CattleStatus.SOLD];
+        const cattle = await this.cattleRepository.findOneForUpdateByNumberAndStatuses(idTenant, ev.cattleNumber, statuses, manager);
         if (!cattle) {
           continue;
         }
@@ -89,7 +101,7 @@ export class CattleService {
         await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattle, ev);
         if (ev.idMassiveEvent) {
           await this.animalSimpleEventRepository.saveWithManager(manager, {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             idTenant,
             idSimpleEvent: ev.idSimpleEvent,
             idMassiveEvent: ev.idMassiveEvent,
@@ -155,7 +167,8 @@ export class CattleService {
   ): Promise<ApplySimpleEventsResponseDto[]> {
     const massiveEvent = await this.massiveEventService.findWithSimpleEventsByIdOrFail(idTenant, idMassiveEvent, manager);
     if (massiveEvent.status === 'closed') throw new HttpException('Massive event already closed', HttpStatus.UNPROCESSABLE_ENTITY); //422
-    const cattleEntity = cattle ?? await this.cattleRepository.findOneForUpdateByNumber(idTenant, cattleNumber, manager);
+    const statuses = [CattleStatus.ACTIVE, CattleStatus.SOLD];
+    const cattleEntity = cattle ?? await this.cattleRepository.findOneForUpdateByNumberAndStatuses(idTenant, cattleNumber, statuses, manager);
     if (!cattleEntity) throw new NotFoundException(`Cattle ${cattleNumber} not found`);
     this.validateStatusForApplyEvents(cattleEntity.status);
     const createdEvents: ApplySimpleEventsResponseDto[] = [];
@@ -166,7 +179,7 @@ export class CattleService {
       await this.simpleEventService.findByIdOrFail(idTenant, ev.idSimpleEvent, manager);
       await this.applySingleEventToCattle(manager, idTenant, idCurrentUser, cattleEntity, { ...ev, idMassiveEvent: idMassiveEvent, appliedBy: ev.appliedBy ?? idCurrentUser });
       const event = await this.animalSimpleEventRepository.saveWithManager(manager, {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         idTenant,
         idSimpleEvent: ev.idSimpleEvent,
         idMassiveEvent: idMassiveEvent,
@@ -212,35 +225,76 @@ export class CattleService {
   ): Promise<void> {
     this.validateStatusForApplyEvents(cattle.status);
     switch (ev.type) {
-      case SimpleEventType.WEIGHT:
-        cattle.lastWeight = ev.data.weight;
+      case SimpleEventType.WEIGHT: {
+        const newWeight = ev.data.weight;
+        const newDate = ev.appliedAt ?? new Date();
+        const previousRecord = await this.cattleWeightHistoryRepository.findLastByCattle(idTenant, cattle.id, manager);
+        let averageDailyGain: number | null = null;
+        if (previousRecord != null && previousRecord.weight != null) {
+          averageDailyGain = this.computeAverageDailyGain(
+            Number(previousRecord.weight),
+            previousRecord.date,
+            newWeight,
+            newDate,
+          );
+        }
+        cattle.lastWeight = newWeight;
         cattle.updatedAt = new Date();
-        const event = await this.cattleWeightHistoryRepository.createWithManager(manager, {
+        if (averageDailyGain != null) {
+          cattle.averageDailyGain = averageDailyGain;
+        }
+        await this.cattleWeightHistoryRepository.createWithManager(manager, {
           idTenant: idTenant,
           idCattle: cattle.id,
-          weight: ev.data.weight,
-          date: ev.appliedAt ?? new Date(),
+          weight: newWeight,
+          date: newDate,
           idMassiveEvent: ev.idMassiveEvent,
           context: WeightContext.EVENT,
           recordedBy: ev.appliedBy ?? idCurrentUser,
         } as any);
         break;
+      }
 
       case SimpleEventType.EARTAG:
-        const cattleWithSameEartag = await this.cattleRepository.findByEartag(idTenant, ev.data.eartagNumber);
-        if (cattleWithSameEartag && cattleWithSameEartag.id !== cattle.id) {
-          throw new ConflictException(`Eartag ${ev.data.eartagNumber} already exists for another cattle`);
+        const nextEartagLeft = ev.data.eartagLeft ?? null;
+        const nextEartagRight = ev.data.eartagRight ?? null;
+
+        if (nextEartagLeft) {
+          const cattleWithSameEartagLeft = await this.cattleRepository.findByAnyEartag(idTenant, nextEartagLeft, manager);
+          if (cattleWithSameEartagLeft && cattleWithSameEartagLeft.id !== cattle.id) {
+            throw new ConflictException(`Eartag ${nextEartagLeft} already exists for another cattle`);
+          }
+          cattle.eartagLeft = nextEartagLeft;
+          await this.cattleEartagHistoryRepository.createWithManager(manager, {
+            idTenant: idTenant,
+            idCattle: cattle.id,
+            data: { eartagLeft: nextEartagLeft },
+            assignedAt: ev.appliedAt ?? new Date(),
+            assignedBy: ev.appliedBy ?? idCurrentUser,
+            idMassiveEvent: ev.idMassiveEvent,
+          } as any);
         }
-        cattle.eartag = ev.data.eartagNumber;
+
+        if (nextEartagRight) {
+          const cattleWithSameEartagRight = await this.cattleRepository.findByAnyEartag(idTenant, nextEartagRight, manager);
+          if (cattleWithSameEartagRight && cattleWithSameEartagRight.id !== cattle.id) {
+            throw new ConflictException(`Eartag ${nextEartagRight} already exists for another cattle`);
+          }
+          cattle.eartagRight = nextEartagRight;
+          await this.cattleEartagHistoryRepository.createWithManager(manager, {
+            idTenant: idTenant,
+            idCattle: cattle.id,
+            data: { eartagRight: nextEartagRight },
+            assignedAt: ev.appliedAt ?? new Date(),
+            assignedBy: ev.appliedBy ?? idCurrentUser,
+            idMassiveEvent: ev.idMassiveEvent,
+          } as any);
+        }
+
+        if (!nextEartagLeft && !nextEartagRight) {
+          break;
+        }
         cattle.updatedAt = new Date();
-        await this.cattleEartagHistoryRepository.createWithManager(manager, {
-          idTenant: idTenant,
-          idCattle: cattle.id,
-          eartagNumber: ev.data.eartagNumber,
-          assignedAt: ev.appliedAt ?? new Date(),
-          assignedBy: ev.appliedBy ?? idCurrentUser,
-          idMassiveEvent: ev.idMassiveEvent,
-        } as any);
         break;
 
       case SimpleEventType.TRACKER:
@@ -320,7 +374,8 @@ export class CattleService {
     return this.dataSource.transaction(async manager => {
       const results: SyncAnimalSimpleEventResultDto[] = [];
       for (const payload of events) {
-        const cattle = await this.cattleRepository.findOneForUpdateByNumber(idTenant, payload.cattleNumber, manager);
+        const statuses = [CattleStatus.ACTIVE, CattleStatus.SOLD];
+        const cattle = await this.cattleRepository.findOneForUpdateByNumberAndStatuses(idTenant, payload.cattleNumber, statuses, manager);
         if (!cattle) {
           results.push({
             id: payload.id,
@@ -384,10 +439,15 @@ export class CattleService {
           throw new NotFoundException(`Device ${data.idDevice} not found`);
         }
       }
-      if (data.age !== undefined && data.age !== null) {
-        (data as any).age = data.age.toString();
+      this.applyBirthAndDentitionMergeToDto(data as any);
+      if (data.birthDateAprx) {
+        (data as any).birthDateAprx = new Date(data.birthDateAprx as any);
+      }
+      if (data.newFeedStartDate) {
+        (data as any).newFeedStartDate = new Date(data.newFeedStartDate);
       }
       const cattle = await this.cattleRepository.create(data, trxManager);
+      await this.recordAgeHistoryIfNeeded(trxManager, idTenant, cattle.id, data as any, idCurrentUser);
       if (data.characteristics) {
         await this.updateCharacteristics(cattle.id, data.characteristics, idTenant, trxManager);
       }
@@ -410,6 +470,15 @@ export class CattleService {
           trxManager,
         );
         cattle.device = device;
+      }
+      if (data.lastWeight) {
+        const cwh = new CattleWeightHistory();
+        cwh.idTenant = idTenant;
+        cwh.idCattle = cattle.id;
+        cwh.weight = data.lastWeight;
+        cwh.date = new Date();
+        cwh.context = WeightContext.MANUAL;
+        await this.cattleWeightHistoryRepository.create(cwh, trxManager);
       }
       return cattle;
     });
@@ -451,6 +520,13 @@ export class CattleService {
       }
       const { characteristics, ...updateD } = data;
       const updateData = { updatedAt: new Date(), ...updateD };
+      this.applyPatchBirthAndDentition(updateData as Record<string, unknown>);
+      if (updateData.birthDateAprx != null) {
+        (updateData as any).birthDateAprx = new Date(updateData.birthDateAprx as any);
+      }
+      if (updateData.newFeedStartDate != null) {
+        (updateData as any).newFeedStartDate = new Date(updateData.newFeedStartDate as any);
+      }
       this.logger.log(updateData);
       if (characteristics) {
         await this.updateCharacteristics(id, characteristics, idTenant, trxManager);
@@ -488,13 +564,39 @@ export class CattleService {
           throw new ConflictException('Cattle with number ' + updateData.number + ' already exists');
         }
       }
-      if (updateData.eartag) {
-        let cattle = await this.cattleRepository.findByEartag(idTenant, updateData.eartag, trxManager);
+      if (updateData.eartagLeft) {
+        const cattle = await this.cattleRepository.findByAnyEartag(idTenant, updateData.eartagLeft, trxManager);
         if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST) && cattle.id != id) {
-          throw new ConflictException(`Eartag ${updateData.eartag} already exists for another cattle`);
+          throw new ConflictException(`Eartag ${updateData.eartagLeft} already exists for another cattle`);
         }
       }
-      await this.cattleRepository.update(idTenant, id, updateData, trxManager);
+      if (updateData.eartagRight) {
+        const cattle = await this.cattleRepository.findByAnyEartag(idTenant, updateData.eartagRight, trxManager);
+        if (cattle && (cattle.status === CattleStatus.ACTIVE || cattle.status === CattleStatus.LOST) && cattle.id != id) {
+          throw new ConflictException(`Eartag ${updateData.eartagRight} already exists for another cattle`);
+        }
+      }
+
+      // Sale sync: only when cattle is SOLD and salePrice or saleWeight are being updated
+      let syncResult: { saleId: string; totalAmount: number; totalWeightKg: number } | null = null;
+      if (updateData.salePrice != null || updateData.saleWeight != null) {
+        if (oldCattle.status !== CattleStatus.SOLD) {
+          throw new BadRequestException('SALE_FIELDS_ONLY_FOR_SOLD_CATTLE');
+        }
+        if (updateData.salePrice != null && (typeof updateData.salePrice !== 'number' || Number(updateData.salePrice) < 0)) {
+          throw new BadRequestException('INVALID_SALE_PRICE');
+        }
+        if (updateData.saleWeight != null && (typeof updateData.saleWeight !== 'number' || Number(updateData.saleWeight) < 0)) {
+          throw new BadRequestException('INVALID_SALE_WEIGHT');
+        }
+        syncResult = await this.salesService.syncSaleDataForSoldCattle(
+          idTenant,
+          id,
+          { salePrice: updateData.salePrice ?? undefined, saleWeight: updateData.saleWeight ?? undefined },
+          trxManager,
+        );
+      }
+
       /*if (updateData.purchaseWeight) {
         const cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.PURCHASE);
         if (cwhs.length > 0) {
@@ -511,13 +613,36 @@ export class CattleService {
         }
       }*/
       if (updateData.lastWeight) {
+        const newWeight = updateData.lastWeight;
+        const newDate = new Date();
+        const previousRecord = await this.cattleWeightHistoryRepository.findLastByCattle(idTenant, id, trxManager);
+        if (updateData.averageDailyGain == null) {
+          let averageDailyGain: number | null = null;
+          if (previousRecord != null && previousRecord.weight != null) {
+            averageDailyGain = this.computeAverageDailyGain(
+              Number(previousRecord.weight),
+              previousRecord.date,
+              newWeight,
+              newDate,
+            );
+          }
+          updateData.updatedAt = new Date();
+          if (averageDailyGain != null) {
+            updateData.averageDailyGain = averageDailyGain;
+          }
+        }
         const cwh = new CattleWeightHistory();
         cwh.idTenant = idTenant;
         cwh.idCattle = id;
         cwh.weight = updateData.lastWeight;
-        cwh.date = new Date();
+        cwh.date = newDate;
         cwh.context = WeightContext.MANUAL;
         await this.cattleWeightHistoryRepository.create(cwh, trxManager);
+      }
+      await this.cattleRepository.update(idTenant, id, updateData, trxManager);
+      if ((updateData as Record<string, unknown>).birthDateAprxSource != null) {
+        const updatedForHistory = await this.findByIdOrFail(idTenant, id, trxManager);
+        await this.recordAgeHistoryFromSavedCattle(trxManager, idTenant, updatedForHistory, idCurrentUser);
       }
       if (updateData.receivedWeight) {
         var cwhs = await this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager, WeightContext.RECEIVED);
@@ -556,11 +681,33 @@ export class CattleService {
         this.cattleWeightHistoryRepository.findByCattle(idTenant, id, trxManager),
         this.cattleMedicationHistoryRepository.findByCattle(idTenant, id, trxManager),
       ]);
-      return {
+      const tenantGainConfig = await this.configurationsService.getTenantConfiguration(idTenant, 'average_daily_gain');
+      const tenantGainKg = tenantGainConfig ? parseFloat(tenantGainConfig.value) : 0;
+      const lastWeight = updatedCattle.lastWeight != null ? Number(updatedCattle.lastWeight) : null;
+      const lastEntry = weightHistory.length > 0 ? weightHistory[weightHistory.length - 1] : null;
+      const lastWeightDate = lastEntry ? new Date(lastEntry.date) : null;
+      const gainPerDayKg = updatedCattle.averageDailyGain != null ? Number(updatedCattle.averageDailyGain) : tenantGainKg;
+      const daysSince = lastWeightDate
+        ? (Date.now() - lastWeightDate.getTime()) / (1000 * 60 * 60 * 24)
+        : 0;
+      const estimatedWeight =
+        lastWeight != null
+          ? Math.round((lastWeight + gainPerDayKg * daysSince) * 100) / 100
+          : null;
+      const result: any = {
         ...updatedCattle,
         weightHistory,
         medicationHistory,
+        estimatedWeight,
       };
+      if (syncResult != null) {
+        result.affectedSaleId = syncResult.saleId;
+        result.affectedSaleTotals = {
+          totalAmount: syncResult.totalAmount,
+          totalWeightKg: syncResult.totalWeightKg,
+        };
+      }
+      return result;
     });
   }
 
@@ -572,6 +719,23 @@ export class CattleService {
     return this.dataSource.transaction(async (trxManager) => {
       await this.updateCharacteristicsWithManager(idCattle, characteristics, idTenant, trxManager);
     });
+  }
+
+  /**
+   * Calcula la ganancia diaria promedio (kg/día) entre dos pesos y sus fechas.
+   * @returns null si no hay diferencia de días positiva o no se puede calcular.
+   */
+  private computeAverageDailyGain(
+    previousWeight: number,
+    previousDate: Date,
+    newWeight: number,
+    newDate: Date,
+  ): number | null {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysDiff = (newDate.getTime() - previousDate.getTime()) / msPerDay;
+    if (daysDiff <= 0) return null;
+    const gain = (Number(newWeight) - Number(previousWeight)) / daysDiff;
+    return Math.round(gain * 1000) / 1000;
   }
 
   private async updateCharacteristicsWithManager(idCattle: string, characteristics: string[], idTenant: string, manager: EntityManager): Promise<void> {
@@ -625,8 +789,8 @@ export class CattleService {
     await this.cattleRepository.delete(idTenant, id);
   }
 
-  async findByEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
-    return await this.cattleRepository.findByEartag(idTenant, eartag, manager);
+  async findByAnyEartag(idTenant: string, eartag: string, manager?: EntityManager): Promise<Cattle | null> {
+    return await this.cattleRepository.findByAnyEartag(idTenant, eartag, manager);
   }
   async findByNumber(idTenant: string, number: string, manager?: EntityManager): Promise<Cattle | null> {
     return await this.cattleRepository.findByNumberAndTenantId(idTenant, number, manager);
@@ -638,7 +802,7 @@ export class CattleService {
 
   async search(idTenant: string, query: string): Promise<Cattle[]> {
     if (!query || query.trim().length === 0) return [];
-    const statuses = [CattleStatus.ACTIVE];
+    const statuses = [CattleStatus.ACTIVE, CattleStatus.SOLD];
     return this.cattleRepository.search(idTenant, query, statuses);
   }
 
@@ -646,18 +810,33 @@ export class CattleService {
     const page = Math.max(1, q.page ?? 1);
     const limit = Math.max(1, q.limit ?? 10);
     const { total, rows } = await this.cattleRepository.listPaged(idTenant, q, page, limit);
-    // Procesamos todos los rows en paralelo
+
+    const tenantGainConfig = await this.configurationsService.getTenantConfiguration(idTenant, 'average_daily_gain');
+    const tenantGainKg = tenantGainConfig ? parseFloat(tenantGainConfig.value) : 0;
+
     const items = await Promise.all(rows.map(async (cattle) => {
-      // Ejecutamos las dos consultas de historial en paralelo para este cattle
       const [weightHistory, medicationHistory] = await Promise.all([
         this.cattleWeightHistoryRepository.findByCattle(idTenant, cattle.id),
         this.cattleMedicationHistoryRepository.findByCattle(idTenant, cattle.id),
       ]);
-      // Retornamos un objeto nuevo combinando los datos del cattle con los historiales
+
+      const lastWeight = cattle.lastWeight != null ? Number(cattle.lastWeight) : null;
+      const lastEntry = weightHistory.length > 0 ? weightHistory[weightHistory.length - 1] : null;
+      const lastWeightDate = lastEntry ? new Date(lastEntry.date) : null;
+      const gainPerDayKg = cattle.averageDailyGain != null ? Number(cattle.averageDailyGain) : tenantGainKg;
+      const daysSince = lastWeightDate
+        ? (Date.now() - lastWeightDate.getTime()) / (1000 * 60 * 60 * 24)
+        : 0;
+      const estimatedWeight =
+        lastWeight != null
+          ? Math.round((lastWeight + gainPerDayKg * daysSince) * 100) / 100
+          : null;
+
       return {
         ...cattle,
         weightHistory,
         medicationHistory,
+        estimatedWeight,
       };
     }));
     return { page, limit, total, items };
@@ -806,7 +985,7 @@ export class CattleService {
   }
 
   validateStatusForApplyEvents(status: string) {
-    if (status !== CattleStatus.ACTIVE) {
+    if (status == CattleStatus.LOST || status == CattleStatus.DEAD) {
       throw new BadRequestException('cattleIsNotActive');
     }
   }
@@ -940,7 +1119,6 @@ export class CattleService {
     dto.sysNumber = rowValues[0];
     dto.number = rowValues[1];
     if (rowValues[2]) { dto.brand = rowValues[2]; }
-    if (rowValues[6]) { dto.lot = rowValues[6]; }
     dto.receivedAt = rowValues[7];
     dto.receivedWeight = rowValues[9];
     dto.purchaseWeight = rowValues[8];
@@ -974,6 +1152,184 @@ export class CattleService {
       this.logger.error(error);
       this.logger.debug(`Row ${rowNumber}, system number ${rowValues[0]} has error creating cattle. ${error.message}`);
       throw new BadRequestException(`system number ${rowValues[0]} has error creating cattle.`);
+    }
+  }
+
+  /** Recepción: campos de fecha/dentición para persistir en cattle. */
+  mergeReceiveCattleBirthAndDentition(dto: ReceiveCattleRequestDto): Partial<Cattle> {
+    this.assertNoPartialDentitionFields(dto);
+    const out: Partial<Cattle> = {};
+    if (this.isFullDentitionFields(dto)) {
+      const ageDays = this.dentitionEstimation.estimateAgeDays({
+        milkTeeth: dto.milkTeethCount!,
+        permanentTeeth: dto.permanentTeethCount!,
+        milkWear: dto.milkTeethWear!,
+        permanentWear: dto.permanentTeethWear!,
+      });
+      const evalDate = new Date(dto.dentalEvaluationDate!);
+      out.birthDateAprx = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+      out.birthDateAprxSource = BirthDateAprxSource.DENTITION;
+      out.milkTeethCount = dto.milkTeethCount!;
+      out.permanentTeethCount = dto.permanentTeethCount!;
+      out.milkTeethWear = dto.milkTeethWear!;
+      out.permanentTeethWear = dto.permanentTeethWear!;
+      out.dentalEvaluationDate = evalDate;
+      out.dentitionTableVersion = DENTITION_TABLE_VERSION;
+    } else if (dto.birthDateAprx) {
+      out.birthDateAprx = new Date(dto.birthDateAprx);
+      out.birthDateAprxSource = BirthDateAprxSource.MANUAL;
+    }
+    return out;
+  }
+
+  /**
+   * Estima fecha de nacimiento aproximada en servidor (misma lógica que alta/patch),
+   * sin persistir — para UI online antes de guardar.
+   */
+  previewBirthFromDentition(dto: PreviewBirthFromDentitionDto): {
+    birthDateAprx: string;
+    dentitionTableVersion: string;
+  } {
+    const ageDays = this.dentitionEstimation.estimateAgeDays({
+      milkTeeth: dto.milkTeethCount,
+      permanentTeeth: dto.permanentTeethCount,
+      milkWear: dto.milkTeethWear,
+      permanentWear: dto.permanentTeethWear,
+    });
+    const evalDate = new Date(dto.dentalEvaluationDate);
+    const birth = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+    const y = birth.getUTCFullYear();
+    const mo = String(birth.getUTCMonth() + 1).padStart(2, '0');
+    const da = String(birth.getUTCDate()).padStart(2, '0');
+    return {
+      birthDateAprx: `${y}-${mo}-${da}`,
+      dentitionTableVersion: DENTITION_TABLE_VERSION,
+    };
+  }
+
+  async recordAgeHistoryFromSavedCattle(
+    manager: EntityManager,
+    idTenant: string,
+    cattle: Cattle,
+    userId: string,
+  ): Promise<void> {
+    if (!cattle.birthDateAprxSource || !cattle.birthDateAprx) {
+      return;
+    }
+    await manager.save(CattleAgeHistory, {
+      id: randomUUID(),
+      idTenant,
+      idCattle: cattle.id,
+      source: cattle.birthDateAprxSource,
+      milkTeethCount: cattle.milkTeethCount,
+      permanentTeethCount: cattle.permanentTeethCount,
+      milkWear: cattle.milkTeethWear,
+      permanentWear: cattle.permanentTeethWear,
+      dentalEvaluationDate: cattle.dentalEvaluationDate,
+      birthDateAprxResult: cattle.birthDateAprx,
+      dentitionTableVersion: cattle.dentitionTableVersion,
+      recordedBy: userId,
+    });
+  }
+
+  private applyBirthAndDentitionMergeToDto(data: CreateCattleDto & Record<string, unknown>): void {
+    this.assertNoPartialDentitionFields(data);
+    if (this.isFullDentitionFields(data)) {
+      const ageDays = this.dentitionEstimation.estimateAgeDays({
+        milkTeeth: data.milkTeethCount!,
+        permanentTeeth: data.permanentTeethCount!,
+        milkWear: data.milkTeethWear!,
+        permanentWear: data.permanentTeethWear!,
+      });
+      const evalDate = new Date(data.dentalEvaluationDate!);
+      (data as any).birthDateAprx = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+      (data as any).birthDateAprxSource = BirthDateAprxSource.DENTITION;
+      (data as any).dentitionTableVersion = DENTITION_TABLE_VERSION;
+    } else if (data.birthDateAprx) {
+      (data as any).birthDateAprxSource = BirthDateAprxSource.MANUAL;
+    }
+  }
+
+  private async recordAgeHistoryIfNeeded(
+    manager: EntityManager,
+    idTenant: string,
+    idCattle: string,
+    data: Record<string, unknown>,
+    userId: string,
+  ): Promise<void> {
+    const source = data.birthDateAprxSource as BirthDateAprxSource | undefined;
+    if (!source) {
+      return;
+    }
+    const birth = data.birthDateAprx ? new Date(data.birthDateAprx as any) : null;
+    if (!birth) {
+      return;
+    }
+    await manager.save(CattleAgeHistory, {
+      id: randomUUID(),
+      idTenant,
+      idCattle,
+      source,
+      milkTeethCount: (data.milkTeethCount as number) ?? null,
+      permanentTeethCount: (data.permanentTeethCount as number) ?? null,
+      milkWear: (data.milkTeethWear as number) ?? null,
+      permanentWear: (data.permanentTeethWear as number) ?? null,
+      dentalEvaluationDate: data.dentalEvaluationDate ? new Date(data.dentalEvaluationDate as any) : null,
+      birthDateAprxResult: birth,
+      dentitionTableVersion: (data.dentitionTableVersion as string) ?? (source === BirthDateAprxSource.DENTITION ? DENTITION_TABLE_VERSION : null),
+      recordedBy: userId,
+    });
+  }
+
+  private assertNoPartialDentitionFields(dto: object): void {
+    const r = dto as Record<string, unknown>;
+    const keys = ['milkTeethCount', 'permanentTeethCount', 'milkTeethWear', 'permanentTeethWear', 'dentalEvaluationDate'] as const;
+    const present = keys.filter((k) => r[k] !== undefined && r[k] !== null);
+    if (present.length > 0 && present.length < keys.length) {
+      throw new BadRequestException('DENTITION_PARTIAL_FIELDS');
+    }
+  }
+
+  private isFullDentitionFields(dto: object): boolean {
+    const r = dto as Record<string, unknown>;
+    return (
+      r.milkTeethCount !== undefined &&
+      r.milkTeethCount !== null &&
+      r.permanentTeethCount !== undefined &&
+      r.permanentTeethCount !== null &&
+      r.milkTeethWear !== undefined &&
+      r.milkTeethWear !== null &&
+      r.permanentTeethWear !== undefined &&
+      r.permanentTeethWear !== null &&
+      r.dentalEvaluationDate !== undefined &&
+      r.dentalEvaluationDate !== null
+    );
+  }
+
+  private applyPatchBirthAndDentition(updateData: Record<string, unknown>): void {
+    this.assertNoPartialDentitionFields(updateData);
+    if (this.isFullDentitionFields(updateData)) {
+      const ageDays = this.dentitionEstimation.estimateAgeDays({
+        milkTeeth: updateData.milkTeethCount as number,
+        permanentTeeth: updateData.permanentTeethCount as number,
+        milkWear: updateData.milkTeethWear as number,
+        permanentWear: updateData.permanentTeethWear as number,
+      });
+      const evalDate = new Date(updateData.dentalEvaluationDate as string);
+      updateData.birthDateAprx = this.dentitionEstimation.computeBirthDateApprox(evalDate, ageDays);
+      updateData.birthDateAprxSource = BirthDateAprxSource.DENTITION;
+      updateData.dentalEvaluationDate = evalDate;
+      updateData.dentitionTableVersion = DENTITION_TABLE_VERSION;
+    } else if (updateData.birthDateAprx !== undefined && updateData.birthDateAprx !== null && !this.isFullDentitionFields(updateData)) {
+      const noDentitionKeys =
+        updateData.milkTeethCount === undefined &&
+        updateData.permanentTeethCount === undefined &&
+        updateData.milkTeethWear === undefined &&
+        updateData.permanentTeethWear === undefined &&
+        updateData.dentalEvaluationDate === undefined;
+      if (noDentitionKeys) {
+        updateData.birthDateAprxSource = BirthDateAprxSource.MANUAL;
+      }
     }
   }
 }
